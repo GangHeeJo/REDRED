@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.env
+output/
+submission_draft.csv
+*.pt
+*.mp4
+*.avi
