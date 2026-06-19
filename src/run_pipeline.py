@@ -2,12 +2,12 @@
 Main pipeline: video → detection → fusion → events → CSV
 
 Usage:
-    python run_pipeline.py \
+    python src/run_pipeline.py \
         --videos cam0.mp4 cam1.mp4 cam2.mp4 cam3.mp4 cam4.mp4 \
         --weights ~/yolov7/runs/train/exp/weights/best.pt \
-        --names   ~/yolov7/data/names.txt \
-        --prices  ../data/prices.csv \
-        --out     ../output/submission.csv \
+        --names   data/names.txt \
+        --prices  data/prices.csv \
+        --out     output/submission.csv \
         --conf    0.4 \
         --device  0
 

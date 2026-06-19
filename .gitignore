@@ -14,7 +14,8 @@ env/
 venv/
 
 # Project-specific
-output/
+output/*
+!output/.gitkeep
 submission_draft.csv
 *.pt
 *.mp4
