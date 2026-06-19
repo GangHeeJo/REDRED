@@ -34,6 +34,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from event_detector import EventDetector
 from multi_view_fusion import fuse
 from csv_generator import load_prices, events_to_csv
+from tracker import MultiCameraTracker
 
 
 def load_names(names_path: str):
@@ -167,6 +168,16 @@ def main():
                         help="JSON file with initial inventory {\"class_id\": count}")
     parser.add_argument("--init_frames", type=int, default=30,
                         help="Frames to sample for auto initial inventory (if --init_inv not set)")
+
+    # Tracker 옵션
+    parser.add_argument("--use_tracker",     action="store_true",
+                        help="SORT 트래커 활성화 (--use_tracker 없으면 기존 카운팅 방식)")
+    parser.add_argument("--tracker_max_age", type=int, default=3,
+                        help="트래커: 미감지 허용 최대 프레임 수")
+    parser.add_argument("--tracker_min_hits", type=int, default=3,
+                        help="트래커: 확정까지 필요한 연속 감지 횟수")
+    parser.add_argument("--tracker_iou",     type=float, default=0.3,
+                        help="트래커: 매칭 최소 IoU")
     args = parser.parse_args()
 
     device = f"cuda:{args.device}" if args.device.isdigit() else args.device
@@ -193,6 +204,19 @@ def main():
     detector = EventDetector(class_names, initial_counts=initial_inventory)
     vid_len  = video_duration(args.videos)
 
+    cam_tracker = None
+    if args.use_tracker:
+        cam_tracker = MultiCameraTracker(
+            n_cameras=len(caps),
+            max_age=args.tracker_max_age,
+            min_hits=args.tracker_min_hits,
+            iou_threshold=args.tracker_iou,
+        )
+        print(f"SORT 트래커 활성화 (max_age={args.tracker_max_age}, "
+              f"min_hits={args.tracker_min_hits}, iou={args.tracker_iou})")
+    else:
+        print("카운팅 방식 사용 (--use_tracker로 트래커 활성화 가능)")
+
     print(f"Processing {len(caps)} cameras, video length ≈ {vid_len:.1f}s ...")
     t_start = time.time()
     frame_idx = 0
@@ -214,6 +238,10 @@ def main():
                 dets = infer_frame(model, nms_fn, frame,
                                    args.conf, args.iou, args.img_size, device)
                 per_cam_dets.append(dets)
+
+        # 트래커 활성화 시: confirmed track만 fusion으로 전달
+        if cam_tracker is not None:
+            per_cam_dets = cam_tracker.update(per_cam_dets)
 
         fused_counts = fuse(per_cam_dets)
 
