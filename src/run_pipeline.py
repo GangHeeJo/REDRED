@@ -82,16 +82,27 @@ def estimate_initial_inventory(caps, model, nms_fn, n_frames, conf, iou, img_siz
 
 def load_model(weights: str, device: str):
     """Load YOLOv7 via torch.hub or direct import."""
-    # PYTHONPATH에 yolov7 경로가 있으면 그걸 사용, 없으면 weights 기준으로 추정
     try:
         from models.experimental import attempt_load
         from utils.general import non_max_suppression
+        import utils.google_utils as gu
     except ModuleNotFoundError:
         sys.path.insert(0, str(Path(weights).parent.parent.parent))
         from models.experimental import attempt_load
         from utils.general import non_max_suppression
+        import utils.google_utils as gu
+
+    # yolov7의 attempt_download가 경로를 소문자로 변환해서
+    # Linux 대소문자 구분 파일시스템에서 파일을 못 찾는 버그 우회
+    _orig = gu.attempt_download
+    def _safe_download(f, repo='WongKinYiu/yolov7'):
+        if Path(str(f).strip().replace("'", '')).exists():
+            return
+        _orig(f, repo)
+    gu.attempt_download = _safe_download
 
     model = attempt_load(weights, map_location=device)
+    gu.attempt_download = _orig
     model.eval()
     return model, non_max_suppression
 
