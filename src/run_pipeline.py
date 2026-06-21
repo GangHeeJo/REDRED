@@ -59,12 +59,7 @@ def estimate_initial_inventory(caps, model, nms_fn, n_frames, conf, iou, img_siz
         frames = read_frames(caps)
         if all(f is None for f in frames):
             break
-        per_cam = []
-        for f in frames:
-            if f is None:
-                per_cam.append(None)
-            else:
-                per_cam.append(infer_frame(model, nms_fn, f, conf, iou, img_size, device))
+        per_cam = infer_batch(model, nms_fn, frames, conf, iou, img_size, device)
         fused = fuse(per_cam)
         for cls_id, cnt in fused.items():
             counts_history[cls_id].append(cnt)
@@ -81,56 +76,56 @@ def estimate_initial_inventory(caps, model, nms_fn, n_frames, conf, iou, img_siz
 
 
 def load_model(weights: str, device: str):
-    """Load YOLOv7 via torch.hub or direct import."""
-    try:
-        from models.experimental import attempt_load
-        from utils.general import non_max_suppression
-        import utils.google_utils as gu
-    except ModuleNotFoundError:
-        sys.path.insert(0, str(Path(weights).parent.parent.parent))
-        from models.experimental import attempt_load
-        from utils.general import non_max_suppression
-        import utils.google_utils as gu
+    """Load YOLOv7 directly via torch.load (bypasses attempt_download 버그)."""
+    yolov7_root = str(Path.home() / "yolov7")
+    if yolov7_root not in sys.path:
+        sys.path.insert(0, yolov7_root)
+    from utils.general import non_max_suppression
+    import torch.nn as nn
 
-    # yolov7의 attempt_download가 경로를 소문자로 변환해서
-    # Linux 대소문자 구분 파일시스템에서 파일을 못 찾는 버그 우회
-    _orig = gu.attempt_download
-    def _safe_download(f, repo='WongKinYiu/yolov7'):
-        if Path(str(f).strip().replace("'", '')).exists():
-            return
-        _orig(f, repo)
-    gu.attempt_download = _safe_download
-
-    model = attempt_load(weights, map_location=device)
-    gu.attempt_download = _orig
-    model.eval()
+    ckpt = torch.load(weights, map_location=device)
+    model = (ckpt.get("ema") or ckpt["model"]).float().fuse().eval()
+    # PyTorch 1.12+ 호환성 패치
+    for m in model.modules():
+        if isinstance(m, nn.Upsample):
+            m.recompute_scale_factor = None
     return model, non_max_suppression
 
 
-def preprocess(frame, img_size=640, device="cpu"):
+def _preprocess_single(frame, img_size=640):
     img = cv2.resize(frame, (img_size, img_size))
     img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR→RGB, HWC→CHW
     img = np.ascontiguousarray(img)
-    img = torch.from_numpy(img).float().to(device) / 255.0
-    return img.unsqueeze(0)
+    return torch.from_numpy(img).float() / 255.0
 
 
-def infer_frame(model, nms_fn, frame, conf_thres=0.4, iou_thres=0.45,
+def infer_batch(model, nms_fn, frames, conf_thres=0.4, iou_thres=0.45,
                 img_size=640, device="cpu"):
-    tensor = preprocess(frame, img_size, device)
-    with torch.no_grad():
-        pred = model(tensor)[0]
-    pred = nms_fn(pred, conf_thres, iou_thres)[0]
+    """5개 카메라 프레임을 GPU 한 번에 배치 추론."""
+    valid_idx = [i for i, f in enumerate(frames) if f is not None]
+    if not valid_idx:
+        return [None] * len(frames)
 
-    detections = []
-    if pred is not None and len(pred):
-        for *xyxy, conf, cls in pred.cpu().numpy():
-            detections.append({
-                "class_id":   int(cls),
-                "confidence": float(conf),
-                "bbox":       [float(v) for v in xyxy],
-            })
-    return detections
+    tensors = [_preprocess_single(frames[i], img_size) for i in valid_idx]
+    batch = torch.stack(tensors).to(device)
+
+    with torch.no_grad():
+        preds = model(batch)[0]
+    preds = nms_fn(preds, conf_thres, iou_thres)
+
+    per_cam = [None] * len(frames)
+    for out_i, cam_i in enumerate(valid_idx):
+        pred = preds[out_i]
+        dets = []
+        if pred is not None and len(pred):
+            for *xyxy, conf, cls in pred.cpu().numpy():
+                dets.append({
+                    "class_id":   int(cls),
+                    "confidence": float(conf),
+                    "bbox":       [float(v) for v in xyxy],
+                })
+        per_cam[cam_i] = dets
+    return per_cam
 
 
 def open_videos(video_paths):
@@ -264,15 +259,8 @@ def main():
             continue
 
         frames = retrieve_frames(caps, statuses)
-
-        per_cam_dets = []
-        for frame in frames:
-            if frame is None:
-                per_cam_dets.append(None)
-            else:
-                dets = infer_frame(model, nms_fn, frame,
+        per_cam_dets = infer_batch(model, nms_fn, frames,
                                    args.conf, args.iou, args.img_size, device)
-                per_cam_dets.append(dets)
 
         # 트래커 활성화 시: confirmed track만 fusion으로 전달
         if cam_tracker is not None:
