@@ -82,9 +82,14 @@ def estimate_initial_inventory(caps, model, nms_fn, n_frames, conf, iou, img_siz
 
 def load_model(weights: str, device: str):
     """Load YOLOv7 via torch.hub or direct import."""
-    sys.path.insert(0, str(Path(weights).parent.parent.parent))  # yolov7 root
-    from models.experimental import attempt_load
-    from utils.general import non_max_suppression
+    # PYTHONPATH에 yolov7 경로가 있으면 그걸 사용, 없으면 weights 기준으로 추정
+    try:
+        from models.experimental import attempt_load
+        from utils.general import non_max_suppression
+    except ModuleNotFoundError:
+        sys.path.insert(0, str(Path(weights).parent.parent.parent))
+        from models.experimental import attempt_load
+        from utils.general import non_max_suppression
 
     model = attempt_load(weights, map_location=device)
     model.eval()
