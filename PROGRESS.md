@@ -5,7 +5,7 @@
 
 ---
 
-## 현재 상태 (2026-06-21)
+## 현재 상태 (2026-06-22)
 
 파이프라인 정상 동작 중.
 
@@ -165,8 +165,38 @@ cd ~/yolov7 && PYTHONPATH=~/yolov7 python train.py \
 
 ---
 
+## 현재 확정 파라미터
+
+| 파라미터 | 값 | 설명 |
+|---------|-----|------|
+| `WINDOW_SIZE` | 25 | `src/event_detector.py` |
+| `MIN_EVENT_GAP` | 90 | `src/event_detector.py` |
+| `MAX_DELTA` | 4 | `src/event_detector.py` |
+| `--conf` | 0.4 | `run_test.sh` |
+| `--skip` | 2 | `run_test.sh` |
+
+파라미터 바꾸고 싶으면 → 로컬에서 수정 → `git push` → 서버에서 `git pull && bash run_test.sh 2`
+
+---
+
+## 재고 분석 도구
+
+`tools/analyze_inventory.py` — 필터링 없이 프레임별 감지 결과를 그래프로 시각화. 파라미터 튜닝 근거 확인용.
+
+```bash
+python tools/analyze_inventory.py \
+    --videos ~/Dataset/4.TestVideo_Sample/cam{0..4}/Sample_1.mp4 \
+    --weights ~/Dataset/yolov7_custom.pt \
+    --names data/names.txt \
+    --out output/analysis --skip 2 --device 0
+```
+
+결과: `output/analysis/inventory_plot.png`, `raw_events.csv`
+
+---
+
 ## 앞으로 할 일
 
-- [ ] 테스트 영상 육안 확인 후 오탐/미탐 분석 (학교 네트워크 필요)
-- [ ] 필요 시 `--conf` threshold 조정
 - [ ] 발표 자료 준비
+- [ ] 파라미터 추가 튜닝 필요 시: `src/event_detector.py`의 `WINDOW_SIZE`, `MIN_EVENT_GAP` 조정
+- [ ] 정확도 검증: 영상 직접 보면서 이벤트 수 수동 확인 (학교 네트워크 필요)
