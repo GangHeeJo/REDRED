@@ -157,11 +157,34 @@ cd ~/yolov7 && PYTHONPATH=~/yolov7 python train.py \
 
 ---
 
+## 주요 결정사항 / 트러블슈팅 기록
+
+### 클래스 이름 오탈자 (수정 금지!)
+`data/names.txt`와 `data/prices.csv`에 오탈자처럼 보이는 이름 두 개가 있음:
+- `pop_tararts_strawberry` (pop tarts가 아님)
+- `nature_vally_fruit_and_nut` (nature valley가 아님)
+
+**대회 공식 클래스명이 이 오탈자 그대로임.** 서버 `~/Dataset/names.txt`와 학습 데이터 폴더명도 동일하게 오탈자. 절대 수정하지 말 것.
+
+### load_model: torch.load 직접 사용
+YOLOv7의 `attempt_load`를 쓰면 내부의 `attempt_download`가 파일 경로를 소문자로 변환 → Linux 대소문자 구분 파일시스템에서 `~/Dataset` → `~/dataset`로 바뀌어 파일 못 찾음. `torch.load` 직접 사용으로 우회. (`src/run_pipeline.py`의 `load_model()` 참고)
+
+### 반환(반납) 이벤트 총액 처리
+반환 이벤트는 총액에 기여하지 않음 (0원으로 처리). 고객 환불이 아닌 재입고로 해석. (`src/csv_generator.py` 참고)
+
+### pepperidge_farm 감지 불안정
+`pepperidge_farm_milk_chocolate_macadamia_cookies`가 confidence 경계선에서 0↔1 깜빡임. 노이즈임. WINDOW_SIZE=25로 대부분 억제됨. `output/analysis/inventory_plot.png` 참고.
+
+### git remote 주의
+서버 `~/REDRED`가 처음에 chickgoose/REDRED를 바라보고 있었음. 현재는 GangHeeJo/REDRED로 수정됨. push/pull은 항상 GangHeeJo/REDRED로만.
+
+---
+
 ## 주의사항
 
-- `data/names.txt`, `data/prices.csv`의 `pop_tararts_strawberry`, `nature_vally_fruit_and_nut` — 대회 공식 오탈자, 수정 금지
 - 재학습 시 반드시 `screen` 또는 `tmux + nohup` 사용 (세션 끊기면 중단됨)
 - git push/pull은 **GangHeeJo/REDRED** 로만
+- chickgoose/REDRED는 읽기 전용 참고용 — 절대 push하지 말 것
 
 ---
 
