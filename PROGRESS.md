@@ -159,18 +159,18 @@ cd ~/yolov7 && PYTHONPATH=~/yolov7 python train.py \
 
 ## 개발 로그 (시간순)
 
-### Phase 1 — 초기 파이프라인 구축 (chickgoose)
+### 2026-06-19 | Phase 1 — 초기 파이프라인 구축 (박준영/chickgoose)
 - 5카메라 → YOLOv7 → 멀티뷰 퓨전 → 이벤트 감지 → CSV 기본 뼈대 완성
 - `torch.load` 직접 사용으로 `attempt_download` 버그 우회 (경로 소문자 변환 문제)
 - PyTorch 1.12 호환성 패치: `Upsample.recompute_scale_factor = None`
 - `run_test.sh` 추가, PYTHONPATH 포함
 
-### Phase 2 — RTF 최적화 (chickgoose)
+### 2026-06-19 | Phase 2 — RTF 최적화 (박준영/chickgoose)
 - `grab()`/`retrieve()` 방식 도입: skip 프레임에서 H.264 디코딩 없이 위치만 이동
 - 5카메라 배치 GPU 추론: 단일 forward pass로 RTF 대폭 절감
 - RTF 0.751 달성
 
-### Phase 3 — 증강 파이프라인 개선 (chickgoose)
+### 2026-06-19 | Phase 3 — 증강 파이프라인 개선 (박준영/chickgoose)
 - chickgoose 레포 기준 `augment/cut_paste_aug.py` 여러 차례 개선:
   - `load_seg_images()`: 폴더명 숫자 prefix에서 class_id 파싱 버그 수정
   - 회전 각도 ±15° → ±5°로 축소 (과도한 회전이 실제 데이터와 괴리)
@@ -179,13 +179,13 @@ cd ~/yolov7 && PYTHONPATH=~/yolov7 python train.py \
 - 5,000장 증강 완료 (`~/Dataset/augmented/`)
 - 세그멘테이션 소스: `~/Dataset/3.background_substracted_white/` (클래스별 폴더)
 
-### Phase 4 — 파인튜닝 시도 및 미채택 (chickgoose)
+### 2026-06-19 | Phase 4 — 파인튜닝 시도 및 미채택 (박준영/chickgoose)
 - 원본 가중치 기반 30 epoch 추가 학습
 - mAP@0.5: 0.9904 (원본) → 0.9840 — 오히려 하락
 - 원인 추정: Cut&Paste 증강 분포가 실제 테스트 영상과 다름
 - 결론: **원본 가중치(`yolov7_custom.pt`) 유지**
 
-### Phase 5 — GangHeeJo 레포 동기화 및 코드 정리 (강희조)
+### 2026-06-21 | Phase 5 — GangHeeJo 레포 동기화 및 코드 정리 (조강희)
 - 서버 `~/REDRED` remote를 chickgoose → GangHeeJo로 변경
 - chickgoose `pipeline/` 코드를 우리 `src/`로 통합
 - 주요 병합 내용:
@@ -194,7 +194,7 @@ cd ~/yolov7 && PYTHONPATH=~/yolov7 python train.py \
 - CSV 포맷 수정: 셀값 `"재고 수량: N개"` → `"N개"`, `"총액: X"` → `"X"`
 - 반환 이벤트 총액 처리: 환불이 아닌 재입고로 해석 → 총액 기여 0원
 
-### Phase 6 — EventDetector 파라미터 튜닝 (강희조, 2026-06-22)
+### 2026-06-21~22 | Phase 6 — EventDetector 파라미터 튜닝 (조강희)
 - `tools/analyze_inventory.py` 제작: 프레임별 재고 변화 그래프 시각화
 - 분석 결과: `pepperidge_farm_milk_chocolate_macadamia_cookies`가 confidence 경계선에서 0↔1 빠르게 깜빡임 (노이즈)
 - 튜닝 과정:
