@@ -129,6 +129,23 @@ def open_videos(video_paths):
     return caps
 
 
+def grab_frames(caps):
+    """Advance all caps by one frame without decoding. Returns alive status per cap."""
+    return [cap.grab() if cap is not None else False for cap in caps]
+
+
+def retrieve_frames(caps, statuses):
+    """Decode frames that were grabbed. Only call after grab_frames()."""
+    frames = []
+    for cap, ok in zip(caps, statuses):
+        if cap is None or not ok:
+            frames.append(None)
+        else:
+            ret, frame = cap.retrieve()
+            frames.append(frame if ret else None)
+    return frames
+
+
 def read_frames(caps):
     frames = []
     for cap in caps:
@@ -222,13 +239,15 @@ def main():
     frame_idx = 0
 
     while True:
-        frames = read_frames(caps)
-        if all(f is None for f in frames):
+        statuses = grab_frames(caps)
+        if not any(statuses):
             break
 
         if frame_idx % args.skip != 0:
             frame_idx += 1
             continue
+
+        frames = retrieve_frames(caps, statuses)
 
         per_cam_dets = []
         for frame in frames:
@@ -274,6 +293,8 @@ def main():
         prices=prices,
         out_path=args.out,
         initial_inventory=initial_inventory,
+        include_action=True,
+        total_mode="per_class",
     )
 
 

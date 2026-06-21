@@ -593,25 +593,11 @@ def events_to_csv(
         if cls_id not in class_total:
             class_total[cls_id] = Decimal("0")
 
-        # [수정] 총액 계산
+        # [수정] 총액 계산 — 반환은 판매 총액에 미포함 (재진열로 간주)
         if action == "구매":
             event_amount = price * Decimal(change_count)
             global_total += event_amount
             class_total[cls_id] += event_amount
-
-        elif action == "반환":
-            # 반환은 환불/판매취소로 보고 누적 총액에서 차감
-            event_amount = -(price * Decimal(change_count))
-            global_total += event_amount
-            class_total[cls_id] += event_amount
-
-            # 총액이 음수가 되지 않게 방어
-            if global_total < Decimal("0"):
-                global_total = Decimal("0")
-
-            if class_total[cls_id] < Decimal("0"):
-                class_total[cls_id] = Decimal("0")
-
         else:
             event_amount = Decimal("0")
 
@@ -636,8 +622,8 @@ def events_to_csv(
             row.append(f"{delta:+d}")
 
         row += [
-            f"재고 수량: {after}개",
-            f"총액: {format_money(total_to_write, currency=currency, money_digits=money_digits, currency_as_suffix=currency_as_suffix)}",
+            f"{after}개",
+            format_money(total_to_write, currency=currency, money_digits=money_digits, currency_as_suffix=currency_as_suffix),
         ]
 
         rows.append(row)
