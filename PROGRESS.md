@@ -11,9 +11,9 @@
 
 | 항목 | 값 |
 |------|-----|
-| RTF | 0.746 (목표 < 1.0, 통과) |
-| 처리 시간 | 178.4s (영상 길이 239.0s) |
-| 감지 이벤트 수 | 170 (파라미터 튜닝 후) |
+| RTF | 0.742 (목표 < 1.0, 통과) |
+| 처리 시간 | 177.2s (영상 길이 239.0s) |
+| 감지 이벤트 수 | 112 (파라미터 튜닝 후) |
 | 모델 mAP@0.5 | 98.1% (제공 가중치 `yolov7_custom.pt` 사용 중) |
 | 제출 파일 | `~/REDRED/output/submission_skip2.csv` |
 
@@ -104,9 +104,9 @@ cat output/submission_skip2.csv | head -20
 - 5카메라 배치 GPU 추론 (단일 forward pass)
 
 ### EventDetector 파라미터 튜닝 ✅
-- `WINDOW_SIZE`: 7 → 9 (더 안정적인 sliding window median)
-- `MIN_EVENT_GAP`: 10 → 30 (skip=2 기준 실제 60프레임≈2초, 오탐 억제)
-- 결과: 246 이벤트 → 170 이벤트
+- `WINDOW_SIZE`: 7 → 25 (더 넓은 median 창으로 confidence 경계 깜빡임 억제)
+- `MIN_EVENT_GAP`: 10 → 90 (skip=2 기준 실제 180프레임≈6초, 오탐 억제)
+- 결과: 246 이벤트 → 112 이벤트 (pepperidge_farm 22→6)
 
 ### CSV 포맷 수정 ✅
 - 셀 포맷: `"재고 수량: N개"` → `"N개"`, `"총액: X"` → `"X"`
