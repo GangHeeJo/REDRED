@@ -125,6 +125,38 @@ cat output/submission_skip2.csv | head -20
 
 ---
 
+## 재학습 방법 (필요 시)
+
+```bash
+# 1. 증강 데이터 새로 생성
+python ~/REDRED/tools/cut_paste_aug.py \
+    --seg_dir  ~/Dataset/2.backsub_images_100 \
+    --bg_dir   ~/Dataset/3.Background_Images \
+    --out_dir  ~/Dataset/augmented \
+    --num_images 5000 --max_objects 4
+
+# 2. train.txt 재구성 (기존 augmented 줄 제거 후 새로 추가)
+grep -v "augmented" ~/yolov7/data/train.txt > /tmp/train_clean.txt
+mv /tmp/train_clean.txt ~/yolov7/data/train.txt
+find ~/Dataset/augmented/images -name "*.jpg" >> ~/yolov7/data/train.txt
+
+# 3. 재학습 (screen으로 세션 유지)
+screen -S train
+cd ~/yolov7 && PYTHONPATH=~/yolov7 python train.py \
+    --weights ~/Dataset/yolov7_custom.pt \
+    --data data/custom.yaml \
+    --epochs 30 \
+    --batch-size 16 \
+    --img 640 \
+    --device 0 \
+    --name retrain_v2 \
+    --exist-ok
+
+# 세션 이탈: Ctrl+A, D  /  재접속: screen -r train
+```
+
+---
+
 ## 주의사항
 
 - `data/names.txt`, `data/prices.csv`의 `pop_tararts_strawberry`, `nature_vally_fruit_and_nut` — 대회 공식 오탈자, 수정 금지
