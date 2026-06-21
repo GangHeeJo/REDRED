@@ -25,7 +25,7 @@ bulls_eye_bbq_sauce_original
 reeses_pieces
 clif_crunch_peanut_butter
 mom_to_mom_butternut_squash_pear
-pop_tarts_strawberry
+pop_tararts_strawberry
 quaker_big_chewy_chocolate_chip
 spam
 coffee_mate_french_vanilla
@@ -45,7 +45,7 @@ campbells_chicken_noodle_soup
 frappuccino_coffee
 chewy_dips_chocolate_chip
 chewy_dips_peanut_butter
-nature_valley_fruit_and_nut
+nature_vally_fruit_and_nut
 cheerios
 lindt_excellence_cocoa_dark_chocolate
 hersheys_symphony
