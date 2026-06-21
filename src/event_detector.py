@@ -26,7 +26,7 @@ import statistics
 # 파라미터 (필요시 EventDetector 생성자에서 override 가능)
 # ---------------------------------------------------------------
 
-WINDOW_SIZE    = 9    # sliding window 크기 (홀수 권장)
+WINDOW_SIZE    = 15   # sliding window 크기 (홀수 권장)
 MAX_DELTA      = 4    # 한 이벤트에서 허용하는 최대 수량 변화 (초과 시 노이즈로 무시)
 MIN_EVENT_GAP  = 90   # 같은 클래스에서 이벤트 재발생까지 필요한 최소 프레임 수
                       # skip=2 기준 → 실제 180프레임 ≈ 6초 (구매/반환 최소 소요시간)

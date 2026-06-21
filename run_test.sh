@@ -22,4 +22,5 @@ PYTHONPATH=$YOLOV7 python src/run_pipeline.py \
     --prices data/prices.csv \
     --out output/submission_skip${SKIP}.csv \
     --skip $SKIP \
+    --conf 0.5 \
     --device 0
