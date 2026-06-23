@@ -1,8 +1,11 @@
-timestamp,description,total_gt,total_sub,TP,FP,FN,Precision,Recall,F1,RTF,accuracy_score,rtf_score,total_score
+﻿timestamp,description,total_gt,total_sub,TP,FP,FN,Precision,Recall,F1,RTF,accuracy_score,rtf_score,total_score
 2026-06-19,초기 버전 — win=7 gap=10 conf=0.4 (UNKNOWN 상태 포함),105,246,-,-,-,-,-,-,-,-,-,-
 2026-06-21,튜닝 1차 — win=9 gap=30 conf=0.4,105,170,-,-,-,-,-,-,-,-,-,-
 2026-06-21,튜닝 2차 — win=9 gap=60 conf=0.4,105,144,-,-,-,-,-,-,-,-,-,-
 2026-06-21,튜닝 3차 — win=9 gap=90 conf=0.4,105,130,-,-,-,-,-,-,-,-,-,-
 2026-06-22,튜닝 4차 — win=15 gap=90 conf=0.5 (conf 올리면 악화),105,124,-,-,-,-,-,-,-,-,-,-
 2026-06-22,확정 파라미터 win=25 gap=90 (UNKNOWN 상태 반환 리콜 ~7%),105,112,-,-,-,-,-,-,0.742,-,15.1,-
+2026-06-23,버그1+2: UNKNOWN 제거 + 연쇄잠김 해제 → recall 42%→79% (83/105),105,-,-,-,-,-,-,-,0.742,-,15.1,-
+2026-06-23,버그3: dove_white/bumblebee/dove_pink max-confidence 융합 → recall 79%→82% (86/105),105,-,-,-,-,-,-,-,0.742,-,15.1,-
 2026-06-23 13:28,UNKNOWN 제거 + history reset (skip=2),105,108,94,14,11,87.0%,89.5%,88.3%,0.742,35.3,15.1,50.4
+2026-06-23 14:53,현재 최종 상태 재채점 (UNKNOWN+연쇄잠김+dove_white 모두 수정),105,104,94,10,11,90.4%,89.5%,90.0%,0.742,36.0,15.1,51.1
