@@ -16,6 +16,8 @@ Falls back to same-directory same-basename .txt if that path doesn't exist.
 
 import argparse
 import os
+import sys
+import time
 from collections import Counter
 
 
@@ -43,11 +45,17 @@ def main():
     with open(args.train_txt, encoding="utf-8") as f:
         img_paths = [l.strip() for l in f if l.strip()]
 
+    print(f"Found {len(img_paths)} image paths in {args.train_txt}, scanning labels...")
+
     instance_counts = Counter()   # class_id -> total bbox instances
     image_counts = Counter()      # class_id -> number of images containing it
     missing_labels = 0
+    t0 = time.time()
 
-    for img_path in img_paths:
+    for i, img_path in enumerate(img_paths, start=1):
+        if i % 1000 == 0 or i == len(img_paths):
+            elapsed = time.time() - t0
+            print(f"  ...{i}/{len(img_paths)} images scanned ({elapsed:.1f}s elapsed)", flush=True)
         label_path = find_label_path(img_path)
         if not label_path:
             missing_labels += 1
