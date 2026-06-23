@@ -302,6 +302,28 @@ cd ~/yolov7 && PYTHONPATH=~/yolov7 python train.py \
 - **시간(timestamp)은 공식 평가 항목에 없음** — `ground_truth_v2.csv`의 `time_sec`은 내부 분석/채점 전용
 - 정량 평가(60점) = 재고인식 정확도 40점 + RTF 20점 (발표 40점 별도)
 
+### 2026-06-23 | Phase 9 — 오류 클래스 전수조사 + quorum 확장 (박준영+Claude)
+
+**오류 클래스 분류 (raw 신호량 기준, `output/debug_frame_counts.csv`):**
+- `score_methods.py`의 mismatch 출력이 `[:10]`으로 잘려 있어서 일부 클래스가 안 보였음 — python으로 전체 Counter diff 재계산해서 19개 (class,action) 조합 / 16개 고유 클래스 확인.
+- 3그룹으로 분류됨:
+  1. **완전 블라인드**(raw=0, 영상 전체에서 단 한 프레임도 감지 안 됨): `campbells_chicken_noodle_soup`, `redbull`, `crystal_hot_sauce`
+  2. **희미하게 보임**(raw 16~61프레임, max동시count=1): `haribo_gold_bears_gummi_candy`, `pepperidge_farm_milano_cookies_double_chocolate`, `spam`, `frappuccino_coffee`, `dr_pepper`, `bulls_eye_bbq_sauce_original`
+  3. **과다 인식**(raw 86~914프레임, 정상보다 훨씬 많음): `pop_tararts_strawberry`, `hunts_sauce`, `pepperidge_farm_milk_chocolate_macadamia_cookies` — 인식은 잘 되는데 이벤트가 중복 발화. `white_rain_body_wash`/`coca_cola_glass_bottle`도 같은 패턴으로 가짜 이벤트 생성.
+- 클래스 속성으론 공통점 없고, GT 발생 "시각"이 공통점 — 오류 이벤트 대부분이 3개의 연속 다중 이벤트 구간(0~23초/40~68초/105~133초, 아이템이 1~3초 간격으로 연속 변화)에 몰림. `WINDOW_SIZE=25`/`CONFIRM_FRAMES=30`이 아이템이 띄엄띄엄 변하는 걸 가정한 파라미터라 이런 구간에서 신호 약한 클래스는 누락, 신호 강한 클래스는 중복발화로 갈림.
+
+**`run_test.sh` 개선:** `--debug_log`/`--timed_log`를 매 실행 기본 포함 + 자동으로 `score_methods.py` 3종 채점까지 실행. (이전엔 둘 다 수동으로 따로 돌려야 해서 채점에 쓴 제출 파일과 진단 로그가 서로 다른 실행 결과인 경우가 있었음 — 재현성 위해 한 실행에서 다 나오게 통일.)
+
+**quorum 확장 (`src/multi_view_fusion.py`):**
+- `tools/probe_low_confidence.py`를 `campbells_chicken_noodle_soup`/`redbull`/`crystal_hot_sauce`/`dr_pepper`에 대해 conf=0.05로 재실행(`output/low_conf_probe2.csv`).
+- **`redbull`(cam0 단독)/`crystal_hot_sauce`(cam3 위주+가끔 cam4)/`dr_pepper`(cam4→+cam1→+cam0)**: bumblebee_albacore/dove와 동일한 구조적 문제 확인 — 구매 직전까지 끊김없이 화면에 계속 있는데 5캠 중 1~2캠에만 보여서 median 퓨전(과반 필요)이 항상 0으로 만들었던 것. `CLASS_QUORUM_OVERRIDE`에 quorum=1로 추가(`redbull`=15, `crystal_hot_sauce`=39, `dr_pepper`=21).
+- **`campbells_chicken_noodle_soup`은 다른 문제**: cam4가 GT 구매 시각(11s) 이후로도 ~100초간 계속 감지 — quorum 문제가 아니라 `campbells_chunky_classic_chicken_noodle`과의 클래스 혼동으로 추정. **의도적으로 quorum override에서 제외**, bbox 위치 확인 필요.
+- **결과**: F1 90.0%→**91.5%**, order 83.3%→**84.9%**, time 82.5%→**84.0%**, 추정 총점 50.9→**51.6점**. `redbull`/`crystal_hot_sauce`/`dr_pepper`가 양쪽 채점 방식에서 완전히 사라짐, 다른 클래스 부작용 없음(pop_tararts/hunts_sauce/pepperidge_milk 카운트 그대로).
+
+**남은 문제 (재실행 2회로 변동 여부 구분됨):**
+- 두 번 다 동일하게 깨짐(진짜 문제, 재현됨): `bulls_eye_bbq_sauce_original`, `haribo_gold_bears_gummi_candy`, `pepperidge_farm_milano_cookies_double_chocolate`, `spam`, `frappuccino_coffee`, `campbells_chicken_noodle_soup` — 이 중 `bulls_eye_bbq_sauce_original`/`haribo`/`milano`/`spam`은 quorum probe 안 해봤음 (다음 후보), `frappuccino_coffee`는 quorum이 아니라 "너무 일찍(3.6s) 확정"되는 별개 버그(로컬 리플레이로 확인, 실제 구매는 16s).
+- 실행마다 다르게 나타남(GPU 비결정성 의심): `nabisco_nilla_wafers`, `white_rain_body_wash`(가짜 반환), `coca_cola_glass_bottle`(가짜 반환) — 우선순위 낮음.
+
 ---
 
 ## 주요 결정사항 / 트러블슈팅 기록
@@ -343,7 +365,7 @@ YOLOv7의 `attempt_load`를 쓰면 내부의 `attempt_download`가 파일 경로
 | `CONFIRM_FRAMES` | 30 | `src/event_detector.py` — candidate 확정까지 필요한 연속 프레임(skip=2 기준 ~2초) |
 | `MAX_DELTA` | 4 | `src/event_detector.py` — 1회 이벤트당 허용 최대 변화량 |
 | `MAX_INVENTORY` | 1 | `src/event_detector.py` — 슬롯당 물리적 최대 재고 |
-| `CLASS_QUORUM_OVERRIDE` | {2:1, 53:1, 54:2} | `src/multi_view_fusion.py` — bumblebee_albacore(1), dove_pink(1), dove_white(2). 숫자는 이벤트로 인정하는 데 필요한 동시 카메라 수 |
+| `CLASS_QUORUM_OVERRIDE` | {2:1, 53:1, 54:2, 15:1, 39:1, 21:1} | `src/multi_view_fusion.py` — bumblebee_albacore(1), dove_pink(1), dove_white(2), redbull(1), crystal_hot_sauce(1), dr_pepper(1). 숫자는 이벤트로 인정하는 데 필요한 동시 카메라 수 |
 | `--conf` | 0.4 | `run_test.sh` |
 | `--skip` | 2 | `run_test.sh` |
 
@@ -370,9 +392,12 @@ python tools/analyze_inventory.py \
 ## 앞으로 할 일
 
 - [ ] 발표 자료 준비
-- [ ] `pop_tararts_strawberry` 구매/반환 사이클 시간 뒤섞임(77초 차이) — 현재 가장 큰 잔여 오차, 원인 미파악
+- [ ] `pop_tararts_strawberry` 구매/반환 사이클 시간 뒤섞임(77초 차이) — 현재 가장 큰 잔여 오차, 원인 미파악 (quorum과 무관, WINDOW_SIZE/CONFIRM_FRAMES 쪽 문제로 추정)
 - [ ] `hunts_sauce`, `pepperidge_farm_milk_chocolate_macadamia_cookies` 구매 — 60초대 시간 오차, 같은 계열 문제로 추정
-- [ ] `pepperidge_farm_milano_cookies_double_chocolate`, `haribo_gold_bears_gummi_candy`, `frappuccino_coffee`, `spam` 완전 누락 — 원인 미파악 (haribo는 기존에 GPU 비결정성으로 진단됐던 것과 같은 클래스, frappuccino는 이전에 너무 일찍(14초) 잘못 확정되는 패턴이 한 번 확인된 적 있음)
+- [ ] `bulls_eye_bbq_sauce_original`, `haribo_gold_bears_gummi_candy`, `pepperidge_farm_milano_cookies_double_chocolate`, `spam` — `tools/probe_low_confidence.py`로 quorum 패턴인지 확인 (redbull/crystal_hot_sauce/dr_pepper와 같은 방식으로 고쳐질 가능성 높음, 다음 우선 작업)
+- [ ] `campbells_chicken_noodle_soup` — cam4가 구매(11s) 이후로도 계속 오감지, `campbells_chunky_classic_chicken_noodle`과 혼동 의심, bbox 위치 확인 필요
+- [ ] `frappuccino_coffee` — quorum 문제 아님, 영상 초반 노이즈로 너무 일찍(3.6s) 확정됨(실제 구매는 16s) — 별도 원인 조사 필요
 - [ ] 섹션1 초반 구매 미검출 — `--init_frames` 추정 윈도우와 실제 구매 타이밍이 겹치는 문제 (예: init_frames 축소, 또는 추정 방식 개선)
 - [x] ~~`dove_white` 중복 발화~~ → quorum=2로 절충, 순오류 4건→2건 감소 (2026-06-23)
 - [x] ~~정확도 검증~~ → `data/ground_truth_v2.csv` + `tools/score_methods.py`(3종 방식) + 리더보드로 완료 (2026-06-23)
+- [x] ~~`redbull`/`crystal_hot_sauce`/`dr_pepper` 완전누락~~ → quorum=1 추가로 해결, F1 90.0%→91.5% (2026-06-23)
