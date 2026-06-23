@@ -32,10 +32,7 @@ Usage:
 `--timed` (from `run_pipeline.py --timed_log`) is only needed for method 3.
 If omitted, methods 1 and 2 still run using `--sub`.
 
-`--gt` must have a `time_sec` column with real seconds (not the raw
-minute:second:frame mislabeling bug from the first ground_truth_v2.csv --
-see PROGRESS.md for that one-off /60 correction; ground_truth_v2_fixed.csv
-already has it applied).
+`--gt` must have a `time_sec` column with real seconds.
 """
 
 import argparse
@@ -182,7 +179,7 @@ def score_time(gt_timed, sub_timed, tolerance=3.0, bias=None):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--gt", default="data/ground_truth_v2_fixed.csv")
+    parser.add_argument("--gt", default="data/ground_truth_v2.csv")
     parser.add_argument("--sub", default="output/submission_skip2.csv")
     parser.add_argument("--timed", default=None,
                         help="output of run_pipeline.py --timed_log; required for method 3")
