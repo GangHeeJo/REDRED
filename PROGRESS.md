@@ -282,6 +282,26 @@ cd ~/yolov7 && PYTHONPATH=~/yolov7 python train.py \
 - `pepperidge_farm_milk_chocolate_macadamia_cookies` 구매: 63.9초 차이
 - `pepperidge_farm_milano_cookies_double_chocolate`, `haribo_gold_bears_gummi_candy`, `frappuccino_coffee`, `spam`: 완전 누락
 
+### 2026-06-23 | Phase 8 추가 — 리더보드 자동화 + GT 재검수 (강희조+Claude)
+
+**리더보드 웹 자동화:**
+- `tools/score.py`: 채점 후 `output/leaderboard.csv` 누적 기록 + `output/leaderboard.html`(다크 테마 웹 대시보드) 자동 생성. 히스토리 항목(CSV 없는 과거 기록)도 dimmed 행으로 표시.
+- `src/run_pipeline.py`: 실행 완료 시 `output/run_stats.json` 자동 저장 (RTF, 처리시간, 영상길이 포함)
+- `run_test.sh`: 파이프라인 성공 → `score.py` 자동 호출 → `git push` — **서버에서 한 번 돌리면 리더보드가 자동 갱신됨**
+- `.gitignore`: `output/leaderboard.csv`, `output/leaderboard.html` 예외 추가 (git 추적 대상)
+- RTF 점수 공식 PDF 역추산으로 확정: `rtf_score = 20 × (1 − RTF/3)` — 예시(RTF=0.75→15점) 검증됨
+
+**ground_truth v1 vs v2 비교:**
+- 전체 105행 중 다른 행 10개 발견:
+  - **순서만 뒤바뀐 것** (내용 동일): 9↔10행, 40↔41행, 101↔102행 — Excel에서 인접 이벤트 순서 재정렬한 것으로 추정
+  - **상품 자체가 다른 것**: 25, 53행 — v1의 `nabisco_nilla_wafers` → v2의 `pepperidge_farm_milano_cookies_double_chocolate` (v2가 정확, 재검수 확인)
+- prefix 버그 2건(`50.hersheys_symphony`, `6.honey_bunches_of_oats_honey_roasted`) 수정 완료
+
+**대회 평가 기준 재확인 (튜토리얼 PDF 48페이지 직접 확인):**
+- 제출 CSV 평가 항목: `품목명, 이벤트번호, 구매/반환여부, 재고수량, 총액`
+- **시간(timestamp)은 공식 평가 항목에 없음** — `ground_truth_v2.csv`의 `time_sec`은 내부 분석/채점 전용
+- 정량 평가(60점) = 재고인식 정확도 40점 + RTF 20점 (발표 40점 별도)
+
 ---
 
 ## 주요 결정사항 / 트러블슈팅 기록
