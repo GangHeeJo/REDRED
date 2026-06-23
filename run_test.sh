@@ -19,7 +19,9 @@ PYTHONPATH=$YOLOV7 python src/run_pipeline.py \
     --out output/submission_skip${SKIP}.csv \
     --skip $SKIP \
     --conf 0.4 \
-    --device 0
+    --device 0 \
+    --debug_log output/debug_frame_counts.csv \
+    --timed_log output/sub_events_timed.csv
 
 # 파이프라인 성공 시 자동 채점 + 리더보드 갱신 + GitHub push
 if [ $? -eq 0 ] && [ -f output/run_stats.json ]; then
@@ -30,6 +32,13 @@ if [ $? -eq 0 ] && [ -f output/run_stats.json ]; then
         --sub output/submission_skip${SKIP}.csv \
         --desc "$DESC" \
         --rtf "$RTF"
+
+    echo ""
+    echo "=== 3종 채점 방식 (count/order/time) ==="
+    python tools/score_methods.py \
+        --gt data/ground_truth_v2.csv \
+        --sub output/submission_skip${SKIP}.csv \
+        --timed output/sub_events_timed.csv
 
     echo ""
     echo "=== 리더보드 GitHub 업로드 ==="
