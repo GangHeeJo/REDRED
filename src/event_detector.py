@@ -13,10 +13,10 @@ Transitions:
   CANDIDATE + (median == committed)                     → STABLE (noise, cancelled)
   CANDIDATE + (median changes to another value)         → CANDIDATE (timer reset)
 
-Why this approach:
-  Flickering items (0↔1 every frame) never stabilize in UNKNOWN → no false events.
-  Real events persist for CONFIRM_FRAMES → reliably detected.
-  No MIN_EVENT_GAP needed: the confirmation window naturally prevents rapid re-triggering.
+Inventory constraints (physical limits):
+  - Purchase blocked if committed == 0  (can't buy from empty shelf)
+  - Return  blocked if committed >= MAX_INVENTORY  (shelf is full)
+  These cancel any candidate that would violate physical reality.
 """
 
 from dataclasses import dataclass
@@ -35,6 +35,7 @@ MAX_DELTA      = 4    # max count change allowed per event
 INIT_CONFIRM   = 5    # consecutive stable frames to confirm initial inventory
 CONFIRM_FRAMES = 30   # consecutive frames new state must persist to fire event
                       # skip=2 → 60 real frames ≈ 2 seconds
+MAX_INVENTORY  = 1    # physical shelf capacity per slot (most items: 0↔1)
 
 
 # ---------------------------------------------------------------
@@ -73,12 +74,14 @@ class EventDetector:
         max_delta:      int = MAX_DELTA,
         init_confirm:   int = INIT_CONFIRM,
         confirm_frames: int = CONFIRM_FRAMES,
+        max_inventory:  int = MAX_INVENTORY,
     ):
         self.class_names    = class_names
         self.window_size    = window_size
         self.max_delta      = max_delta
         self.init_confirm   = init_confirm
         self.confirm_frames = confirm_frames
+        self.max_inventory  = max_inventory
 
         self.all_events: List[Event] = []
         self._event_counter = 0
@@ -173,9 +176,22 @@ class EventDetector:
 
                 elif median == cand_count:
                     if self._frame_idx - cand_since >= self.confirm_frames:
-                        # event confirmed
+                        # event confirmed — check physical constraints
                         delta  = cand_count - committed
                         action = "구매" if delta < 0 else "반환"
+
+                        # purchase from empty shelf: impossible
+                        if action == "구매" and committed == 0:
+                            self._sm_state[cls_id] = "stable"
+                            self._candidate.pop(cls_id, None)
+                            continue
+
+                        # return to full shelf: impossible
+                        if action == "반환" and committed >= self.max_inventory:
+                            self._sm_state[cls_id] = "stable"
+                            self._candidate.pop(cls_id, None)
+                            continue
+
                         after  = max(0, cand_count)
 
                         self._event_counter += 1
