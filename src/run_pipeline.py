@@ -199,6 +199,10 @@ def main():
     parser.add_argument("--debug_log", default=None,
                         help="CSV path: dump per-frame fused counts (frame_idx,class_id,class_name,count) "
                              "before EventDetector smoothing, for diagnosing missed events")
+    parser.add_argument("--timed_log", default=None,
+                        help="CSV path: dump (time_sec,class_name,action) for every fired event, "
+                             "for time-based scoring (tools/score_methods.py). Not part of the "
+                             "official submission format -- diagnostic only.")
 
     # Tracker 옵션
     parser.add_argument("--use_tracker",     action="store_true",
@@ -242,6 +246,10 @@ def main():
     detector = EventDetector(class_names, initial_counts=initial_inventory)
     vid_len  = video_duration(args.videos)
 
+    fps_cap = cv2.VideoCapture(args.videos[0])
+    fps = fps_cap.get(cv2.CAP_PROP_FPS) or 30
+    fps_cap.release()
+
     cam_tracker = None
     if args.use_tracker:
         cam_tracker = MultiCameraTracker(
@@ -262,6 +270,14 @@ def main():
         debug_file = open(args.debug_log, "w", newline="", encoding="utf-8")
         debug_writer = _csv.writer(debug_file)
         debug_writer.writerow(["frame_idx", "class_id", "class_name", "count"])
+
+    timed_writer = None
+    timed_file = None
+    if args.timed_log:
+        import csv as _csv
+        timed_file = open(args.timed_log, "w", newline="", encoding="utf-8")
+        timed_writer = _csv.writer(timed_file)
+        timed_writer.writerow(["time_sec", "class_name", "action"])
 
     print(f"Processing {len(caps)} cameras, video length ≈ {vid_len:.1f}s ...")
     t_start = time.time()
@@ -303,6 +319,8 @@ def main():
             for ev in new_events:
                 print(f"  [Frame {frame_idx}] {ev.class_name}: {ev.action} "
                       f"({ev.before}→{ev.after})")
+                if timed_writer is not None:
+                    timed_writer.writerow([round(frame_idx / fps, 2), ev.class_name, ev.action])
 
         frame_idx += 1
 
@@ -313,6 +331,10 @@ def main():
     if debug_file is not None:
         debug_file.close()
         print(f"Debug log written to {args.debug_log}")
+
+    if timed_file is not None:
+        timed_file.close()
+        print(f"Timed event log written to {args.timed_log}")
 
     t_end = time.time()
     proc_time = t_end - t_start
