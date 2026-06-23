@@ -14,7 +14,7 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-from event_detector import EventDetector, WINDOW_SIZE, MAX_DELTA, INIT_CONFIRM, CONFIRM_FRAMES, MAX_INVENTORY
+from event_detector import EventDetector, WINDOW_SIZE, MAX_DELTA, CONFIRM_FRAMES, MAX_INVENTORY
 
 DEBUG_LOG = "output/debug_frame_counts.csv"
 NAMES_PATH = "data/names.txt"
@@ -72,7 +72,7 @@ def main():
     }
 
     print(f"Params: WINDOW_SIZE={WINDOW_SIZE} MAX_DELTA={MAX_DELTA} "
-          f"INIT_CONFIRM={INIT_CONFIRM} CONFIRM_FRAMES={CONFIRM_FRAMES} MAX_INVENTORY={MAX_INVENTORY}")
+          f"CONFIRM_FRAMES={CONFIRM_FRAMES} MAX_INVENTORY={MAX_INVENTORY}")
     print(f"Initial counts for targets: "
           f"{ {class_names[c]: v for c, v in initial_counts.items() if c in target_ids} }\n")
 
