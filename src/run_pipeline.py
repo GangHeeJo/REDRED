@@ -196,6 +196,9 @@ def main():
                         help="JSON file with initial inventory {\"class_id\": count}")
     parser.add_argument("--init_frames", type=int, default=30,
                         help="Frames to sample for auto initial inventory (if --init_inv not set)")
+    parser.add_argument("--debug_log", default=None,
+                        help="CSV path: dump per-frame fused counts (frame_idx,class_id,class_name,count) "
+                             "before EventDetector smoothing, for diagnosing missed events")
 
     # Tracker 옵션
     parser.add_argument("--use_tracker",     action="store_true",
@@ -245,6 +248,14 @@ def main():
     else:
         print("카운팅 방식 사용 (--use_tracker로 트래커 활성화 가능)")
 
+    debug_writer = None
+    debug_file = None
+    if args.debug_log:
+        import csv as _csv
+        debug_file = open(args.debug_log, "w", newline="", encoding="utf-8")
+        debug_writer = _csv.writer(debug_file)
+        debug_writer.writerow(["frame_idx", "class_id", "class_name", "count"])
+
     print(f"Processing {len(caps)} cameras, video length ≈ {vid_len:.1f}s ...")
     t_start = time.time()
     frame_idx = 0
@@ -268,6 +279,11 @@ def main():
 
         fused_counts = fuse(per_cam_dets)
 
+        if debug_writer is not None:
+            for cls_id, cnt in fused_counts.items():
+                if cnt > 0:
+                    debug_writer.writerow([frame_idx, cls_id, class_names[cls_id], cnt])
+
         # Convert fused counts back to flat detection list for EventDetector
         flat_dets = [
             {"class_id": cls_id, "confidence": 1.0, "bbox": []}
@@ -286,6 +302,10 @@ def main():
     for cap in caps:
         if cap:
             cap.release()
+
+    if debug_file is not None:
+        debug_file.close()
+        print(f"Debug log written to {args.debug_log}")
 
     t_end = time.time()
     proc_time = t_end - t_start
