@@ -16,9 +16,14 @@ video start (initial count=0) can correctly detect return events (0→1) when
 they first appear, instead of confirming the wrong initial state via UNKNOWN.
 
 Inventory constraints (physical limits):
-  - Purchase blocked if committed == 0  (can't buy from empty shelf)
-  - Return  blocked if committed >= MAX_INVENTORY  (shelf is full)
-  These cancel any candidate that would violate physical reality.
+  - Return blocked if committed >= MAX_INVENTORY  (shelf is full)
+  Purchase-from-empty is NOT blocked — initial inventory estimation is
+  unreliable enough that blocking causes more FN than it prevents FP.
+  CONFIRM_FRAMES already filters noise sufficiently.
+
+After each event, the sliding window history for that class is cleared.
+This forces a fresh 25-frame fill before the next candidate can form,
+acting as a natural cooldown that prevents re-triggering on residual noise.
 """
 
 from dataclasses import dataclass
@@ -169,12 +174,6 @@ class EventDetector:
                         delta  = cand_count - committed
                         action = "구매" if delta < 0 else "반환"
 
-                        # purchase from empty shelf: impossible
-                        if action == "구매" and committed == 0:
-                            self._sm_state[cls_id] = "stable"
-                            self._candidate.pop(cls_id, None)
-                            continue
-
                         # return to full shelf: impossible
                         if action == "반환" and committed >= self.max_inventory:
                             self._sm_state[cls_id] = "stable"
@@ -196,6 +195,8 @@ class EventDetector:
                         self._committed[cls_id] = after
                         self._sm_state[cls_id]  = "stable"
                         self._candidate.pop(cls_id, None)
+                        # reset history so next event needs a fresh window
+                        self._history[cls_id].clear()
                         self.all_events.append(event)
                         new_events.append(event)
 
