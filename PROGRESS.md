@@ -5,17 +5,19 @@
 
 ---
 
-## 현재 상태 (2026-06-22)
+## 현재 상태 (2026-06-23)
 
-파이프라인 정상 동작 중.
+파이프라인 정상 동작 중. `data/ground_truth.csv`(105개 실측 이벤트) 추가로 **정량 평가 가능**해짐 — `tools/score.py` 또는 `tools/compare_to_ground_truth.py`로 채점.
 
 | 항목 | 값 |
 |------|-----|
 | RTF | 0.742 (목표 < 1.0, 통과) |
-| 처리 시간 | 177.2s (영상 길이 239.0s) |
-| 감지 이벤트 수 | 112 (파라미터 튜닝 후) |
+| 처리 시간 | 177.3s (영상 길이 239.0s) |
+| ground_truth 재현율 | **86/105 (82%)** — 06-23 시작 시점 44/105(42%)에서 2배 개선 |
 | 모델 mAP@0.5 | 98.1% (제공 가중치 `yolov7_custom.pt` 사용 중) |
 | 제출 파일 | `~/REDRED/output/submission_skip2.csv` |
+
+⚠️ "이벤트 수"(112개 등)는 더 이상 품질 지표로 쓰지 않음 — ground_truth 대비 재현율/정밀도로 평가. 아래 Phase 7 참고.
 
 ---
 
@@ -211,6 +213,37 @@ cd ~/yolov7 && PYTHONPATH=~/yolov7 python train.py \
 - conf 올리면 오히려 감지가 더 불안정해짐 → 0.4 유지
 - WINDOW_SIZE=25가 5~10프레임 주기 깜빡임 억제에 효과적
 
+### 2026-06-23 | Phase 7 — ground_truth.csv 도입 및 정확도 버그 수정 (강희조, 박준영+Claude)
+
+**계기:** 실제 영상에서 인식률이 체감상 낮다는 문제 제기 → `data/ground_truth.csv`(105개 이벤트, 6섹션, 87개는 frame 번호 포함) 추가로 처음 정량 비교 가능해짐.
+
+**진단 도구:**
+- `tools/score.py`, `tools/compare_to_ground_truth.py` — submission vs ground_truth 채점(precision/recall)
+- `tools/diagnose_missing_events.py`, `tools/analyze_detections.py` — raw count로 perception failure vs logic bug 구분
+- `tools/replay_event_detector.py` — `run_pipeline.py --debug_log`로 뽑은 프레임별 raw count를 **서버 없이 로컬에서** EventDetector에 재생, 상태 변화 추적
+- `tools/check_training_class_counts.py` — 클래스별 학습 이미지 개수 집계
+- `tools/probe_low_confidence.py` — conf=0.05로 재추론해서 "진짜 못 보는지" vs "threshold 문제인지" 구분
+
+**버그 1 — EventDetector UNKNOWN 상태 (커밋 aba6a47, 강희조):**
+초기 추정에 없던 클래스(영상 시작 시 선반에 없던 물건)가 UNKNOWN 상태로 시작 → 처음 감지되면(반환 이벤트) 그 값을 "원래 초기값"으로 잘못 확정 → 반환 이벤트 재현율 7% vs 구매 76%로 극단적 비대칭. **수정: UNKNOWN 상태 제거, 전부 STABLE+committed=0으로 시작.**
+
+**버그 2 — 연쇄 잠김 (커밋 894ef88, 강희조):**
+반환 감지가 한 번 실패하면 committed가 갱신 안 돼서 다음 구매도 "선반이 비어있는데 구매?"로 자동 차단되는 연쇄 실패. **수정: 구매-차단 제약 제거, 이벤트 발생 후 sliding window 히스토리 리셋(쿨다운 효과).**
+
+→ 두 버그 수정 후 재현율 **42% → 79%** (44/105 → 83/105)
+
+**버그 3 — 멀티뷰 퓨전 구조적 사각지대 (박준영+Claude):**
+`bumblebee_albacore`/`dove_white`/`dove_pink` raw count가 영상 전체에서 0. `tools/probe_low_confidence.py`로 확인한 결과 모델은 conf 0.5~0.9대로 자주 감지하지만, **5대 카메라 중 3대 이상이 동시에 본 적이 한 번도 없음**(최대 2대) — `fuse_weighted_median`은 과반(3+/5) 동의가 있어야 count>0이 되므로 구조적으로 항상 0이 됨. 학습 데이터 양 문제 아님(더 적은 데이터의 다른 클래스는 정상 인식).
+**수정:** `src/multi_view_fusion.py`에 `MAX_CONFIDENCE_CLASS_IDS = {2, 53, 54}` 추가 — 이 3개 클래스만 카메라 중 최댓값(max-across-cameras)으로 융합, 나머지 57개는 기존 median 유지.
+
+→ 재현율 **79% → 82%** (83/105 → 86/105)
+
+**부작용 (미해결):** `dove_white`는 복구됐지만 카메라 1대 노이즈에도 즉시 이벤트가 확정돼 중복 발화 4건 발생. 개선 방향: max 대신 "2대 이상" quorum으로 절충 (아직 미적용).
+
+**여전히 남은 이슈:**
+- 섹션1 초반 구매 ~8건: `--init_frames 30` 윈도우 안에서 이미 집어간 물건은 "원래 없었다"로 흡수돼 구매 이벤트 자체가 안 생김 (미해결)
+- `nabisco_nilla_wafers`, `haribo_gold_bears_gummi_candy`: 학습 데이터 충분(63~68퍼센타일), 로컬 재생 시 정상 발화 — **서버 실행 간 GPU 추론 비결정성**으로 인한 간헐적 누락으로 판단, 로직 문제 아님
+
 ---
 
 ## 주요 결정사항 / 트러블슈팅 기록
@@ -244,13 +277,15 @@ YOLOv7의 `attempt_load`를 쓰면 내부의 `attempt_download`가 파일 경로
 
 ---
 
-## 현재 확정 파라미터
+## 현재 확정 파라미터 (2026-06-23 갱신, `MIN_EVENT_GAP`/`INIT_CONFIRM`은 Phase 7에서 제거됨)
 
 | 파라미터 | 값 | 설명 |
 |---------|-----|------|
-| `WINDOW_SIZE` | 25 | `src/event_detector.py` |
-| `MIN_EVENT_GAP` | 90 | `src/event_detector.py` |
-| `MAX_DELTA` | 4 | `src/event_detector.py` |
+| `WINDOW_SIZE` | 25 | `src/event_detector.py` — median 슬라이딩 윈도우 |
+| `CONFIRM_FRAMES` | 30 | `src/event_detector.py` — candidate 확정까지 필요한 연속 프레임(skip=2 기준 ~2초) |
+| `MAX_DELTA` | 4 | `src/event_detector.py` — 1회 이벤트당 허용 최대 변화량 |
+| `MAX_INVENTORY` | 1 | `src/event_detector.py` — 슬롯당 물리적 최대 재고 |
+| `MAX_CONFIDENCE_CLASS_IDS` | {2,53,54} | `src/multi_view_fusion.py` — bumblebee_albacore/dove_pink/dove_white, max-across-cameras 융합 |
 | `--conf` | 0.4 | `run_test.sh` |
 | `--skip` | 2 | `run_test.sh` |
 
@@ -277,5 +312,7 @@ python tools/analyze_inventory.py \
 ## 앞으로 할 일
 
 - [ ] 발표 자료 준비
-- [ ] 파라미터 추가 튜닝 필요 시: `src/event_detector.py`의 `WINDOW_SIZE`, `MIN_EVENT_GAP` 조정
-- [ ] 정확도 검증: 영상 직접 보면서 이벤트 수 수동 확인 (학교 네트워크 필요)
+- [ ] `dove_white` 중복 발화 — max-confidence를 "2대 이상 quorum"으로 완화해서 노이즈 줄이기
+- [ ] 섹션1 초반 구매 미검출 — `--init_frames` 추정 윈도우와 실제 구매 타이밍이 겹치는 문제 (예: init_frames 축소, 또는 추정 방식 개선)
+- [ ] `nabisco_nilla_wafers`/`haribo_gold_bears_gummi_candy` 간헐적 누락 — GPU 추론 비결정성, 여러 번 재실행해서 안정성 확인 필요
+- [x] ~~정확도 검증~~ → `data/ground_truth.csv` + `tools/score.py`/`compare_to_ground_truth.py`로 완료 (2026-06-23)
