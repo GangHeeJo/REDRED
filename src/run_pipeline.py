@@ -319,6 +319,12 @@ def main():
     rtf = proc_time / vid_len if vid_len > 0 else float("inf")
     print(f"\nProcessing time: {proc_time:.1f}s  |  Video length: {vid_len:.1f}s  |  RTF: {rtf:.3f}")
 
+    # run_stats.json: score.py 자동 호출에 사용
+    stats_path = os.path.join(os.path.dirname(args.out), "run_stats.json")
+    with open(stats_path, "w") as f:
+        json.dump({"rtf": round(rtf, 4), "proc_time": round(proc_time, 1),
+                   "vid_len": round(vid_len, 1), "submission": args.out}, f)
+
     events_to_csv(
         events=detector.all_events,
         prices=prices,

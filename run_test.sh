@@ -1,15 +1,11 @@
 #!/bin/bash
-# Usage: bash run_test.sh [skip]
-# Example: bash run_test.sh 2
+# Usage: bash run_test.sh [skip] ["설명"]
+# Example: bash run_test.sh 2 "UNKNOWN 제거 + history reset"
 
 SKIP=${1:-2}
+DESC=${2:-"skip=${SKIP} $(date '+%m-%d %H:%M')"}
 YOLOV7=~/yolov7
 WEIGHTS=~/Dataset/yolov7_custom.pt
-VIDEOS="~/Dataset/4.TestVideo_Sample/cam0/Sample_1.mp4 \
-        ~/Dataset/4.TestVideo_Sample/cam1/Sample_1.mp4 \
-        ~/Dataset/4.TestVideo_Sample/cam2/Sample_1.mp4 \
-        ~/Dataset/4.TestVideo_Sample/cam3/Sample_1.mp4 \
-        ~/Dataset/4.TestVideo_Sample/cam4/Sample_1.mp4"
 
 PYTHONPATH=$YOLOV7 python src/run_pipeline.py \
     --videos ~/Dataset/4.TestVideo_Sample/cam0/Sample_1.mp4 \
@@ -24,3 +20,14 @@ PYTHONPATH=$YOLOV7 python src/run_pipeline.py \
     --skip $SKIP \
     --conf 0.4 \
     --device 0
+
+# 파이프라인 성공 시 자동 채점 + 리더보드 갱신
+if [ $? -eq 0 ] && [ -f output/run_stats.json ]; then
+    RTF=$(python -c "import json; print(json.load(open('output/run_stats.json'))['rtf'])")
+    echo ""
+    echo "=== 자동 채점 중 (RTF=$RTF) ==="
+    python tools/score.py \
+        --sub output/submission_skip${SKIP}.csv \
+        --desc "$DESC" \
+        --rtf "$RTF"
+fi
