@@ -5,19 +5,22 @@
 
 ---
 
-## 현재 상태 (2026-06-23)
+## 현재 상태 (2026-06-23 최종)
 
-파이프라인 정상 동작 중. `data/ground_truth.csv`(105개 실측 이벤트) 추가로 **정량 평가 가능**해짐 — `tools/score.py` 또는 `tools/compare_to_ground_truth.py`로 채점.
+파이프라인 정상 동작 중. `data/ground_truth_v2.csv`(105개 실측 이벤트, **시간 포함**)가 현재 기준 GT — `tools/score_methods.py`로 3가지 방식 동시 채점.
 
 | 항목 | 값 |
 |------|-----|
 | RTF | 0.742 (목표 < 1.0, 통과) |
 | 처리 시간 | 177.3s (영상 길이 239.0s) |
-| ground_truth 재현율 | **86/105 (82%)** — 06-23 시작 시점 44/105(42%)에서 2배 개선 |
+| F1 (count 기준, `tools/score.py`) | **90.0%** (TP=94 FP=10 FN=11) — 06-23 시작 시점 42%에서 대폭 개선 |
+| F1 (전체 순서 LCS, class 무관) | 83.3% |
+| F1 (실제 시각 비교, 지연 보정 ±3초) | 82.5% — 가장 엄격한 지표 |
+| 추정 총점 (정확도+RTF, /60) | **51.1점** (정확도 36.0 + RTF 15.1) — 리더보드 1위 |
 | 모델 mAP@0.5 | 98.1% (제공 가중치 `yolov7_custom.pt` 사용 중) |
 | 제출 파일 | `~/REDRED/output/submission_skip2.csv` |
 
-⚠️ "이벤트 수"(112개 등)는 더 이상 품질 지표로 쓰지 않음 — ground_truth 대비 재현율/정밀도로 평가. 아래 Phase 7 참고.
+⚠️ "이벤트 수"(112개 등) 또는 단일 F1만으로 품질을 판단하지 않음 — **3가지 채점 방식을 같이 보고 판단**. 이유와 사용법은 Phase 7 참고. 리더보드: `output/leaderboard.html` (브라우저로 열기).
 
 ---
 
@@ -238,11 +241,46 @@ cd ~/yolov7 && PYTHONPATH=~/yolov7 python train.py \
 
 → 재현율 **79% → 82%** (83/105 → 86/105)
 
-**부작용 (미해결):** `dove_white`는 복구됐지만 카메라 1대 노이즈에도 즉시 이벤트가 확정돼 중복 발화 4건 발생. 개선 방향: max 대신 "2대 이상" quorum으로 절충 (아직 미적용).
+**부작용 (해결됨, 아래 Phase 8 참고):** `dove_white`는 복구됐지만 카메라 1대 노이즈에도 즉시 이벤트가 확정돼 중복 발화 4건 발생.
 
-**여전히 남은 이슈:**
-- 섹션1 초반 구매 ~8건: `--init_frames 30` 윈도우 안에서 이미 집어간 물건은 "원래 없었다"로 흡수돼 구매 이벤트 자체가 안 생김 (미해결)
-- `nabisco_nilla_wafers`, `haribo_gold_bears_gummi_candy`: 학습 데이터 충분(63~68퍼센타일), 로컬 재생 시 정상 발화 — **서버 실행 간 GPU 추론 비결정성**으로 인한 간헐적 누락으로 판단, 로직 문제 아님
+**여전히 남은 이슈 (Phase 8에서 일부 재확인/해소):**
+- 섹션1 초반 구매 일부: `--init_frames 30` 윈도우 안에서 이미 집어간 물건은 "원래 없었다"로 흡수돼 구매 이벤트 자체가 안 생길 수 있음
+- `nabisco_nilla_wafers`, `haribo_gold_bears_gummi_candy`: 학습 데이터 충분(63~68퍼센타일) — 서버 실행 간 GPU 추론 비결정성으로 인한 간헐적 누락으로 판단, 로직 문제 아님
+
+### 2026-06-23 | Phase 8 — quorum 절충, ground_truth_v2, 3종 채점 방식 (박준영+Claude)
+
+**`dove_white` quorum 절충 (`src/multi_view_fusion.py`):**
+`MAX_CONFIDENCE_CLASS_IDS`(bool) → `CLASS_QUORUM_OVERRIDE`(class_id → 필요 카메라 수)로 일반화.
+`bumblebee_albacore`/`dove_pink`는 quorum=1(기존 max 그대로, 깨끗하게 동작) 유지, `dove_white`만 quorum=2로 올림 — 카메라 1대 노이즈로 인한 중복발화 4건→1건으로 감소(단, 경계선 케이스 1건은 못 잡고 누락으로 바뀜 — 순오류 4건→2건으로 개선).
+
+**`ground_truth_v2.csv` 도입 (강희조 재검수):**
+- v1과 달리 105개 전 이벤트에 시간 정보 포함(공백 없음), `pepperidge_farm_milano_cookies_double_chocolate`(v1에 없던 항목) 추가로 확인됨
+- **버그 발견**: 처음 올라온 v2는 `time_sec`이 60배 부풀려져 있었음 (예: event105가 "233분"으로 기록 — 239초짜리 영상에 물리적으로 불가능). `time` 컬럼을 분:초 형식으로 적었는데 스크립트가 시:분:초로 잘못 해석한 것으로 추정. v1의 frame 기반 시각과 대조해서 ÷60 보정 확인 후, 강희조가 소스에서 직접 수정 — 현재는 정상.
+- 이후 강희조가 순서/시각을 한 번 더 재검수하여 업데이트 — 재채점 결과 3가지 지표 전부 개선(아래), `mahatma_rice`/`honey_bunches_of_oats_with_almonds`가 "모델 문제"가 아니라 "구 ground truth 기록 오류"였음이 확인됨.
+
+**3종 채점 방식 (`tools/score_methods.py`, 신규):**
+단일 지표로는 판단이 위험하다는 게 오늘 여러 번 확인됨 — 클래스별 개수만 보면 순서가 틀려도 맞다고 카운트되고(`arm_hammer_baking_soda`처럼 타이밍은 맞는데 전체 시퀀스가 깨져서 틀렸다고 잘못 판정되는 경우의 반대 케이스), 전체 시퀀스 정렬만 보면 한 클래스의 타이밍 오류가 무관한 다른 클래스의 정렬까지 깨버림. 세 방식을 같이 보기로 함:
+1. **count** — `(class_name, action)` 빈도만 비교 (`tools/score.py`와 동일 원리)
+2. **order** — 전체 시퀀스에 대한 LCS(최장 공통 부분열), 클래스 구분 없이 순서만 봄
+3. **time** — 실제 발화 시각을 ground truth 시각과 직접 비교. 단순 비교 시 시스템의 `CONFIRM_FRAMES=30`(~2초) 지연 때문에 전부 늦게 잡혀서 부당하게 낮게 나옴 → **median offset(현재 +2.80초)을 자동 추정해서 보정 후 비교**. 이 보정값이 정확히 CONFIRM_FRAMES 이론값(2.0초)에 가까운 것으로 시스템 동작이 교차검증됨.
+
+`src/run_pipeline.py --timed_log <path>`로 매 이벤트의 실제 발화 시각(`time_sec,class_name,action`)을 정식 출력 가능 (방법 3에 필요, 로컬 리플레이 근사 없이 정확한 값 사용 가능).
+
+**최종 결과 (`ground_truth_v2.csv` 기준):**
+
+| 방법 | F1 |
+|---|---|
+| count | 90.0% |
+| order (LCS) | 83.3% |
+| time (±3초, 지연보정) | 82.5% |
+
+`tools/score.py --gt data/ground_truth_v2.csv`로 리더보드 갱신 — 추정 총점 51.1/60점(정확도 36.0 + RTF 15.1)으로 현재 1위.
+
+**여전히 진짜 문제로 남은 것 (시간 비교로 확정됨):**
+- `pop_tararts_strawberry` 구매: 77.4초 차이 — 여러 반환/구매 사이클이 시간상 뒤섞여 있음, 가장 큰 잔여 문제
+- `hunts_sauce` 구매: 64.1초 차이
+- `pepperidge_farm_milk_chocolate_macadamia_cookies` 구매: 63.9초 차이
+- `pepperidge_farm_milano_cookies_double_chocolate`, `haribo_gold_bears_gummi_candy`, `frappuccino_coffee`, `spam`: 완전 누락
 
 ---
 
@@ -285,7 +323,7 @@ YOLOv7의 `attempt_load`를 쓰면 내부의 `attempt_download`가 파일 경로
 | `CONFIRM_FRAMES` | 30 | `src/event_detector.py` — candidate 확정까지 필요한 연속 프레임(skip=2 기준 ~2초) |
 | `MAX_DELTA` | 4 | `src/event_detector.py` — 1회 이벤트당 허용 최대 변화량 |
 | `MAX_INVENTORY` | 1 | `src/event_detector.py` — 슬롯당 물리적 최대 재고 |
-| `MAX_CONFIDENCE_CLASS_IDS` | {2,53,54} | `src/multi_view_fusion.py` — bumblebee_albacore/dove_pink/dove_white, max-across-cameras 융합 |
+| `CLASS_QUORUM_OVERRIDE` | {2:1, 53:1, 54:2} | `src/multi_view_fusion.py` — bumblebee_albacore(1), dove_pink(1), dove_white(2). 숫자는 이벤트로 인정하는 데 필요한 동시 카메라 수 |
 | `--conf` | 0.4 | `run_test.sh` |
 | `--skip` | 2 | `run_test.sh` |
 
@@ -312,7 +350,9 @@ python tools/analyze_inventory.py \
 ## 앞으로 할 일
 
 - [ ] 발표 자료 준비
-- [ ] `dove_white` 중복 발화 — max-confidence를 "2대 이상 quorum"으로 완화해서 노이즈 줄이기
+- [ ] `pop_tararts_strawberry` 구매/반환 사이클 시간 뒤섞임(77초 차이) — 현재 가장 큰 잔여 오차, 원인 미파악
+- [ ] `hunts_sauce`, `pepperidge_farm_milk_chocolate_macadamia_cookies` 구매 — 60초대 시간 오차, 같은 계열 문제로 추정
+- [ ] `pepperidge_farm_milano_cookies_double_chocolate`, `haribo_gold_bears_gummi_candy`, `frappuccino_coffee`, `spam` 완전 누락 — 원인 미파악 (haribo는 기존에 GPU 비결정성으로 진단됐던 것과 같은 클래스, frappuccino는 이전에 너무 일찍(14초) 잘못 확정되는 패턴이 한 번 확인된 적 있음)
 - [ ] 섹션1 초반 구매 미검출 — `--init_frames` 추정 윈도우와 실제 구매 타이밍이 겹치는 문제 (예: init_frames 축소, 또는 추정 방식 개선)
-- [ ] `nabisco_nilla_wafers`/`haribo_gold_bears_gummi_candy` 간헐적 누락 — GPU 추론 비결정성, 여러 번 재실행해서 안정성 확인 필요
-- [x] ~~정확도 검증~~ → `data/ground_truth.csv` + `tools/score.py`/`compare_to_ground_truth.py`로 완료 (2026-06-23)
+- [x] ~~`dove_white` 중복 발화~~ → quorum=2로 절충, 순오류 4건→2건 감소 (2026-06-23)
+- [x] ~~정확도 검증~~ → `data/ground_truth_v2.csv` + `tools/score_methods.py`(3종 방식) + 리더보드로 완료 (2026-06-23)
