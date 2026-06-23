@@ -2,16 +2,18 @@
 Event Detector: frame-by-frame inventory diff → purchase/return events.
 
 State machine per class:
-  UNKNOWN   → initial state; waiting for count to stabilize
-  STABLE    → count confirmed (initial or post-event)
+  STABLE    → default initial state; committed=0 unless initial_counts provided
   CANDIDATE → potential event detected; awaiting confirmation
 
 Transitions:
-  UNKNOWN   + (median stable for INIT_CONFIRM frames)   → STABLE (initial count set)
   STABLE    + (median != committed, valid delta)         → CANDIDATE
   CANDIDATE + (candidate stable for CONFIRM_FRAMES)     → STABLE + event fired
   CANDIDATE + (median == committed)                     → STABLE (noise, cancelled)
   CANDIDATE + (median changes to another value)         → CANDIDATE (timer reset)
+
+All classes default to STABLE with committed=0. This ensures items absent at
+video start (initial count=0) can correctly detect return events (0→1) when
+they first appear, instead of confirming the wrong initial state via UNKNOWN.
 
 Inventory constraints (physical limits):
   - Purchase blocked if committed == 0  (can't buy from empty shelf)
@@ -32,7 +34,6 @@ import statistics
 
 WINDOW_SIZE    = 25   # sliding window size for median (odd recommended)
 MAX_DELTA      = 4    # max count change allowed per event
-INIT_CONFIRM   = 5    # consecutive stable frames to confirm initial inventory
 CONFIRM_FRAMES = 30   # consecutive frames new state must persist to fire event
                       # skip=2 → 60 real frames ≈ 2 seconds
 MAX_INVENTORY  = 1    # physical shelf capacity per slot (most items: 0↔1)
@@ -72,14 +73,12 @@ class EventDetector:
         initial_counts: Optional[Dict[int, int]] = None,
         window_size:    int = WINDOW_SIZE,
         max_delta:      int = MAX_DELTA,
-        init_confirm:   int = INIT_CONFIRM,
         confirm_frames: int = CONFIRM_FRAMES,
         max_inventory:  int = MAX_INVENTORY,
     ):
         self.class_names    = class_names
         self.window_size    = window_size
         self.max_delta      = max_delta
-        self.init_confirm   = init_confirm
         self.confirm_frames = confirm_frames
         self.max_inventory  = max_inventory
 
@@ -92,8 +91,8 @@ class EventDetector:
             lambda: deque(maxlen=self.window_size)
         )
 
-        # state machine per class: "unknown" | "stable" | "candidate"
-        self._sm_state: Dict[int, str] = defaultdict(lambda: "unknown")
+        # state machine per class: "stable" | "candidate"
+        self._sm_state: Dict[int, str] = defaultdict(lambda: "stable")
 
         # confirmed inventory per class
         self._committed: Dict[int, int] = defaultdict(int)
@@ -145,18 +144,8 @@ class EventDetector:
 
             state = self._sm_state[cls_id]
 
-            # ── UNKNOWN: waiting for initial inventory to stabilize ────────
-            if state == "unknown":
-                cand = self._candidate.get(cls_id)
-                if cand is None or cand[0] != median:
-                    self._candidate[cls_id] = (median, self._frame_idx)
-                elif self._frame_idx - cand[1] >= self.init_confirm:
-                    self._sm_state[cls_id]  = "stable"
-                    self._committed[cls_id] = median
-                    self._candidate.pop(cls_id, None)
-
             # ── STABLE: watching for changes ──────────────────────────────
-            elif state == "stable":
+            if state == "stable":
                 committed = self._committed[cls_id]
                 delta = median - committed
                 if delta == 0 or not (1 <= abs(delta) <= self.max_delta):
@@ -165,7 +154,7 @@ class EventDetector:
                 self._candidate[cls_id] = (median, self._frame_idx)
 
             # ── CANDIDATE: waiting for event to be confirmed ───────────────
-            elif state == "candidate":
+            else:  # state == "candidate"
                 committed             = self._committed[cls_id]
                 cand_count, cand_since = self._candidate[cls_id]
 
