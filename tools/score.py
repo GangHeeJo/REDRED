@@ -106,12 +106,13 @@ def generate_html(lb_rows, html_path):
         font-weight: 600; border-bottom: 2px solid #2a2d3e; white-space: nowrap; }}
   tr {{ border-bottom: 1px solid #1e2130; transition: background 0.15s; }}
   tr:hover {{ background: #1a1d2e; }}
+  tr.history {{ opacity: 0.55; }}
   td {{ padding: 10px 14px; vertical-align: middle; }}
   .rank {{ font-weight: 700; color: #888; width: 36px; text-align: center; }}
   .rank.gold   {{ color: #f5c518; }}
   .rank.silver {{ color: #b0b0b0; }}
   .rank.bronze {{ color: #cd7f32; }}
-  .desc {{ font-weight: 500; color: #ddd; max-width: 280px; }}
+  .desc {{ font-weight: 500; color: #ddd; max-width: 320px; }}
   .ts {{ color: #666; font-size: 0.78rem; white-space: nowrap; }}
   .bar-wrap {{ display: flex; align-items: center; gap: 8px; }}
   .bar {{ height: 8px; border-radius: 4px; min-width: 2px; }}
@@ -122,9 +123,13 @@ def generate_html(lb_rows, html_path):
   .tp  {{ color: #7ee8a2; }}
   .fp  {{ color: #ff7070; }}
   .fn  {{ color: #ffb347; }}
+  .na  {{ color: #555; font-size: 0.8rem; }}
   .badge {{ display:inline-block; padding:2px 8px; border-radius:12px;
             font-size:0.75rem; font-weight:600; }}
   .best {{ background:#1a3a2a; color:#7ee8a2; }}
+  .hist-badge {{ background:#1a1a2e; color:#556; border:1px solid #334; }}
+  .divider td {{ background:#151820; color:#445; font-size:0.75rem;
+                 padding:4px 14px; letter-spacing:.08em; }}
 </style>
 </head>
 <body>
@@ -150,27 +155,39 @@ def generate_html(lb_rows, html_path):
 <script>
 const data = {data_json};
 
-function pct(s) {{ return parseFloat(s.replace('%','')) || 0; }}
+function pct(s) {{
+  if (!s || s === '-') return null;
+  const v = parseFloat(s.replace('%',''));
+  return isNaN(v) ? null : v;
+}}
 
-data.sort((a,b) => pct(b.F1) - pct(a.F1));
+// Scored rows sorted by F1, history rows sorted by date (original order)
+const scored  = data.filter(r => pct(r.F1) !== null).sort((a,b) => pct(b.F1)-pct(a.F1));
+const history = data.filter(r => pct(r.F1) === null);
 
-const bestF1 = pct(data[0]?.F1 || '0');
-const tbody = document.getElementById('tbody');
+const bestF1 = scored.length ? pct(scored[0].F1) : null;
+const tbody  = document.getElementById('tbody');
 
-data.forEach((row, i) => {{
+function bar(v, cls, color) {{
+  if (v === null) return `<span class="na">—</span>`;
+  return `<div class="bar-wrap">
+    <div class="bar ${{cls}}" style="width:${{Math.round(v*1.4)}}px;background:${{color}}"></div>
+    <span class="val ${{cls}}">${{v.toFixed(1)}}%</span>
+  </div>`;
+}}
+
+function naOrNum(v) {{
+  return (!v || v==='-') ? `<span class="na">—</span>` : v;
+}}
+
+// Scored section
+scored.forEach((row, i) => {{
   const rank = i + 1;
   const f1v  = pct(row.F1);
   const prev = pct(row.Precision);
   const recv = pct(row.Recall);
   const isB  = f1v === bestF1;
-
   const rankClass = rank===1?'gold':rank===2?'silver':rank===3?'bronze':'';
-
-  const bar = (v, cls, color) =>
-    `<div class="bar-wrap">
-       <div class="bar ${{cls}}" style="width:${{Math.round(v*1.4)}}px;background:${{color}}"></div>
-       <span class="val ${{cls}}">${{v.toFixed(1)}}%</span>
-     </div>`;
 
   tbody.innerHTML += `<tr>
     <td class="rank ${{rankClass}}">${{rank}}</td>
@@ -178,14 +195,34 @@ data.forEach((row, i) => {{
     <td>${{bar(f1v,  'f1',  '#7ee8a2')}}</td>
     <td>${{bar(prev, 'pre', '#79c8ff')}}</td>
     <td>${{bar(recv, 'rec', '#ffb347')}}</td>
-    <td class="tp">${{row.TP}}</td>
-    <td class="fp">${{row.FP}}</td>
-    <td class="fn">${{row.FN}}</td>
+    <td class="tp">${{naOrNum(row.TP)}}</td>
+    <td class="fp">${{naOrNum(row.FP)}}</td>
+    <td class="fn">${{naOrNum(row.FN)}}</td>
     <td>${{row.total_sub}}</td>
     <td>${{row.total_gt}}</td>
     <td class="ts">${{row.timestamp}}</td>
   </tr>`;
 }});
+
+// Divider + history section
+if (history.length) {{
+  tbody.innerHTML += `<tr class="divider"><td colspan="11">▼ 이전 기록 (점수 미측정 — 제출 CSV 없음)</td></tr>`;
+  history.forEach(row => {{
+    tbody.innerHTML += `<tr class="history">
+      <td class="rank"><span class="na">—</span></td>
+      <td class="desc">${{row.description}} <span class="badge hist-badge">이벤트 수: ${{row.total_sub}}</span></td>
+      <td><span class="na">—</span></td>
+      <td><span class="na">—</span></td>
+      <td><span class="na">—</span></td>
+      <td><span class="na">—</span></td>
+      <td><span class="na">—</span></td>
+      <td><span class="na">—</span></td>
+      <td>${{row.total_sub}}</td>
+      <td>${{row.total_gt}}</td>
+      <td class="ts">${{row.timestamp}}</td>
+    </tr>`;
+  }});
+}}
 </script>
 </body>
 </html>"""
