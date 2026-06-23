@@ -231,6 +231,13 @@ def main():
             args.conf, args.iou, args.img_size, device,
         )
         print(f"Initial inventory: {len(initial_inventory)} classes detected")
+        print("Initial inventory detail:", {class_names[k]: v for k, v in initial_inventory.items()})
+        if args.debug_log:
+            init_dump_path = os.path.splitext(args.debug_log)[0] + "_initial_inventory.json"
+            with open(init_dump_path, "w", encoding="utf-8") as f:
+                json.dump({class_names[k]: v for k, v in initial_inventory.items()}, f,
+                          ensure_ascii=False, indent=2)
+            print(f"Initial inventory dumped to {init_dump_path}")
 
     detector = EventDetector(class_names, initial_counts=initial_inventory)
     vid_len  = video_duration(args.videos)
