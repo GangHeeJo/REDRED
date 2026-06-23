@@ -6,14 +6,25 @@ Strategy: confidence-weighted voting per class.
   - Final count = weighted median of per-camera counts (robust to outlier cameras).
 
 Alternative strategies are also provided for comparison.
+
+Per-class override: weighted median requires a majority (3+/5) of cameras to
+agree simultaneously, which structurally floors the count to 0 for items only
+ever visible from a minority of camera angles -- regardless of how confidently
+those cameras detect it. bumblebee_albacore/dove_white/dove_pink were confirmed
+(2026-06-23, tools/probe_low_confidence.py) to never have 3+ cameras agree even
+at production confidence (max 2/5), despite frequent high-confidence
+single/double-camera detections. These classes use max-across-cameras instead.
 """
 
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Set
 import numpy as np
 from collections import defaultdict
 
 
 DetectionList = List[Dict]   # [{class_id, confidence, bbox}, ...]
+
+# Classes only ever visible from a minority of cameras -- see module docstring.
+MAX_CONFIDENCE_CLASS_IDS: Set[int] = {2, 53, 54}  # bumblebee_albacore, dove_pink, dove_white
 
 
 def count_per_class(detections: DetectionList) -> Dict[int, float]:
@@ -34,10 +45,13 @@ def hard_count_per_class(detections: DetectionList) -> Dict[int, int]:
 def fuse_weighted_median(
     per_cam_detections: List[Optional[DetectionList]],
     cam_weights: Optional[List[float]] = None,
+    max_confidence_class_ids: Optional[Set[int]] = None,
 ) -> Dict[int, int]:
     """
     per_cam_detections: one DetectionList per camera (None if camera offline).
     cam_weights: importance of each camera (default: equal).
+    max_confidence_class_ids: classes fused via max-across-cameras instead of
+        weighted median (see module docstring). Defaults to MAX_CONFIDENCE_CLASS_IDS.
     Returns final integer count per class.
     """
     active = [(i, d) for i, d in enumerate(per_cam_detections) if d is not None]
@@ -46,6 +60,8 @@ def fuse_weighted_median(
 
     if cam_weights is None:
         cam_weights = [1.0] * len(per_cam_detections)
+    if max_confidence_class_ids is None:
+        max_confidence_class_ids = MAX_CONFIDENCE_CLASS_IDS
 
     all_classes = set()
     for _, dets in active:
@@ -59,6 +75,10 @@ def fuse_weighted_median(
             cnt = sum(1 for d in dets if d["class_id"] == cls_id)
             votes.append(cnt)
             weights.append(cam_weights[cam_idx])
+
+        if cls_id in max_confidence_class_ids:
+            result[cls_id] = max(votes)
+            continue
 
         # Weighted median
         votes = np.array(votes, dtype=float)
