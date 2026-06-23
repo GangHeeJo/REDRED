@@ -7,24 +7,40 @@ Strategy: confidence-weighted voting per class.
 
 Alternative strategies are also provided for comparison.
 
-Per-class override: weighted median requires a majority (3+/5) of cameras to
-agree simultaneously, which structurally floors the count to 0 for items only
-ever visible from a minority of camera angles -- regardless of how confidently
-those cameras detect it. bumblebee_albacore/dove_white/dove_pink were confirmed
-(2026-06-23, tools/probe_low_confidence.py) to never have 3+ cameras agree even
-at production confidence (max 2/5), despite frequent high-confidence
-single/double-camera detections. These classes use max-across-cameras instead.
+Per-class quorum override: weighted median requires a majority (3+/5) of
+cameras to agree simultaneously, which structurally floors the count to 0 for
+items only ever visible from a minority of camera angles -- regardless of how
+confidently those cameras detect it. bumblebee_albacore/dove_white/dove_pink
+were confirmed (2026-06-23, tools/probe_low_confidence.py) to never have 3+
+cameras agree even at production confidence (max 2/5), despite frequent
+high-confidence single/double-camera detections. These classes use a lower
+quorum (the N-th highest per-camera vote instead of the full median).
+
+bumblebee_albacore/dove_pink: quorum=1 (any single camera, i.e. max-across-
+cameras) -- clean in practice, no extra false positives observed.
+dove_white: quorum=2 (2026-06-23) -- quorum=1 alone caused 4 spurious
+duplicate events from single-camera noise blips (glare/reflection on the
+white soap reading as a brief false positive); dove_white does have genuine
+2-camera agreement (37% of frames when present), so requiring 2 keeps real
+events while filtering single-camera flicker.
 """
 
-from typing import List, Dict, Optional, Set
+from typing import List, Dict, Optional
 import numpy as np
 from collections import defaultdict
 
 
 DetectionList = List[Dict]   # [{class_id, confidence, bbox}, ...]
 
-# Classes only ever visible from a minority of cameras -- see module docstring.
-MAX_CONFIDENCE_CLASS_IDS: Set[int] = {2, 53, 54}  # bumblebee_albacore, dove_pink, dove_white
+# class_id -> minimum number of cameras that must agree for a class to be
+# fused via "N-th highest vote" instead of the full weighted median. See
+# module docstring for why each of these needs a lower quorum than the
+# camera-majority default.
+CLASS_QUORUM_OVERRIDE: Dict[int, int] = {
+    2:  1,   # bumblebee_albacore
+    53: 1,   # dove_pink
+    54: 2,   # dove_white
+}
 
 
 def count_per_class(detections: DetectionList) -> Dict[int, float]:
@@ -45,13 +61,14 @@ def hard_count_per_class(detections: DetectionList) -> Dict[int, int]:
 def fuse_weighted_median(
     per_cam_detections: List[Optional[DetectionList]],
     cam_weights: Optional[List[float]] = None,
-    max_confidence_class_ids: Optional[Set[int]] = None,
+    class_quorum_override: Optional[Dict[int, int]] = None,
 ) -> Dict[int, int]:
     """
     per_cam_detections: one DetectionList per camera (None if camera offline).
     cam_weights: importance of each camera (default: equal).
-    max_confidence_class_ids: classes fused via max-across-cameras instead of
-        weighted median (see module docstring). Defaults to MAX_CONFIDENCE_CLASS_IDS.
+    class_quorum_override: class_id -> minimum number of agreeing cameras,
+        fused via "quorum-th highest vote" instead of weighted median (see
+        module docstring). Defaults to CLASS_QUORUM_OVERRIDE.
     Returns final integer count per class.
     """
     active = [(i, d) for i, d in enumerate(per_cam_detections) if d is not None]
@@ -60,8 +77,8 @@ def fuse_weighted_median(
 
     if cam_weights is None:
         cam_weights = [1.0] * len(per_cam_detections)
-    if max_confidence_class_ids is None:
-        max_confidence_class_ids = MAX_CONFIDENCE_CLASS_IDS
+    if class_quorum_override is None:
+        class_quorum_override = CLASS_QUORUM_OVERRIDE
 
     all_classes = set()
     for _, dets in active:
@@ -76,8 +93,11 @@ def fuse_weighted_median(
             votes.append(cnt)
             weights.append(cam_weights[cam_idx])
 
-        if cls_id in max_confidence_class_ids:
-            result[cls_id] = max(votes)
+        if cls_id in class_quorum_override:
+            quorum = class_quorum_override[cls_id]
+            sorted_desc = sorted(votes, reverse=True)
+            idx = min(quorum, len(sorted_desc)) - 1
+            result[cls_id] = sorted_desc[idx]
             continue
 
         # Weighted median
