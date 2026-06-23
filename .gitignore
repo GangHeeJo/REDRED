@@ -16,6 +16,8 @@ venv/
 # Project-specific
 output/*
 !output/.gitkeep
+!output/leaderboard.csv
+!output/leaderboard.html
 submission_draft.csv
 *.pt
 *.mp4

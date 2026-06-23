@@ -21,7 +21,7 @@ PYTHONPATH=$YOLOV7 python src/run_pipeline.py \
     --conf 0.4 \
     --device 0
 
-# 파이프라인 성공 시 자동 채점 + 리더보드 갱신
+# 파이프라인 성공 시 자동 채점 + 리더보드 갱신 + GitHub push
 if [ $? -eq 0 ] && [ -f output/run_stats.json ]; then
     RTF=$(python -c "import json; print(json.load(open('output/run_stats.json'))['rtf'])")
     echo ""
@@ -30,4 +30,10 @@ if [ $? -eq 0 ] && [ -f output/run_stats.json ]; then
         --sub output/submission_skip${SKIP}.csv \
         --desc "$DESC" \
         --rtf "$RTF"
+
+    echo ""
+    echo "=== 리더보드 GitHub 업로드 ==="
+    git add output/leaderboard.csv output/leaderboard.html
+    git commit -m "leaderboard: $DESC (RTF=$RTF)"
+    git push
 fi

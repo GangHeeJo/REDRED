@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>REDRED 리더보드</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e0e0e0; padding: 32px; }
+  h1 { font-size: 1.6rem; font-weight: 700; margin-bottom: 4px; color: #fff; }
+  .subtitle { color: #888; font-size: 0.82rem; margin-bottom: 8px; }
+  .formula  { color: #556; font-size: 0.78rem; margin-bottom: 24px;
+               background:#141820; padding:8px 14px; border-radius:6px; display:inline-block; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th { background: #1e2130; color: #aaa; padding: 9px 12px; text-align: left;
+        font-weight: 600; border-bottom: 2px solid #2a2d3e; white-space: nowrap; }
+  th.score-col { background:#1a2520; color:#7ee8a2; }
+  tr { border-bottom: 1px solid #1e2130; transition: background 0.15s; }
+  tr:hover { background: #1a1d2e; }
+  tr.history { opacity: 0.5; }
+  td { padding: 9px 12px; vertical-align: middle; }
+  .rank { font-weight: 700; color: #888; width: 32px; text-align: center; }
+  .rank.gold   { color: #f5c518; }
+  .rank.silver { color: #b0b0b0; }
+  .rank.bronze { color: #cd7f32; }
+  .desc { font-weight: 500; color: #ddd; max-width: 300px; }
+  .ts   { color: #555; font-size: 0.76rem; white-space: nowrap; }
+  .bar-wrap { display: flex; align-items: center; gap: 6px; }
+  .bar { height: 7px; border-radius: 3px; min-width: 2px; }
+  .val { font-weight: 600; width: 40px; text-align: right; font-size:0.83rem; }
+  .f1  { color: #7ee8a2; }
+  .pre { color: #79c8ff; }
+  .rec { color: #ffb347; }
+  .tp  { color: #7ee8a2; }
+  .fp  { color: #ff7070; }
+  .fn  { color: #ffb347; }
+  .na  { color: #444; font-size: 0.8rem; }
+  /* Score columns */
+  .acc-score  { color: #7ee8a2; font-weight: 700; }
+  .rtf-score  { color: #79c8ff; font-weight: 700; }
+  .rtf-val    { color: #aaa; }
+  .tot-score  { color: #fff;  font-weight: 800; font-size: 1rem; }
+  .score-cell { background: rgba(126,232,162,0.04); }
+  .badge { display:inline-block; padding:2px 7px; border-radius:10px; font-size:0.73rem; font-weight:600; }
+  .best      { background:#1a3a2a; color:#7ee8a2; }
+  .hist-badge { background:#1a1a2e; color:#445; border:1px solid #2a2d3e; }
+  .divider td { background:#151820; color:#445; font-size:0.73rem; padding:4px 12px; letter-spacing:.07em; }
+  .note { color:#445; font-size:0.72rem; margin-top:16px; }
+</style>
+</head>
+<body>
+<h1>🏆 REDRED 리더보드</h1>
+<p class="subtitle">파이프라인 버전별 정확도 + 속도 추적 &nbsp;|&nbsp; python tools/score.py --desc "설명" --rtf 0.742</p>
+<div class="formula">
+  정확도 40점 = F1 × 0.4 &nbsp;|&nbsp;
+  RTF 20점 = 20 × (1 − RTF/3) &nbsp; [PDF 예시 검증: RTF=0.75 → 15점 ✓] &nbsp;|&nbsp;
+  발표 40점 = 직접 측정 불가 &nbsp;|&nbsp;
+  <b>추정 총점 = 정확도 + RTF (최대 60점)</b>
+</div>
+
+<table>
+<thead>
+<tr>
+  <th>#</th>
+  <th>설명</th>
+  <th>F1</th>
+  <th>Precision</th>
+  <th>Recall</th>
+  <th>TP</th><th>FP</th><th>FN</th>
+  <th class="score-col">정확도점수<br><small>/40</small></th>
+  <th class="score-col">RTF</th>
+  <th class="score-col">RTF점수<br><small>/20</small></th>
+  <th class="score-col">추정총점<br><small>/60</small></th>
+  <th>기록 시각</th>
+</tr>
+</thead>
+<tbody id="tbody"></tbody>
+</table>
+<p class="note">* 추정 총점 = 정확도 + RTF (발표 40점 제외). 정확도 공식은 대회 미공개로 F1 기반 추정.</p>
+
+<script>
+const data = [{"timestamp": "2026-06-19", "description": "초기 버전 — win=7 gap=10 conf=0.4 (UNKNOWN 상태 포함)", "total_gt": "105", "total_sub": "246", "TP": "-", "FP": "-", "FN": "-", "Precision": "-", "Recall": "-", "F1": "-", "RTF": "-", "accuracy_score": "-", "rtf_score": "-", "total_score": "-"}, {"timestamp": "2026-06-21", "description": "튜닝 1차 — win=9 gap=30 conf=0.4", "total_gt": "105", "total_sub": "170", "TP": "-", "FP": "-", "FN": "-", "Precision": "-", "Recall": "-", "F1": "-", "RTF": "-", "accuracy_score": "-", "rtf_score": "-", "total_score": "-"}, {"timestamp": "2026-06-21", "description": "튜닝 2차 — win=9 gap=60 conf=0.4", "total_gt": "105", "total_sub": "144", "TP": "-", "FP": "-", "FN": "-", "Precision": "-", "Recall": "-", "F1": "-", "RTF": "-", "accuracy_score": "-", "rtf_score": "-", "total_score": "-"}, {"timestamp": "2026-06-21", "description": "튜닝 3차 — win=9 gap=90 conf=0.4", "total_gt": "105", "total_sub": "130", "TP": "-", "FP": "-", "FN": "-", "Precision": "-", "Recall": "-", "F1": "-", "RTF": "-", "accuracy_score": "-", "rtf_score": "-", "total_score": "-"}, {"timestamp": "2026-06-22", "description": "튜닝 4차 — win=15 gap=90 conf=0.5 (conf 올리면 악화)", "total_gt": "105", "total_sub": "124", "TP": "-", "FP": "-", "FN": "-", "Precision": "-", "Recall": "-", "F1": "-", "RTF": "-", "accuracy_score": "-", "rtf_score": "-", "total_score": "-"}, {"timestamp": "2026-06-22", "description": "확정 파라미터 win=25 gap=90 (UNKNOWN 상태 반환 리콜 ~7%)", "total_gt": "105", "total_sub": "112", "TP": "-", "FP": "-", "FN": "-", "Precision": "-", "Recall": "-", "F1": "-", "RTF": "0.742", "accuracy_score": "-", "rtf_score": "15.1", "total_score": "-"}, {"timestamp": "2026-06-23 13:28", "description": "UNKNOWN 제거 + history reset (skip=2)", "total_gt": "105", "total_sub": "108", "TP": "94", "FP": "14", "FN": "11", "Precision": "87.0%", "Recall": "89.5%", "F1": "88.3%", "RTF": "0.742", "accuracy_score": "35.3", "rtf_score": "15.1", "total_score": "50.4"}];
+
+function pct(s) {
+  if (!s || s === '-') return null;
+  const v = parseFloat(s.replace('%',''));
+  return isNaN(v) ? null : v;
+}
+function num(s) {
+  if (!s || s === '-') return null;
+  const v = parseFloat(s);
+  return isNaN(v) ? null : v;
+}
+
+const scored  = data.filter(r => pct(r.F1) !== null).sort((a,b) => {
+  const ta = (num(a.accuracy_score)||0) + (num(a.rtf_score)||0);
+  const tb = (num(b.accuracy_score)||0) + (num(b.rtf_score)||0);
+  return tb - ta;
+});
+const history = data.filter(r => pct(r.F1) === null);
+
+const tbody = document.getElementById('tbody');
+
+function bar(v, cls, color) {
+  if (v === null) return `<span class="na">—</span>`;
+  return `<div class="bar-wrap">
+    <div class="bar" style="width:${Math.round(v*1.3)}px;background:${color}"></div>
+    <span class="val ${cls}">${v.toFixed(1)}%</span>
+  </div>`;
+}
+function na(v, cls='', suffix='') {
+  if (v === null || v === '-' || v === undefined || v === '') return `<span class="na">—</span>`;
+  return `<span class="${cls}">${v}${suffix}</span>`;
+}
+
+scored.forEach((row, i) => {
+  const rank = i + 1;
+  const f1v  = pct(row.F1);
+  const prev = pct(row.Precision);
+  const recv = pct(row.Recall);
+  const acc  = num(row.accuracy_score);
+  const rtfv = num(row.RTF);
+  const rtfs = num(row.rtf_score);
+  const tot  = (acc !== null && rtfs !== null) ? +(acc + rtfs).toFixed(1) : null;
+  const bestTot = num(scored[0].accuracy_score) + num(scored[0].rtf_score);
+  const isB  = tot !== null && tot === +(bestTot).toFixed(1);
+  const rankClass = rank===1?'gold':rank===2?'silver':rank===3?'bronze':'';
+
+  tbody.innerHTML += `<tr>
+    <td class="rank ${rankClass}">${rank}</td>
+    <td class="desc">${row.description} ${isB ? '<span class="badge best">BEST</span>' : ''}</td>
+    <td>${bar(f1v,  'f1',  '#7ee8a2')}</td>
+    <td>${bar(prev, 'pre', '#79c8ff')}</td>
+    <td>${bar(recv, 'rec', '#ffb347')}</td>
+    <td class="tp">${row.TP ?? '<span class="na">—</span>'}</td>
+    <td class="fp">${row.FP ?? '<span class="na">—</span>'}</td>
+    <td class="fn">${row.FN ?? '<span class="na">—</span>'}</td>
+    <td class="score-cell">${na(acc, 'acc-score', '점')}</td>
+    <td class="score-cell">${na(rtfv, 'rtf-val')}</td>
+    <td class="score-cell">${na(rtfs, 'rtf-score', '점')}</td>
+    <td class="score-cell">${tot !== null ? `<span class="tot-score">${tot}점</span>` : '<span class="na">—</span>'}</td>
+    <td class="ts">${row.timestamp}</td>
+  </tr>`;
+});
+
+if (history.length) {
+  tbody.innerHTML += `<tr class="divider"><td colspan="13">▼ 이전 기록 (점수 미측정 — 제출 CSV 없음)</td></tr>`;
+  history.forEach(row => {
+    const rtfv = num(row.RTF);
+    const rtfs = num(row.rtf_score);
+    tbody.innerHTML += `<tr class="history">
+      <td class="rank"><span class="na">—</span></td>
+      <td class="desc">${row.description} <span class="badge hist-badge">이벤트: ${row.total_sub}</span></td>
+      <td colspan="6"><span class="na" style="font-size:0.8rem">정확도 미측정</span></td>
+      <td class="score-cell"><span class="na">—</span></td>
+      <td class="score-cell">${na(rtfv, 'rtf-val')}</td>
+      <td class="score-cell">${na(rtfs, 'rtf-score', '점')}</td>
+      <td class="score-cell"><span class="na">—</span></td>
+      <td class="ts">${row.timestamp}</td>
+    </tr>`;
+  });
+}
+</script>
+</body>
+</html>
