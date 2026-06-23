@@ -23,6 +23,25 @@ duplicate events from single-camera noise blips (glare/reflection on the
 white soap reading as a brief false positive); dove_white does have genuine
 2-camera agreement (37% of frames when present), so requiring 2 keeps real
 events while filtering single-camera flicker.
+
+redbull/crystal_hot_sauce/dr_pepper: quorum=1 (2026-06-23, same probe tool,
+re-run after these 3 + campbells_chicken_noodle_soup showed up FN in
+ground_truth_v2 scoring). All three are detected continuously and cleanly
+from frame 0 up to right before their GT purchase time, but only by 1-2
+specific cameras the whole time (redbull: cam0 only; crystal_hot_sauce:
+cam3, occasionally +cam4; dr_pepper: cam4, joined by cam1 then briefly cam0
+near t=21-22s) -- never the 3/5 majority weighted-median needs, so the
+fused count was floored to 0 for the entire video and the purchase event
+(1->0) never had a baseline to drop from. No flicker observed in the
+single-camera signal for any of the three, so quorum=1 is not expected to
+introduce noise the way it did for dove_white.
+
+campbells_chicken_noodle_soup was probed at the same time and shows the
+identical low-camera-count signature pre-purchase, but cam4 keeps reporting
+it continuously for ~100s *after* its GT purchase time (11s) -- almost
+certainly confusion with the visually similar campbells_chunky_classic_-
+chicken_noodle rather than a quorum problem. Deliberately left out of the
+override here; needs a bbox-position check before touching its fusion.
 """
 
 from typing import List, Dict, Optional
@@ -40,6 +59,9 @@ CLASS_QUORUM_OVERRIDE: Dict[int, int] = {
     2:  1,   # bumblebee_albacore
     53: 1,   # dove_pink
     54: 2,   # dove_white
+    15: 1,   # redbull
+    39: 1,   # crystal_hot_sauce
+    21: 1,   # dr_pepper
 }
 
 
