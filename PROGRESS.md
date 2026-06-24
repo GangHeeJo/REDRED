@@ -350,6 +350,26 @@ quorum=2 추가 후 spam 정상 감지 확인. 중복발화 없음. TP +1 추가
 - `frappuccino_coffee`: 너무 일찍(3.6s) 확정 (실제 16s)
 - `campbells`: chunky 클래스 혼동
 
+### 2026-06-24 | Phase 11 — "이벤트직후 유령반전" 분석, 진단 도구 버그 수정, SORT 트래커 A/B (박준영+Claude)
+
+**진단 도구 버그 발견/수정 (`tools/replay_event_detector.py`):** per-frame 디버그 출력 코드가 `detector._sm_state[cid]`/`._committed[cid]`를 `[]`로 직접 인덱싱했는데, 둘 다 `defaultdict`라 frame 0부터 강제로 키가 생성되며 `_history`까지 조기 활성화됨(실제 파이프라인은 해당 클래스가 처음 감지될 때까지 활성화 안 됨). 그 결과 **`haribo_gold_bears_gummi_candy`가 "반환은 맞고 구매가 유령으로 뜬다"고 잘못 보였음** — 수정 후 재확인하니 실제로는 반환/구매 둘 다 전혀 발화 안 하는 깨끗한 더블-FN(신호가 WINDOW_SIZE/CONFIRM_FRAMES 기준을 넘긴 적이 없음)이었음. **GPU 비결정성 의심은 정정됨** — haribo는 신호 부족 문제, GPU 비결정성과 무관. `[]` 대신 `in` 멤버십 체크로 수정, 커밋됨.
+
+**"이벤트직후 유령반전" 그룹 확정**: `pop_tararts_strawberry`/`hunts_sauce`/`pepperidge_farm_milk_chocolate_macadamia_cookies` (haribo는 제외, 위 정정 참고). 진짜 GT 이벤트는 제때 발화하지만, 이벤트 발생 시 `_history` 클리어 직후 혼잡구간(0~23/40~68/105~133초)의 occlusion flicker로 1~2개 유령 반전 쌍이 곧바로(약 3.7초 만에) 추가 확정됨. **per-class CONFIRM_FRAMES/WINDOW_SIZE를 올리는 방법은 기각** — 로컬 스윕(`output/debug_frame_counts.csv` 기준) 결과 진짜 신호도 똑같이 간헐적이라 기준을 높이면 진짜 이벤트까지 같이 사라짐. **`per_class_cooldown`(이벤트 발생 직후 N프레임 동안 새 candidate 형성을 차단하는 신규 메커니즘)을 구현해서 로컬 테스트 시 효과 확인** — 단, 노이즈 구간이 거의 전체 반환↔구매 간격(70~80초)에 걸쳐 있어서, 완전히 없애려면 **이 영상의 실측 간격에 맞춘 video-specific 값**(80초/70초)이 필요했음. 일반화 위험(다른 영상이면 그 시간 안의 진짜 재거래를 놓침) 때문에 **롤백 결정** (`fix/ghost-event-cooldown` 브랜치 히스토리 참고, 미병합 상태로 보존).
+
+**SORT 트래커(`--use_tracker`) A/B 테스트**: 기존에 구현은 돼 있었지만 `--tracker_max_age` 기본값(3, ~0.2초)이 측정된 occlusion gap(0.4~1.5초)보다 짧아서 거의 효과가 없었을 것으로 추정. A6000 큐에서 0(미사용)/15/25로 비교:
+
+| max_age | RTF | count F1 | order F1 | time F1 |
+|---|---|---|---|---|
+| 0 (미사용) | 0.770 | 92.0% | 85.4% | 84.5% |
+| 15 | 0.756 | **92.9%** | 85.3% | 85.3% |
+| 25 | 0.766 | 92.9% | 85.3% | 85.3% |
+
+RTF는 거의 무료(트래커는 CPU 쪽 Kalman/IoU 매칭만 추가, GPU 추론 비용 없음), 15에서 이미 효과가 다 나오고 25는 추가 이득 없음 → **15로 확정**. order/time F1이 트래커 켰을 때 TP/FP/FN까지 완전히 동일해지는 것도 확인됨(끄면 서로 다름) — 중복/유령 이벤트가 줄어 두 채점 방식의 매칭 모호성이 줄었다는 신호로, 노이즈가 아니라 실제 개선으로 판단. **단, pop_tararts 등 "이벤트직후 유령반전"은 트래커로도 그대로 남음** — 트래커는 카메라 내부 occlusion만 버텨주고, 5캠 합치는 fusion 단계의 진동은 못 잡음. `run_test.sh`에 `--use_tracker --tracker_max_age 15` 추가 + 코드 기본값도 15로 변경, `fix/tracker-default` 브랜치로 push.
+
+**frappuccino_coffee 회귀 의심**: 오늘 서버 재추론(A6000)에서 `fix/frappuccino-init`의 `confirm_frames=200` 적용 상태로 돌렸는데 **3번(notracker/max_age15/max_age25) 다 frappuccino 구매가 완전히 미발화(Sub=0)**. 기존엔 "3.6s에 너무 일찍 확정"이 문제였는데, 지금은 진짜 16s 신호도 200프레임(~13초)을 못 버티는 것으로 보임 — GPU 추론 결과가 그날그날 달라질 수 있어서, confirm_frames=200이 그새 너무 보수적인 값이 됐을 가능성. **재검증 필요, 아직 안 함.**
+
+**미병합 브랜치 4개로 늘어남, 통합 필요**: `fix/frappuccino-init`(per_class_confirm 인프라 + frappuccino confirm=200, 위 회귀 의심), `fix/pepperidge-milano-confirm`(per_class_confirm 인프라 중복 구현 + milano quorum=2/confirm=150), `fix/per-class-conf`(bulls_eye conf=0.2, event_detector 안 건드림 — 독립적), `fix/tracker-default`(트래커 기본 활성화, event_detector 안 건드림 — 독립적). **`fix/frappuccino-init`과 `fix/pepperidge-milano-confirm`은 같은 `per_class_confirm` 인프라를 각자 구현해서 그대로 두면 충돌** — 하나로 합친 브랜치로 정리해서 머지하는 작업이 다음 우선순위.
+
 ---
 
 ## 주요 결정사항 / 트러블슈팅 기록
@@ -422,13 +442,16 @@ python tools/analyze_inventory.py \
 - [ ] `hunts_sauce`, `pepperidge_farm_milk_chocolate_macadamia_cookies` 구매 — 60초대 시간 오차, 같은 계열 문제로 추정
 - [ ] `bulls_eye_bbq_sauce_original` — probe3 결과 max 5대 동시, quorum 문제 아님. 원인 미파악 (mean_conf=0.355로 낮음, conf threshold 경계선 문제 가능성)
   - **브랜치 구현됨: `fix/per-class-conf`** — `infer_batch`에 per_class_conf 지원 추가 + bulls_eye conf=0.2. 서버에서 `git checkout fix/per-class-conf && bash run_test.sh 2`로 테스트 가능. 효과 확인 후 main에 merge.
-- [ ] `haribo_gold_bears_gummi_candy` — probe3 결과 max 5대 동시, mean_conf=0.739로 충분히 높음. GPU 비결정성으로 간헐적 누락 의심
+- [ ] `haribo_gold_bears_gummi_candy` — (2026-06-24 정정) GPU 비결정성이 아니라 진단 도구(`replay_event_detector.py`) 버그로 인한 오판이었음 — 실제로는 반환/구매 둘 다 전혀 발화 안 하는 깨끗한 더블-FN, 신호가 WINDOW_SIZE/CONFIRM_FRAMES를 넘긴 적이 없음. 원인 미파악은 동일.
 - [ ] `pepperidge_farm_milano_cookies_double_chocolate` — probe3 결과 max 3대. quorum=2 시도했으나 5번 중복발화로 원복. 별도 해결책 필요 (per-class CONFIRM_FRAMES 등)
   - **브랜치 구현됨: `fix/pepperidge-milano-confirm`** — quorum=2 + per_class_confirm=150(~10초). 서버에서 `git checkout fix/pepperidge-milano-confirm && bash run_test.sh 2`로 테스트. 중복발화가 억제되는지 확인 필요.
 - [ ] `campbells_chicken_noodle_soup` — cam4가 구매(11s) 이후로도 계속 오감지, `campbells_chunky_classic_chicken_noodle`과 혼동 의심, bbox 위치 확인 필요
 - [ ] `frappuccino_coffee` — quorum 문제 아님, 영상 초반 노이즈로 너무 일찍(3.6s) 확정됨(실제 구매는 16s)
   - **브랜치 구현됨: `fix/frappuccino-init`** — `EventDetector`에 per_class_confirm 지원 추가 + frappuccino confirm_frames=200(~13초). 서버에서 `git checkout fix/frappuccino-init && bash run_test.sh 2`로 테스트.
+  - ⚠️ (2026-06-24) 오늘 A6000에서 재테스트하니 frappuccino 구매가 3번 다(notracker/tracker15/tracker25) 완전히 미발화로 나옴 — confirm_frames=200이 진짜 16s 신호도 걸러버리는 회귀 의심. **재검증 필요.**
   - ⚠️ `fix/frappuccino-init`과 `fix/pepperidge-milano-confirm`은 동일한 per_class_confirm 인프라를 각자 독립적으로 구현함. 둘 다 main에 머지할 때는 충돌 날 수 있음 — 하나로 합친 브랜치 만들어서 머지 권장.
+- [ ] `pop_tararts_strawberry`/`hunts_sauce`/`pepperidge_farm_milk_chocolate_macadamia_cookies` "이벤트직후 유령반전" — (2026-06-24) 메커니즘 확정(history clear 직후 occlusion flicker). `per_class_cooldown`으로 로컬에선 완전히 해결했으나 video-specific 튜닝값이라 롤백(`fix/ghost-event-cooldown` 참고). SORT 트래커(아래)도 이 문제는 못 고침. **미해결.**
+  - **브랜치 구현됨: `fix/tracker-default`** — `--use_tracker --tracker_max_age 15` 기본 적용. A6000 A/B 테스트로 RTF 영향 없이 count F1 92.0%→92.9% 확인(단, 이 유령 패턴 자체는 못 고침, 별개의 작은 개선). main merge 시 위 3개 브랜치와 함께 통합 필요.
 - [ ] 섹션1 초반 구매 미검출 — `--init_frames` 추정 윈도우와 실제 구매 타이밍이 겹치는 문제 (예: init_frames 축소, 또는 추정 방식 개선)
 - [x] ~~`dove_white` 중복 발화~~ → quorum=2로 절충, 순오류 4건→2건 감소 (2026-06-23)
 - [x] ~~정확도 검증~~ → `data/ground_truth_v2.csv` + `tools/score_methods.py`(3종 방식) + 리더보드로 완료 (2026-06-23)
