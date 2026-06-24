@@ -36,12 +36,14 @@ fused count was floored to 0 for the entire video and the purchase event
 single-camera signal for any of the three, so quorum=1 is not expected to
 introduce noise the way it did for dove_white.
 
-pepperidge_farm_milano_cookies_double_chocolate/spam: quorum=2 (2026-06-24,
-probe3). Both reach a maximum of 3 simultaneous cameras at conf=0.05, with
-many frames showing only 1-2 cameras. At production conf=0.4 the 3-camera
-frames likely thin out further, leaving many genuine-presence windows where
-only 2 cameras agree. Lowering to quorum=2 recovers those frames without
-going to quorum=1 (which risks noise from single-camera blips).
+spam: quorum=2 (2026-06-24, probe3). Reaches max 3 simultaneous cameras at
+conf=0.05 with many 1-2 camera frames; quorum=2 recovers those windows and
+confirmed clean (no spurious events) in the follow-up run.
+
+pepperidge_farm_milano_cookies_double_chocolate: also reaches max 3 cameras,
+but quorum=2 caused 5x duplicate purchase+return events (fused count
+oscillating 1<->0 across 2-camera agreements). Reverted to default median.
+Needs a different fix (e.g. per-class CONFIRM_FRAMES or signal smoothing).
 
 haribo_gold_bears_gummi_candy/bulls_eye_bbq_sauce_original: NOT a quorum
 problem. haribo reaches 5/5 cameras simultaneously (mean_conf=0.739 at
@@ -75,7 +77,6 @@ CLASS_QUORUM_OVERRIDE: Dict[int, int] = {
     15: 1,   # redbull
     39: 1,   # crystal_hot_sauce
     21: 1,   # dr_pepper
-    42: 2,   # pepperidge_farm_milano_cookies_double_chocolate
     29: 2,   # spam
 }
 
