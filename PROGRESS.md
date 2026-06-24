@@ -421,10 +421,14 @@ python tools/analyze_inventory.py \
 - [ ] `pop_tararts_strawberry` 구매/반환 사이클 시간 뒤섞임(77초 차이) — 현재 가장 큰 잔여 오차, 원인 미파악 (quorum과 무관, WINDOW_SIZE/CONFIRM_FRAMES 쪽 문제로 추정)
 - [ ] `hunts_sauce`, `pepperidge_farm_milk_chocolate_macadamia_cookies` 구매 — 60초대 시간 오차, 같은 계열 문제로 추정
 - [ ] `bulls_eye_bbq_sauce_original` — probe3 결과 max 5대 동시, quorum 문제 아님. 원인 미파악 (mean_conf=0.355로 낮음, conf threshold 경계선 문제 가능성)
+  - **브랜치 구현됨: `fix/per-class-conf`** — `infer_batch`에 per_class_conf 지원 추가 + bulls_eye conf=0.2. 서버에서 `git checkout fix/per-class-conf && bash run_test.sh 2`로 테스트 가능. 효과 확인 후 main에 merge.
 - [ ] `haribo_gold_bears_gummi_candy` — probe3 결과 max 5대 동시, mean_conf=0.739로 충분히 높음. GPU 비결정성으로 간헐적 누락 의심
 - [ ] `pepperidge_farm_milano_cookies_double_chocolate` — probe3 결과 max 3대. quorum=2 시도했으나 5번 중복발화로 원복. 별도 해결책 필요 (per-class CONFIRM_FRAMES 등)
+  - **브랜치 구현됨: `fix/pepperidge-milano-confirm`** — quorum=2 + per_class_confirm=150(~10초). 서버에서 `git checkout fix/pepperidge-milano-confirm && bash run_test.sh 2`로 테스트. 중복발화가 억제되는지 확인 필요.
 - [ ] `campbells_chicken_noodle_soup` — cam4가 구매(11s) 이후로도 계속 오감지, `campbells_chunky_classic_chicken_noodle`과 혼동 의심, bbox 위치 확인 필요
-- [ ] `frappuccino_coffee` — quorum 문제 아님, 영상 초반 노이즈로 너무 일찍(3.6s) 확정됨(실제 구매는 16s) — 별도 원인 조사 필요
+- [ ] `frappuccino_coffee` — quorum 문제 아님, 영상 초반 노이즈로 너무 일찍(3.6s) 확정됨(실제 구매는 16s)
+  - **브랜치 구현됨: `fix/frappuccino-init`** — `EventDetector`에 per_class_confirm 지원 추가 + frappuccino confirm_frames=200(~13초). 서버에서 `git checkout fix/frappuccino-init && bash run_test.sh 2`로 테스트.
+  - ⚠️ `fix/frappuccino-init`과 `fix/pepperidge-milano-confirm`은 동일한 per_class_confirm 인프라를 각자 독립적으로 구현함. 둘 다 main에 머지할 때는 충돌 날 수 있음 — 하나로 합친 브랜치 만들어서 머지 권장.
 - [ ] 섹션1 초반 구매 미검출 — `--init_frames` 추정 윈도우와 실제 구매 타이밍이 겹치는 문제 (예: init_frames 축소, 또는 추정 방식 개선)
 - [x] ~~`dove_white` 중복 발화~~ → quorum=2로 절충, 순오류 4건→2건 감소 (2026-06-23)
 - [x] ~~정확도 검증~~ → `data/ground_truth_v2.csv` + `tools/score_methods.py`(3종 방식) + 리더보드로 완료 (2026-06-23)
