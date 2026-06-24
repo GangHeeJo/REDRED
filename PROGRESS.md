@@ -5,18 +5,17 @@
 
 ---
 
-## 현재 상태 (2026-06-23 최종)
+## 현재 상태 (2026-06-24 최종)
 
 파이프라인 정상 동작 중. `data/ground_truth_v2.csv`(105개 실측 이벤트, **시간 포함**)가 현재 기준 GT — `tools/score_methods.py`로 3가지 방식 동시 채점.
 
 | 항목 | 값 |
 |------|-----|
-| RTF | 0.742 (목표 < 1.0, 통과) |
-| 처리 시간 | 177.3s (영상 길이 239.0s) |
-| F1 (count 기준, `tools/score.py`) | **90.0%** (TP=94 FP=10 FN=11) — 06-23 시작 시점 42%에서 대폭 개선 |
-| F1 (전체 순서 LCS, class 무관) | 83.3% |
-| F1 (실제 시각 비교, 지연 보정 ±3초) | 82.5% — 가장 엄격한 지표 |
-| 추정 총점 (정확도+RTF, /60) | **51.1점** (정확도 36.0 + RTF 15.1) — 리더보드 1위 |
+| RTF | 0.7575 (목표 < 1.0, 통과) |
+| F1 (count 기준, `tools/score.py`) | **92.0%** (TP=98 FP=10 FN=7) |
+| F1 (전체 순서 LCS, class 무관) | 85.4% |
+| F1 (실제 시각 비교, 지연 보정 ±3초) | 84.5% — 가장 엄격한 지표 |
+| 추정 총점 (정확도+RTF, /60) | **51.8점** (정확도 36.8 + RTF 15.0) — 리더보드 1위 |
 | 모델 mAP@0.5 | 98.1% (제공 가중치 `yolov7_custom.pt` 사용 중) |
 | 제출 파일 | `~/REDRED/output/submission_skip2.csv` |
 
@@ -324,6 +323,33 @@ cd ~/yolov7 && PYTHONPATH=~/yolov7 python train.py \
 - 두 번 다 동일하게 깨짐(진짜 문제, 재현됨): `bulls_eye_bbq_sauce_original`, `haribo_gold_bears_gummi_candy`, `pepperidge_farm_milano_cookies_double_chocolate`, `spam`, `frappuccino_coffee`, `campbells_chicken_noodle_soup` — 이 중 `bulls_eye_bbq_sauce_original`/`haribo`/`milano`/`spam`은 quorum probe 안 해봤음 (다음 후보), `frappuccino_coffee`는 quorum이 아니라 "너무 일찍(3.6s) 확정"되는 별개 버그(로컬 리플레이로 확인, 실제 구매는 16s).
 - 실행마다 다르게 나타남(GPU 비결정성 의심): `nabisco_nilla_wafers`, `white_rain_body_wash`(가짜 반환), `coca_cola_glass_bottle`(가짜 반환) — 우선순위 낮음.
 
+### 2026-06-24 | Phase 10 — probe3 quorum 전수조사 + spam quorum=2 (강희조+Claude)
+
+**probe3 실행 (`output/low_conf_probe3.csv`):**
+`bulls_eye_bbq_sauce_original` / `haribo_gold_bears_gummi_candy` / `pepperidge_farm_milano_cookies_double_chocolate` / `spam` 4개 클래스를 conf=0.05, skip=10으로 재추론. 프레임별 동시 카메라 수 분석:
+
+| 클래스 | max 동시 카메라 | mean_conf | 판정 |
+|--------|--------------|-----------|------|
+| `bulls_eye_bbq_sauce_original` | 5대 | 0.355 | quorum 문제 아님 (5대까지 보임, 다른 원인) |
+| `haribo_gold_bears_gummi_candy` | 5대 | 0.739 | quorum 문제 아님 (GPU 비결정성 의심) |
+| `pepperidge_farm_milano_cookies_double_chocolate` | 3대 | 0.549 | 경계선 — quorum=2 시도 |
+| `spam` | 3대 | 0.421 | 경계선 — quorum=2 시도 |
+
+**`pepperidge_farm_milano` quorum=2 시도 및 취소:**
+quorum=2 추가 시 Sub=5 purchase + Sub=5 return으로 5번 중복발화 발생 — dove_white 때와 동일 패턴(2대 신호가 들쭉날쭉해서 count가 1↔0 반복). 즉시 원복. `CLASS_QUORUM_OVERRIDE`에서 제외.
+
+**`spam` quorum=2 확정 (`src/multi_view_fusion.py`, class_id=29):**
+quorum=2 추가 후 spam 정상 감지 확인. 중복발화 없음. TP +1 추가.
+
+**결과**: F1 91.5%→**92.0%**, order 84.9%→**85.4%**, time 84.0%→**84.5%**, 추정 총점 51.6→**51.8점**.
+
+**남은 문제:**
+- `pepperidge_farm_milano`: quorum=2 불가 (중복발화), 별도 해결책 필요
+- `haribo`, `bulls_eye`: quorum 문제 아님, 원인 미파악
+- `pop_tararts_strawberry`/`hunts_sauce`/`pepperidge_farm_milk_choc`: 60~77초 타이밍 오차 (이벤트 감지 로직 문제)
+- `frappuccino_coffee`: 너무 일찍(3.6s) 확정 (실제 16s)
+- `campbells`: chunky 클래스 혼동
+
 ---
 
 ## 주요 결정사항 / 트러블슈팅 기록
@@ -365,7 +391,7 @@ YOLOv7의 `attempt_load`를 쓰면 내부의 `attempt_download`가 파일 경로
 | `CONFIRM_FRAMES` | 30 | `src/event_detector.py` — candidate 확정까지 필요한 연속 프레임(skip=2 기준 ~2초) |
 | `MAX_DELTA` | 4 | `src/event_detector.py` — 1회 이벤트당 허용 최대 변화량 |
 | `MAX_INVENTORY` | 1 | `src/event_detector.py` — 슬롯당 물리적 최대 재고 |
-| `CLASS_QUORUM_OVERRIDE` | {2:1, 53:1, 54:2, 15:1, 39:1, 21:1} | `src/multi_view_fusion.py` — bumblebee_albacore(1), dove_pink(1), dove_white(2), redbull(1), crystal_hot_sauce(1), dr_pepper(1). 숫자는 이벤트로 인정하는 데 필요한 동시 카메라 수 |
+| `CLASS_QUORUM_OVERRIDE` | {2:1, 53:1, 54:2, 15:1, 39:1, 21:1, 29:2} | `src/multi_view_fusion.py` — bumblebee_albacore(1), dove_pink(1), dove_white(2), redbull(1), crystal_hot_sauce(1), dr_pepper(1), spam(2). 숫자는 이벤트로 인정하는 데 필요한 동시 카메라 수 |
 | `--conf` | 0.4 | `run_test.sh` |
 | `--skip` | 2 | `run_test.sh` |
 
@@ -401,3 +427,4 @@ python tools/analyze_inventory.py \
 - [x] ~~`dove_white` 중복 발화~~ → quorum=2로 절충, 순오류 4건→2건 감소 (2026-06-23)
 - [x] ~~정확도 검증~~ → `data/ground_truth_v2.csv` + `tools/score_methods.py`(3종 방식) + 리더보드로 완료 (2026-06-23)
 - [x] ~~`redbull`/`crystal_hot_sauce`/`dr_pepper` 완전누락~~ → quorum=1 추가로 해결, F1 90.0%→91.5% (2026-06-23)
+- [x] ~~`spam` 완전누락~~ → quorum=2 추가로 해결, F1 91.5%→92.0% (2026-06-24)
