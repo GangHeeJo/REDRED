@@ -207,8 +207,8 @@ def main():
     # Tracker 옵션
     parser.add_argument("--use_tracker",     action="store_true",
                         help="SORT 트래커 활성화 (--use_tracker 없으면 기존 카운팅 방식)")
-    parser.add_argument("--tracker_max_age", type=int, default=3,
-                        help="트래커: 미감지 허용 최대 프레임 수")
+    parser.add_argument("--tracker_max_age", type=int, default=15,
+                        help="트래커: 미감지 허용 최대 프레임 수 (A/B 테스트: 15 최적, 25는 추가 이득 없음)")
     parser.add_argument("--tracker_min_hits", type=int, default=3,
                         help="트래커: 확정까지 필요한 연속 감지 횟수")
     parser.add_argument("--tracker_iou",     type=float, default=0.3,

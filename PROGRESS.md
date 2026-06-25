@@ -5,22 +5,36 @@
 
 ---
 
-## 현재 상태 (2026-06-23 최종)
+## 현재 상태 (2026-06-25 최종)
 
 파이프라인 정상 동작 중. `data/ground_truth_v2.csv`(105개 실측 이벤트, **시간 포함**)가 현재 기준 GT — `tools/score_methods.py`로 3가지 방식 동시 채점.
 
+**현재 main 브랜치 = Phase 10 (spam quorum=2)**
+
 | 항목 | 값 |
 |------|-----|
-| RTF | 0.742 (목표 < 1.0, 통과) |
-| 처리 시간 | 177.3s (영상 길이 239.0s) |
-| F1 (count 기준, `tools/score.py`) | **90.0%** (TP=94 FP=10 FN=11) — 06-23 시작 시점 42%에서 대폭 개선 |
-| F1 (전체 순서 LCS, class 무관) | 83.3% |
-| F1 (실제 시각 비교, 지연 보정 ±3초) | 82.5% — 가장 엄격한 지표 |
-| 추정 총점 (정확도+RTF, /60) | **51.1점** (정확도 36.0 + RTF 15.1) — 리더보드 1위 |
+| RTF | 0.7575 (목표 < 1.0, **RTF≤1이면 20점 만점**) |
+| F1 (count 참고용) | 92.0% (TP=98 FP=10 FN=7) |
+| **F1 (order/LCS — `tools/score.py` 기준)** | **85.4%** (TP=91 FP=17 FN=14) |
+| F1 (time, 지연보정 ±3초) | 84.5% |
+| **추정 총점 (정확도+RTF, /60)** | **54.2점** (정확도 34.2 + RTF 20.0) |
 | 모델 mAP@0.5 | 98.1% (제공 가중치 `yolov7_custom.pt` 사용 중) |
 | 제출 파일 | `~/REDRED/output/submission_skip2.csv` |
 
-⚠️ "이벤트 수"(112개 등) 또는 단일 F1만으로 품질을 판단하지 않음 — **3가지 채점 방식을 같이 보고 판단**. 이유와 사용법은 Phase 7 참고. 리더보드: `output/leaderboard.html` (브라우저로 열기).
+**채점 기준 (2026-06-25 갱신):**
+- 정확도 40점: `score.py`가 **order/LCS F1 × 0.4** 기준으로 변경 (공식 미공개이나 이벤트번호 포함 기준에 더 근접)
+- RTF 20점: 대회 공고 기준 **RTF ≤ 1 → 만점(20점)**, RTF > 1 → 상대평가(미공개)
+- 기존 `20×(1-RTF/3)` 공식은 잘못된 역산값이었음 — 수정됨
+
+**미병합 브랜치 (서버에서 테스트 필요):**
+| 브랜치 | 대상 | 기대 효과 |
+|--------|------|---------|
+| `fix/tracker-default` | SORT 트래커 max_age=15 기본 적용 | count F1 92.0%→92.9% (A6000 확인) |
+| `fix/per-class-conf` | bulls_eye conf=0.2 | bulls_eye FN 해결 기대 |
+| `fix/frappuccino-init` | frappuccino confirm=200 | ⚠️ 회귀 의심 (재검증 필요) |
+| `fix/pepperidge-milano-confirm` | milano quorum=2 + confirm=150 | 중복발화 억제 기대 |
+
+⚠️ 단일 F1만으로 판단하지 말 것 — count/order/time 세 지표 같이 보기. 리더보드: `output/leaderboard.html` (브라우저로 열기).
 
 ---
 
@@ -324,6 +338,53 @@ cd ~/yolov7 && PYTHONPATH=~/yolov7 python train.py \
 - 두 번 다 동일하게 깨짐(진짜 문제, 재현됨): `bulls_eye_bbq_sauce_original`, `haribo_gold_bears_gummi_candy`, `pepperidge_farm_milano_cookies_double_chocolate`, `spam`, `frappuccino_coffee`, `campbells_chicken_noodle_soup` — 이 중 `bulls_eye_bbq_sauce_original`/`haribo`/`milano`/`spam`은 quorum probe 안 해봤음 (다음 후보), `frappuccino_coffee`는 quorum이 아니라 "너무 일찍(3.6s) 확정"되는 별개 버그(로컬 리플레이로 확인, 실제 구매는 16s).
 - 실행마다 다르게 나타남(GPU 비결정성 의심): `nabisco_nilla_wafers`, `white_rain_body_wash`(가짜 반환), `coca_cola_glass_bottle`(가짜 반환) — 우선순위 낮음.
 
+### 2026-06-24 | Phase 10 — probe3 quorum 전수조사 + spam quorum=2 (강희조+Claude)
+
+**probe3 실행 (`output/low_conf_probe3.csv`):**
+`bulls_eye_bbq_sauce_original` / `haribo_gold_bears_gummi_candy` / `pepperidge_farm_milano_cookies_double_chocolate` / `spam` 4개 클래스를 conf=0.05, skip=10으로 재추론. 프레임별 동시 카메라 수 분석:
+
+| 클래스 | max 동시 카메라 | mean_conf | 판정 |
+|--------|--------------|-----------|------|
+| `bulls_eye_bbq_sauce_original` | 5대 | 0.355 | quorum 문제 아님 (5대까지 보임, 다른 원인) |
+| `haribo_gold_bears_gummi_candy` | 5대 | 0.739 | quorum 문제 아님 (GPU 비결정성 의심) |
+| `pepperidge_farm_milano_cookies_double_chocolate` | 3대 | 0.549 | 경계선 — quorum=2 시도 |
+| `spam` | 3대 | 0.421 | 경계선 — quorum=2 시도 |
+
+**`pepperidge_farm_milano` quorum=2 시도 및 취소:**
+quorum=2 추가 시 Sub=5 purchase + Sub=5 return으로 5번 중복발화 발생 — dove_white 때와 동일 패턴(2대 신호가 들쭉날쭉해서 count가 1↔0 반복). 즉시 원복. `CLASS_QUORUM_OVERRIDE`에서 제외.
+
+**`spam` quorum=2 확정 (`src/multi_view_fusion.py`, class_id=29):**
+quorum=2 추가 후 spam 정상 감지 확인. 중복발화 없음. TP +1 추가.
+
+**결과**: F1 91.5%→**92.0%**, order 84.9%→**85.4%**, time 84.0%→**84.5%**, 추정 총점 51.6→**51.8점**.
+
+**남은 문제:**
+- `pepperidge_farm_milano`: quorum=2 불가 (중복발화), 별도 해결책 필요
+- `haribo`, `bulls_eye`: quorum 문제 아님, 원인 미파악
+- `pop_tararts_strawberry`/`hunts_sauce`/`pepperidge_farm_milk_choc`: 60~77초 타이밍 오차 (이벤트 감지 로직 문제)
+- `frappuccino_coffee`: 너무 일찍(3.6s) 확정 (실제 16s)
+- `campbells`: chunky 클래스 혼동
+
+### 2026-06-24 | Phase 11 — "이벤트직후 유령반전" 분석, 진단 도구 버그 수정, SORT 트래커 A/B (박준영+Claude)
+
+**진단 도구 버그 발견/수정 (`tools/replay_event_detector.py`):** per-frame 디버그 출력 코드가 `detector._sm_state[cid]`/`._committed[cid]`를 `[]`로 직접 인덱싱했는데, 둘 다 `defaultdict`라 frame 0부터 강제로 키가 생성되며 `_history`까지 조기 활성화됨(실제 파이프라인은 해당 클래스가 처음 감지될 때까지 활성화 안 됨). 그 결과 **`haribo_gold_bears_gummi_candy`가 "반환은 맞고 구매가 유령으로 뜬다"고 잘못 보였음** — 수정 후 재확인하니 실제로는 반환/구매 둘 다 전혀 발화 안 하는 깨끗한 더블-FN(신호가 WINDOW_SIZE/CONFIRM_FRAMES 기준을 넘긴 적이 없음)이었음. **GPU 비결정성 의심은 정정됨** — haribo는 신호 부족 문제, GPU 비결정성과 무관. `[]` 대신 `in` 멤버십 체크로 수정, 커밋됨.
+
+**"이벤트직후 유령반전" 그룹 확정**: `pop_tararts_strawberry`/`hunts_sauce`/`pepperidge_farm_milk_chocolate_macadamia_cookies` (haribo는 제외, 위 정정 참고). 진짜 GT 이벤트는 제때 발화하지만, 이벤트 발생 시 `_history` 클리어 직후 혼잡구간(0~23/40~68/105~133초)의 occlusion flicker로 1~2개 유령 반전 쌍이 곧바로(약 3.7초 만에) 추가 확정됨. **per-class CONFIRM_FRAMES/WINDOW_SIZE를 올리는 방법은 기각** — 로컬 스윕(`output/debug_frame_counts.csv` 기준) 결과 진짜 신호도 똑같이 간헐적이라 기준을 높이면 진짜 이벤트까지 같이 사라짐. **`per_class_cooldown`(이벤트 발생 직후 N프레임 동안 새 candidate 형성을 차단하는 신규 메커니즘)을 구현해서 로컬 테스트 시 효과 확인** — 단, 노이즈 구간이 거의 전체 반환↔구매 간격(70~80초)에 걸쳐 있어서, 완전히 없애려면 **이 영상의 실측 간격에 맞춘 video-specific 값**(80초/70초)이 필요했음. 일반화 위험(다른 영상이면 그 시간 안의 진짜 재거래를 놓침) 때문에 **롤백 결정** (`fix/ghost-event-cooldown` 브랜치 히스토리 참고, 미병합 상태로 보존).
+
+**SORT 트래커(`--use_tracker`) A/B 테스트**: 기존에 구현은 돼 있었지만 `--tracker_max_age` 기본값(3, ~0.2초)이 측정된 occlusion gap(0.4~1.5초)보다 짧아서 거의 효과가 없었을 것으로 추정. A6000 큐에서 0(미사용)/15/25로 비교:
+
+| max_age | RTF | count F1 | order F1 | time F1 |
+|---|---|---|---|---|
+| 0 (미사용) | 0.770 | 92.0% | 85.4% | 84.5% |
+| 15 | 0.756 | **92.9%** | 85.3% | 85.3% |
+| 25 | 0.766 | 92.9% | 85.3% | 85.3% |
+
+RTF는 거의 무료(트래커는 CPU 쪽 Kalman/IoU 매칭만 추가, GPU 추론 비용 없음), 15에서 이미 효과가 다 나오고 25는 추가 이득 없음 → **15로 확정**. order/time F1이 트래커 켰을 때 TP/FP/FN까지 완전히 동일해지는 것도 확인됨(끄면 서로 다름) — 중복/유령 이벤트가 줄어 두 채점 방식의 매칭 모호성이 줄었다는 신호로, 노이즈가 아니라 실제 개선으로 판단. **단, pop_tararts 등 "이벤트직후 유령반전"은 트래커로도 그대로 남음** — 트래커는 카메라 내부 occlusion만 버텨주고, 5캠 합치는 fusion 단계의 진동은 못 잡음. `run_test.sh`에 `--use_tracker --tracker_max_age 15` 추가 + 코드 기본값도 15로 변경, `fix/tracker-default` 브랜치로 push.
+
+**frappuccino_coffee 회귀 의심**: 오늘 서버 재추론(A6000)에서 `fix/frappuccino-init`의 `confirm_frames=200` 적용 상태로 돌렸는데 **3번(notracker/max_age15/max_age25) 다 frappuccino 구매가 완전히 미발화(Sub=0)**. 기존엔 "3.6s에 너무 일찍 확정"이 문제였는데, 지금은 진짜 16s 신호도 200프레임(~13초)을 못 버티는 것으로 보임 — GPU 추론 결과가 그날그날 달라질 수 있어서, confirm_frames=200이 그새 너무 보수적인 값이 됐을 가능성. **재검증 필요, 아직 안 함.**
+
+**미병합 브랜치 4개로 늘어남, 통합 필요**: `fix/frappuccino-init`(per_class_confirm 인프라 + frappuccino confirm=200, 위 회귀 의심), `fix/pepperidge-milano-confirm`(per_class_confirm 인프라 중복 구현 + milano quorum=2/confirm=150), `fix/per-class-conf`(bulls_eye conf=0.2, event_detector 안 건드림 — 독립적), `fix/tracker-default`(트래커 기본 활성화, event_detector 안 건드림 — 독립적). **`fix/frappuccino-init`과 `fix/pepperidge-milano-confirm`은 같은 `per_class_confirm` 인프라를 각자 구현해서 그대로 두면 충돌** — 하나로 합친 브랜치로 정리해서 머지하는 작업이 다음 우선순위.
+
 ---
 
 ## 주요 결정사항 / 트러블슈팅 기록
@@ -365,7 +426,7 @@ YOLOv7의 `attempt_load`를 쓰면 내부의 `attempt_download`가 파일 경로
 | `CONFIRM_FRAMES` | 30 | `src/event_detector.py` — candidate 확정까지 필요한 연속 프레임(skip=2 기준 ~2초) |
 | `MAX_DELTA` | 4 | `src/event_detector.py` — 1회 이벤트당 허용 최대 변화량 |
 | `MAX_INVENTORY` | 1 | `src/event_detector.py` — 슬롯당 물리적 최대 재고 |
-| `CLASS_QUORUM_OVERRIDE` | {2:1, 53:1, 54:2, 15:1, 39:1, 21:1} | `src/multi_view_fusion.py` — bumblebee_albacore(1), dove_pink(1), dove_white(2), redbull(1), crystal_hot_sauce(1), dr_pepper(1). 숫자는 이벤트로 인정하는 데 필요한 동시 카메라 수 |
+| `CLASS_QUORUM_OVERRIDE` | {2:1, 53:1, 54:2, 15:1, 39:1, 21:1, 29:2} | `src/multi_view_fusion.py` — bumblebee_albacore(1), dove_pink(1), dove_white(2), redbull(1), crystal_hot_sauce(1), dr_pepper(1), spam(2). 숫자는 이벤트로 인정하는 데 필요한 동시 카메라 수 |
 | `--conf` | 0.4 | `run_test.sh` |
 | `--skip` | 2 | `run_test.sh` |
 
@@ -394,10 +455,20 @@ python tools/analyze_inventory.py \
 - [ ] 발표 자료 준비
 - [ ] `pop_tararts_strawberry` 구매/반환 사이클 시간 뒤섞임(77초 차이) — 현재 가장 큰 잔여 오차, 원인 미파악 (quorum과 무관, WINDOW_SIZE/CONFIRM_FRAMES 쪽 문제로 추정)
 - [ ] `hunts_sauce`, `pepperidge_farm_milk_chocolate_macadamia_cookies` 구매 — 60초대 시간 오차, 같은 계열 문제로 추정
-- [ ] `bulls_eye_bbq_sauce_original`, `haribo_gold_bears_gummi_candy`, `pepperidge_farm_milano_cookies_double_chocolate`, `spam` — `tools/probe_low_confidence.py`로 quorum 패턴인지 확인 (redbull/crystal_hot_sauce/dr_pepper와 같은 방식으로 고쳐질 가능성 높음, 다음 우선 작업)
+- [ ] `bulls_eye_bbq_sauce_original` — probe3 결과 max 5대 동시, quorum 문제 아님. 원인 미파악 (mean_conf=0.355로 낮음, conf threshold 경계선 문제 가능성)
+  - **브랜치 구현됨: `fix/per-class-conf`** — `infer_batch`에 per_class_conf 지원 추가 + bulls_eye conf=0.2. 서버에서 `git checkout fix/per-class-conf && bash run_test.sh 2`로 테스트 가능. 효과 확인 후 main에 merge.
+- [ ] `haribo_gold_bears_gummi_candy` — (2026-06-24 정정) GPU 비결정성이 아니라 진단 도구(`replay_event_detector.py`) 버그로 인한 오판이었음 — 실제로는 반환/구매 둘 다 전혀 발화 안 하는 깨끗한 더블-FN, 신호가 WINDOW_SIZE/CONFIRM_FRAMES를 넘긴 적이 없음. 원인 미파악은 동일.
+- [ ] `pepperidge_farm_milano_cookies_double_chocolate` — probe3 결과 max 3대. quorum=2 시도했으나 5번 중복발화로 원복. 별도 해결책 필요 (per-class CONFIRM_FRAMES 등)
+  - **브랜치 구현됨: `fix/pepperidge-milano-confirm`** — quorum=2 + per_class_confirm=150(~10초). 서버에서 `git checkout fix/pepperidge-milano-confirm && bash run_test.sh 2`로 테스트. 중복발화가 억제되는지 확인 필요.
 - [ ] `campbells_chicken_noodle_soup` — cam4가 구매(11s) 이후로도 계속 오감지, `campbells_chunky_classic_chicken_noodle`과 혼동 의심, bbox 위치 확인 필요
-- [ ] `frappuccino_coffee` — quorum 문제 아님, 영상 초반 노이즈로 너무 일찍(3.6s) 확정됨(실제 구매는 16s) — 별도 원인 조사 필요
+- [ ] `frappuccino_coffee` — quorum 문제 아님, 영상 초반 노이즈로 너무 일찍(3.6s) 확정됨(실제 구매는 16s)
+  - **브랜치 구현됨: `fix/frappuccino-init`** — `EventDetector`에 per_class_confirm 지원 추가 + frappuccino confirm_frames=200(~13초). 서버에서 `git checkout fix/frappuccino-init && bash run_test.sh 2`로 테스트.
+  - ⚠️ (2026-06-24) 오늘 A6000에서 재테스트하니 frappuccino 구매가 3번 다(notracker/tracker15/tracker25) 완전히 미발화로 나옴 — confirm_frames=200이 진짜 16s 신호도 걸러버리는 회귀 의심. **재검증 필요.**
+  - ⚠️ `fix/frappuccino-init`과 `fix/pepperidge-milano-confirm`은 동일한 per_class_confirm 인프라를 각자 독립적으로 구현함. 둘 다 main에 머지할 때는 충돌 날 수 있음 — 하나로 합친 브랜치 만들어서 머지 권장.
+- [ ] `pop_tararts_strawberry`/`hunts_sauce`/`pepperidge_farm_milk_chocolate_macadamia_cookies` "이벤트직후 유령반전" — (2026-06-24) 메커니즘 확정(history clear 직후 occlusion flicker). `per_class_cooldown`으로 로컬에선 완전히 해결했으나 video-specific 튜닝값이라 롤백(`fix/ghost-event-cooldown` 참고). SORT 트래커(아래)도 이 문제는 못 고침. **미해결.**
+  - **브랜치 구현됨: `fix/tracker-default`** — `--use_tracker --tracker_max_age 15` 기본 적용. A6000 A/B 테스트로 RTF 영향 없이 count F1 92.0%→92.9% 확인(단, 이 유령 패턴 자체는 못 고침, 별개의 작은 개선). main merge 시 위 3개 브랜치와 함께 통합 필요.
 - [ ] 섹션1 초반 구매 미검출 — `--init_frames` 추정 윈도우와 실제 구매 타이밍이 겹치는 문제 (예: init_frames 축소, 또는 추정 방식 개선)
 - [x] ~~`dove_white` 중복 발화~~ → quorum=2로 절충, 순오류 4건→2건 감소 (2026-06-23)
 - [x] ~~정확도 검증~~ → `data/ground_truth_v2.csv` + `tools/score_methods.py`(3종 방식) + 리더보드로 완료 (2026-06-23)
 - [x] ~~`redbull`/`crystal_hot_sauce`/`dr_pepper` 완전누락~~ → quorum=1 추가로 해결, F1 90.0%→91.5% (2026-06-23)
+- [x] ~~`spam` 완전누락~~ → quorum=2 추가로 해결, F1 91.5%→92.0% (2026-06-24)

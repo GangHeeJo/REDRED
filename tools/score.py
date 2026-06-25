@@ -3,7 +3,7 @@ Score a submission against ground truth and update leaderboard.
 
 채점 기준 (총 100점):
   정확도 40점  — F1 기반 추정 (F1 * 40)
-  RTF    20점  — rtf_score = 20 * (1 - RTF/3)  [PDF 48p 예시: RTF=0.75 → 15점 검증됨]
+  RTF    20점  — RTF ≤ 1 → 만점(20점), RTF > 1 → 상대평가(미공개, 추정 불가)
   발표   40점  — 직접 측정 불가
 
 Usage:
@@ -35,9 +35,10 @@ def calc_accuracy_score(f1_pct: float) -> float:
 
 
 def calc_rtf_score(rtf: float) -> float:
-    """RTF 점수: 20 × (1 - RTF/3)  →  최대 20점, RTF≥3이면 0점
-    PDF 48p 예시: RTF=0.75 → 15점 ✓"""
-    return round(max(0.0, 20 * (1 - rtf / 3)), 1)
+    """RTF 점수: RTF ≤ 1 → 20점 만점. RTF > 1 → 상대평가(공식 미공개, None 반환)."""
+    if rtf <= 1.0:
+        return 20.0
+    return None  # 상대평가 — 추정 불가
 
 
 # ── 데이터 로드 ──────────────────────────────────────────────────
@@ -63,7 +64,27 @@ def load_submission(path):
     return events
 
 
-def score(gt_events, sub_events):
+def score_lcs(gt_events, sub_events):
+    """Method 2: LCS-based order F1 (class-agnostic sequence matching)."""
+    n, m = len(gt_events), len(sub_events)
+    dp = [[0] * (m + 1) for _ in range(n + 1)]
+    for i in range(1, n + 1):
+        for j in range(1, m + 1):
+            if gt_events[i - 1] == sub_events[j - 1]:
+                dp[i][j] = dp[i - 1][j - 1] + 1
+            else:
+                dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+    tp = dp[n][m]
+    fp = m - tp
+    fn = n - tp
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+    recall    = tp / (tp + fn) if (tp + fn) > 0 else 0
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0
+    return tp, fp, fn, precision, recall, f1
+
+
+def score_count(gt_events, sub_events):
+    """Method 1: count-only F1 (Counter, order-agnostic). For reference only."""
     gt_counter  = Counter(gt_events)
     sub_counter = Counter(sub_events)
     all_keys = set(gt_counter) | set(sub_counter)
@@ -159,8 +180,8 @@ def generate_html(lb_rows, html_path):
 <h1>🏆 REDRED 리더보드</h1>
 <p class="subtitle">파이프라인 버전별 정확도 + 속도 추적 &nbsp;|&nbsp; python tools/score.py --desc "설명" --rtf 0.742</p>
 <div class="formula">
-  정확도 40점 = F1 × 0.4 &nbsp;|&nbsp;
-  RTF 20점 = 20 × (1 − RTF/3) &nbsp; [PDF 예시 검증: RTF=0.75 → 15점 ✓] &nbsp;|&nbsp;
+  정확도 40점 = F1 × 0.4 (공식 미공개, 추정) &nbsp;|&nbsp;
+  RTF 20점 = RTF ≤ 1 → 만점(20점) / RTF > 1 → 상대평가(추정 불가) &nbsp;|&nbsp;
   발표 40점 = 직접 측정 불가 &nbsp;|&nbsp;
   <b>추정 총점 = 정확도 + RTF (최대 60점)</b>
 </div>
@@ -183,7 +204,7 @@ def generate_html(lb_rows, html_path):
 </thead>
 <tbody id="tbody"></tbody>
 </table>
-<p class="note">* 추정 총점 = 정확도 + RTF (발표 40점 제외). 정확도 공식은 대회 미공개로 F1 기반 추정.</p>
+<p class="note">* 추정 총점 = 정확도 + RTF (발표 40점 제외). 정확도 = order/LCS F1 × 0.4 (대회 공식 미공개, 추정). F1 컬럼은 order/LCS 기준.</p>
 
 <script>
 const data = {data_json};
@@ -290,9 +311,13 @@ def main():
     gt_events  = load_gt(args.gt)
     sub_events = load_submission(args.sub)
 
-    tp, fp, fn, precision, recall, f1, details = score(gt_events, sub_events)
+    # Primary metric: order (LCS) F1
+    tp, fp, fn, precision, recall, f1 = score_lcs(gt_events, sub_events)
+    # Reference: count F1
+    ctp, cfp, cfn, cprecision, crecall, cf1, details = score_count(gt_events, sub_events)
 
     f1_pct      = f1 * 100
+    cf1_pct     = cf1 * 100
     acc_score   = calc_accuracy_score(f1_pct)
     rtf_s       = calc_rtf_score(args.rtf) if args.rtf is not None else None
     total_score = round(acc_score + rtf_s, 1) if rtf_s is not None else None
@@ -301,25 +326,27 @@ def main():
     print(f"  GT 이벤트:      {len(gt_events):>4}개")
     print(f"  제출 이벤트:    {len(sub_events):>4}개")
     print(f"{'─'*58}")
-    print(f"  TP:             {tp:>4}")
-    print(f"  FP:             {fp:>4}")
-    print(f"  FN:             {fn:>4}")
-    print(f"{'─'*58}")
+    print(f"  [order/LCS]  TP={tp} FP={fp} FN={fn}")
     print(f"  Precision:      {precision*100:>6.1f}%")
     print(f"  Recall:         {recall*100:>6.1f}%")
-    print(f"  F1:             {f1_pct:>6.1f}%")
+    print(f"  F1 (order):     {f1_pct:>6.1f}%  ← 정확도 점수 기준")
     print(f"{'─'*58}")
-    print(f"  정확도 점수:    {acc_score:>5.1f}점  / 40점")
-    if rtf_s is not None:
+    print(f"  [count ref]  F1={cf1_pct:.1f}%  TP={ctp} FP={cfp} FN={cfn}")
+    print(f"{'─'*58}")
+    print(f"  정확도 점수:    {acc_score:>5.1f}점  / 40점  (order F1 기준)")
+    if args.rtf is not None:
         print(f"  RTF:            {args.rtf:>5.3f}")
-        print(f"  RTF 점수:       {rtf_s:>5.1f}점  / 20점")
-        print(f"  추정 총점:      {total_score:>5.1f}점  / 60점  (발표 40점 제외)")
+        if rtf_s is not None:
+            print(f"  RTF 점수:       {rtf_s:>5.1f}점  / 20점")
+            print(f"  추정 총점:      {total_score:>5.1f}점  / 60점  (발표 40점 제외)")
+        else:
+            print(f"  RTF 점수:       상대평가 (RTF > 1, 공식 미공개)")
     else:
         print(f"  RTF:            (--rtf 미입력)")
     print(f"{'='*58}\n")
 
     if details:
-        print("불일치 항목 (클래스 / 액션 / GT수 / 제출수):")
+        print("count 불일치 항목 (클래스 / 액션 / GT수 / 제출수):")
         for cls, action, g, s in sorted(details, key=lambda x: -abs(x[2]-x[3]))[:15]:
             diff = s - g
             mark = "↑" if diff > 0 else "↓"
@@ -339,7 +366,7 @@ def main():
         "F1":             f"{f1_pct:.1f}%",
         "RTF":            args.rtf if args.rtf is not None else "-",
         "accuracy_score": acc_score,
-        "rtf_score":      rtf_s if rtf_s is not None else "-",
+        "rtf_score":      rtf_s if rtf_s is not None else ("상대평가" if args.rtf is not None else "-"),
         "total_score":    total_score if total_score is not None else "-",
     }
     append_leaderboard(args.lb, row_dict)
