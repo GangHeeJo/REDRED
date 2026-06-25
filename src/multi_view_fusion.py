@@ -59,7 +59,7 @@ chicken_noodle rather than a quorum problem. Deliberately left out of the
 override here; needs a bbox-position check before touching its fusion.
 """
 
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Union
 import numpy as np
 from collections import defaultdict
 
@@ -98,12 +98,17 @@ def hard_count_per_class(detections: DetectionList) -> Dict[int, int]:
 
 def fuse_weighted_median(
     per_cam_detections: List[Optional[DetectionList]],
-    cam_weights: Optional[List[float]] = None,
+    cam_weights: Optional[Union[List[float], Dict[int, List[float]]]] = None,
     class_quorum_override: Optional[Dict[int, int]] = None,
 ) -> Dict[int, int]:
     """
     per_cam_detections: one DetectionList per camera (None if camera offline).
-    cam_weights: importance of each camera (default: equal).
+    cam_weights: importance of each camera (default: equal). Either a flat
+        list applied to every class, or a {class_id: [weight, ...]} dict for
+        per-class weights (see compute_cam_weights in run_pipeline.py --
+        a whole-frame confidence average dilutes a class-specific occlusion
+        signal when other classes in the same frame are unaffected, so
+        per-class weights target this much more precisely).
     class_quorum_override: class_id -> minimum number of agreeing cameras,
         fused via "quorum-th highest vote" instead of weighted median (see
         module docstring). Defaults to CLASS_QUORUM_OVERRIDE.
@@ -113,8 +118,10 @@ def fuse_weighted_median(
     if not active:
         return {}
 
+    default_weights = [1.0] * len(per_cam_detections)
+    per_class_weights = isinstance(cam_weights, dict)
     if cam_weights is None:
-        cam_weights = [1.0] * len(per_cam_detections)
+        cam_weights = default_weights
     if class_quorum_override is None:
         class_quorum_override = CLASS_QUORUM_OVERRIDE
 
@@ -124,12 +131,13 @@ def fuse_weighted_median(
 
     result: Dict[int, int] = {}
     for cls_id in all_classes:
+        cls_weights = cam_weights.get(cls_id, default_weights) if per_class_weights else cam_weights
         votes = []
         weights = []
         for cam_idx, dets in active:
             cnt = sum(1 for d in dets if d["class_id"] == cls_id)
             votes.append(cnt)
-            weights.append(cam_weights[cam_idx])
+            weights.append(cls_weights[cam_idx])
 
         if cls_id in class_quorum_override:
             quorum = class_quorum_override[cls_id]

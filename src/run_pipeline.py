@@ -189,13 +189,23 @@ _TOP_CAM    = 2
 _occlusion_stats = {"total": 0, "right_blocked": 0, "left_blocked": 0}
 
 
-def compute_cam_weights(per_cam_dets):
+def compute_cam_weights(per_cam_dets, class_id=None):
+    """
+    class_id=None: 프레임 전체 평균 confidence로 occlusion 판단(레거시 동작).
+    class_id=<int>: 그 클래스의 confidence만 사용 -- 같은 프레임의 무관한
+        클래스들이 occlusion 신호를 희석시키는 문제를 피함. 2026-06-25
+        whole-frame 버전으로는 haribo_gold_bears_gummi_candy는 구제됐지만
+        pepperidge_farm_milano_cookies_double_chocolate는 그대로였음 --
+        milano가 occlusion되는 시점에 다른 클래스들이 정상으로 보이면
+        평균에 묻혀서 70% 임계값을 못 넘었을 가능성.
+    """
     conf = []
     for dets in per_cam_dets:
-        if dets:
-            conf.append(sum(d["confidence"] for d in dets) / len(dets))
-        else:
+        if not dets:
             conf.append(0.0)
+            continue
+        relevant = dets if class_id is None else [d for d in dets if d["class_id"] == class_id]
+        conf.append(sum(d["confidence"] for d in relevant) / len(relevant) if relevant else 0.0)
 
     left_conf  = (conf[0] + conf[4]) / 2
     right_conf = (conf[1] + conf[3]) / 2
@@ -214,6 +224,15 @@ def compute_cam_weights(per_cam_dets):
         _occlusion_stats["left_blocked"] += 1
 
     return weights
+
+
+def compute_per_class_cam_weights(per_cam_dets):
+    """프레임에 등장한 클래스마다 따로 occlusion weight 계산 (class_id -> weights)."""
+    class_ids = set()
+    for dets in per_cam_dets:
+        if dets:
+            class_ids.update(d["class_id"] for d in dets)
+    return {cid: compute_cam_weights(per_cam_dets, class_id=cid) for cid in class_ids}
 
 
 def main():
@@ -336,7 +355,7 @@ def main():
         if cam_tracker is not None:
             per_cam_dets = cam_tracker.update(per_cam_dets)
 
-        fused_counts = fuse(per_cam_dets, cam_weights=compute_cam_weights(per_cam_dets))
+        fused_counts = fuse(per_cam_dets, cam_weights=compute_per_class_cam_weights(per_cam_dets))
 
         if debug_writer is not None:
             for cls_id, cnt in fused_counts.items():
@@ -373,7 +392,8 @@ def main():
         print(f"Timed event log written to {args.timed_log}")
 
     _s = _occlusion_stats
-    print(f"Camera occlusion stats: {_s['total']} frames, "
+    print(f"Camera occlusion stats (per class-frame, now per-class instead of whole-frame): "
+          f"{_s['total']} class-frame pairs, "
           f"right_blocked={_s['right_blocked']} ({_s['right_blocked']/max(1,_s['total'])*100:.1f}%), "
           f"left_blocked={_s['left_blocked']} ({_s['left_blocked']/max(1,_s['total'])*100:.1f}%)")
 
