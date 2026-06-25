@@ -71,7 +71,8 @@ DetectionList = List[Dict]   # [{class_id, confidence, bbox}, ...]
 # module docstring for why each of these needs a lower quorum than the
 # camera-majority default.
 CLASS_QUORUM_OVERRIDE: Dict[int, int] = {
-    2:  1,   # bumblebee_albacore
+    2:  2,   # bumblebee_albacore (2026-06-26: 1→2. quorum=1은 1대 오탐으로 purchase 14s 지연,
+              #   1대 선감지로 return 7.6s 조기 발화. 로컬 시뮬레이션: quorum=2로 둘 다 ±3s 내로 개선)
     53: 1,   # dove_pink
     54: 2,   # dove_white
     15: 1,   # redbull
