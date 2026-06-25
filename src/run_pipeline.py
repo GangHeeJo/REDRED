@@ -179,6 +179,36 @@ def video_duration(video_paths):
     return total
 
 
+# Camera layout
+# 0: 왼쪽 앞  1: 오른쪽 앞  2: 위(top)  3: 오른쪽 뒤  4: 왼쪽 뒤
+_LEFT_CAMS  = [0, 4]
+_RIGHT_CAMS = [1, 3]
+_TOP_CAM    = 2
+
+
+def compute_cam_weights(per_cam_dets):
+    conf = []
+    for dets in per_cam_dets:
+        if dets:
+            conf.append(sum(d["confidence"] for d in dets) / len(dets))
+        else:
+            conf.append(0.0)
+
+    left_conf  = (conf[0] + conf[4]) / 2
+    right_conf = (conf[1] + conf[3]) / 2
+
+    weights = [1.0, 1.0, 1.5, 1.0, 1.0]  # 위 카메라 기본 1.5배
+
+    if right_conf < left_conf * 0.7:    # 오른쪽 손 가림
+        weights[1] *= 0.5; weights[3] *= 0.5
+        weights[0] *= 1.5; weights[4] *= 1.5
+    elif left_conf < right_conf * 0.7:  # 왼쪽 손 가림
+        weights[0] *= 0.5; weights[4] *= 0.5
+        weights[1] *= 1.5; weights[3] *= 1.5
+
+    return weights
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--videos",   nargs="+", required=True)
@@ -299,7 +329,7 @@ def main():
         if cam_tracker is not None:
             per_cam_dets = cam_tracker.update(per_cam_dets)
 
-        fused_counts = fuse(per_cam_dets)
+        fused_counts = fuse(per_cam_dets, cam_weights=compute_cam_weights(per_cam_dets))
 
         if debug_writer is not None:
             for cls_id, cnt in fused_counts.items():
