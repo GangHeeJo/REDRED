@@ -179,6 +179,43 @@ def video_duration(video_paths):
     return total
 
 
+# Camera layout
+# 0: 왼쪽 앞  1: 오른쪽 앞  2: 위(top)  3: 오른쪽 뒤  4: 왼쪽 뒤
+_LEFT_CAMS  = [0, 4]
+_RIGHT_CAMS = [1, 3]
+_TOP_CAM    = 2
+
+
+_occlusion_stats = {"total": 0, "right_blocked": 0, "left_blocked": 0}
+
+
+def compute_cam_weights(per_cam_dets):
+    conf = []
+    for dets in per_cam_dets:
+        if dets:
+            conf.append(sum(d["confidence"] for d in dets) / len(dets))
+        else:
+            conf.append(0.0)
+
+    left_conf  = (conf[0] + conf[4]) / 2
+    right_conf = (conf[1] + conf[3]) / 2
+
+    weights = [1.0, 1.0, 1.5, 1.0, 1.0]  # 위 카메라 기본 1.5배
+
+    # 0.5x/1.5x 곱셈으로는 weighted median의 과반 구성 자체가 안 바뀌어서 효과 없음
+    # (2026-06-25 server test: camera-weights-v2 결과가 베이스라인과 완전히 동일했음)
+    # -> 가려진 쪽은 weight=0으로 완전히 제외해서 median 투표 구성 자체를 바꿈
+    _occlusion_stats["total"] += 1
+    if right_conf < left_conf * 0.7:    # 오른쪽 손 가림
+        weights[1] = 0.0; weights[3] = 0.0
+        _occlusion_stats["right_blocked"] += 1
+    elif left_conf < right_conf * 0.7:  # 왼쪽 손 가림
+        weights[0] = 0.0; weights[4] = 0.0
+        _occlusion_stats["left_blocked"] += 1
+
+    return weights
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--videos",   nargs="+", required=True)
@@ -299,7 +336,7 @@ def main():
         if cam_tracker is not None:
             per_cam_dets = cam_tracker.update(per_cam_dets)
 
-        fused_counts = fuse(per_cam_dets)
+        fused_counts = fuse(per_cam_dets, cam_weights=compute_cam_weights(per_cam_dets))
 
         if debug_writer is not None:
             for cls_id, cnt in fused_counts.items():
@@ -334,6 +371,11 @@ def main():
     if timed_file is not None:
         timed_file.close()
         print(f"Timed event log written to {args.timed_log}")
+
+    _s = _occlusion_stats
+    print(f"Camera occlusion stats: {_s['total']} frames, "
+          f"right_blocked={_s['right_blocked']} ({_s['right_blocked']/max(1,_s['total'])*100:.1f}%), "
+          f"left_blocked={_s['left_blocked']} ({_s['left_blocked']/max(1,_s['total'])*100:.1f}%)")
 
     t_end = time.time()
     proc_time = t_end - t_start
