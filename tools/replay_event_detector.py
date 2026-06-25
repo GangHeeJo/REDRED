@@ -95,10 +95,22 @@ def main():
                       f"{ev.action} ({ev.before}->{ev.after})")
 
         for cid in target_ids:
-            state = detector._sm_state[cid]
-            committed = detector._committed[cid]
-            candidate = detector._candidate.get(cid)
-            median = detector._median(cid)
+            # NOTE (2026-06-24): must not touch detector._sm_state[cid] / ._committed[cid]
+            # with [] -- both are defaultdicts, so a bare read silently inserts a "stable"/0
+            # entry and activates _history[cid] for classes the real pipeline would never have
+            # touched yet (no detection, not in initial_counts). That early activation let a
+            # class's median become computable dozens of seconds before it really would in
+            # production, producing events here that the real run never fires (this is exactly
+            # what made haribo_gold_bears_gummi_candy look like it fired two events when the
+            # real production run fires none -- see PROGRESS.md). Only peek if the class has
+            # already been legitimately activated (membership test, not a subscript).
+            if cid not in detector._history:
+                state, committed, candidate, median = "stable", 0, None, None
+            else:
+                state = detector._sm_state.get(cid, "stable")
+                committed = detector._committed.get(cid, 0)
+                candidate = detector._candidate.get(cid)
+                median = detector._median(cid)
             raw = frame_counts.get(cid, 0)
 
             changed = (state != last_state[cid] or committed != last_committed[cid]

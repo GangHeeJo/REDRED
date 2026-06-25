@@ -9,15 +9,15 @@
 
 파이프라인 정상 동작 중. `data/ground_truth_v2.csv`(105개 실측 이벤트, **시간 포함**)가 현재 기준 GT — `tools/score_methods.py`로 3가지 방식 동시 채점.
 
-**현재 main 브랜치 = Phase 10 (spam quorum=2) — 브랜치 테스트 후 최고점 유지**
+**현재 main 브랜치 = Phase 10 + SORT 트래커(max_age=15) 재적용 (Phase 15, 2026-06-25 박준영+Claude)**
 
 | 항목 | 값 |
 |------|-----|
-| RTF | 0.7575 (목표 < 1.0, **RTF≤1이면 20점 만점**) |
-| F1 (count 참고용) | 92.0% (TP=98 FP=10 FN=7) |
-| **F1 (order/LCS — `tools/score.py` 기준)** | **85.4%** (TP=91 FP=17 FN=14) |
-| F1 (time, 지연보정 ±3초) | 84.5% |
-| **추정 총점 (정확도+RTF, /60)** | **54.2점** (정확도 34.2 + RTF 20.0) |
+| RTF | 0.756 (A6000 측정, 목표 < 1.0, **RTF≤1이면 20점 만점**) |
+| F1 (count 참고용) | 92.9% |
+| **F1 (order/LCS — `tools/score.py` 기준)** | **85.3%** |
+| F1 (time, 지연보정 ±3초) | 85.3% |
+| **추정 총점 (정확도+RTF, /60)** | **약 54.1점** (정확도 34.1 + RTF 20.0) |
 | 모델 mAP@0.5 | 98.1% (제공 가중치 `yolov7_custom.pt` 사용 중) |
 | 제출 파일 | `~/REDRED/output/submission_skip2.csv` |
 
@@ -29,12 +29,13 @@
 **브랜치 테스트 결과 (2026-06-25):**
 | 브랜치 | order F1 | 결과 |
 |--------|---------|------|
-| Phase 10 baseline (main) | **85.4%** | 기준 |
-| fix/tracker-default (max_age=15) | 83.4% | ❌ 악화 — 트래커 코드 main에서 완전 제거 |
-| fix/pepperidge-milano-confirm | 84.7% | ❌ 악화 — milano 검출되나 +50초 지연 |
-| fix/per-class-conf (bulls_eye) | 85.4% | ❌ 효과 없음 |
+| Phase 10 baseline | 85.4% | 기준 |
+| fix/tracker-default (max_age=15) — 어느 GPU에서 측정했는지에 따라 다름 | 83.4% (특정 GPU) / **85.3%(A6000)** | 처음엔 ❌ 판정해서 브랜치 삭제했으나, A6000에서 재측정하니 baseline과 거의 동급(order -0.1pp, count +0.9pp, RTF 변화 없음) → **Phase 15에서 재도입, main에 직접 반영** |
+| fix/pepperidge-milano-confirm | 84.7% | ❌ 악화 — milano 검출되나 +50초 지연. 브랜치 삭제 |
+| fix/per-class-conf (bulls_eye) | 85.4% | ❌ 효과 없음. 브랜치 삭제 |
+| fix/frappuccino-init / fix/ghost-event-cooldown | (미측정) | ❌ confirm_frames=200이 frappuccino 구매를 완전 미발화로 만드는 회귀 확인(Phase 11) — 둘 다 브랜치 삭제, `replay_event_detector.py` 진단도구 버그수정만 main으로 별도 반영 |
 
-⚠️ 단일 F1만으로 판단하지 말 것 — count/order/time 세 지표 같이 보기. 리더보드: `output/leaderboard.html` (브라우저로 열기).
+⚠️ 단일 F1만으로 판단하지 말 것 — count/order/time 세 지표 같이 보기. ⚠️ **GPU 종류(A6000 vs MIG)에 따라 같은 코드도 다른 점수가 나올 수 있음** — 브랜치 비교할 땐 어떤 GPU에서 측정했는지 같이 기록할 것. 리더보드: `output/leaderboard.html` (브라우저로 열기).
 
 ---
 
@@ -389,6 +390,14 @@ quorum=2 추가 후 spam 정상 감지 확인. 중복발화 없음. TP +1 추가
 - **원인: 초기 재고 추정 실패.** init_frames=30 동안 미검출 → initial_inventory=0 오설정 → 첫 감지 시 RETURN 발화, 이후 16초 gaps마다 oscillation 반복
 - 해결 후보: `--init_inv` 수동 지정(pop_tararts=1)
 
+### 2026-06-25 | Phase 15 — 미병합 브랜치 정리, 트래커 GPU 비결정성 확인 후 재도입 (박준영+Claude)
+
+**브랜치 정리**: 어수선하게 쌓인 미병합 브랜치들을 main 하나로 정리하는 작업. `fix/frappuccino-init`/`fix/ghost-event-cooldown`은 둘 다 `confirm_frames=200`이 frappuccino 구매를 완전 미발화시키는 회귀(Phase 11)를 그대로 갖고 있고 건질 만한 추가 가치가 없어서 **삭제**. 단 `fix/ghost-event-cooldown`에만 있던 `tools/replay_event_detector.py`의 defaultdict-peek 버그 수정(haribo 오판 원인, Phase 11 참고)은 **main에 별도로 반영**.
+
+**트래커 재도입 — Phase 12 판정 재검토**: Phase 12에서 "order F1 85.4%→83.4% 악화"로 판정해 `fix/tracker-default`를 삭제했었는데, 그 각주("현재 GPU 한정, A6000은 85.3%")를 다시 검증함. Phase 11에서 A6000 큐로 직접 측정한 결과(count 92.0%→92.9%, order 85.4%→85.3%, time 84.5%→85.3%, RTF 0.770→0.756)는 baseline과 거의 동급이거나 더 나음 — 83.4%는 다른(비A6000) GPU에서 측정된 값으로, **GPU 종류에 따른 비결정성이 실제 효과보다 더 큰 변동을 만든 사례**로 판단. `run_test.sh`에 `--use_tracker --tracker_max_age 15` 재추가, main에 직접 반영.
+
+**현재 미병합 브랜치는 `feature/camera-weights`(정현수) 하나만 남음** — 카메라별 동적 weight(좌우 occlusion 감지 + top캠 1.5배) 아이디어는 유효하나, base가 된 `event_detector.py`가 Phase 7에서 고친 버그 2개(UNKNOWN 상태, 구매-차단 제약)를 그대로 되돌리고 있어 **현재 상태로 merge하면 안 됨** — 다음 작업으로 최신 `event_detector.py` 위에 `compute_cam_weights()`만 옮겨서 다시 테스트 필요.
+
 ### 2026-06-24 | Phase 11 — "이벤트직후 유령반전" 분석, 진단 도구 버그 수정, SORT 트래커 A/B (박준영+Claude)
 
 **진단 도구 버그 발견/수정 (`tools/replay_event_detector.py`):** per-frame 디버그 출력 코드가 `detector._sm_state[cid]`/`._committed[cid]`를 `[]`로 직접 인덱싱했는데, 둘 다 `defaultdict`라 frame 0부터 강제로 키가 생성되며 `_history`까지 조기 활성화됨(실제 파이프라인은 해당 클래스가 처음 감지될 때까지 활성화 안 됨). 그 결과 **`haribo_gold_bears_gummi_candy`가 "반환은 맞고 구매가 유령으로 뜬다"고 잘못 보였음** — 수정 후 재확인하니 실제로는 반환/구매 둘 다 전혀 발화 안 하는 깨끗한 더블-FN(신호가 WINDOW_SIZE/CONFIRM_FRAMES 기준을 넘긴 적이 없음)이었음. **GPU 비결정성 의심은 정정됨** — haribo는 신호 부족 문제, GPU 비결정성과 무관. `[]` 대신 `in` 멤버십 체크로 수정, 커밋됨.
@@ -483,10 +492,12 @@ python tools/analyze_inventory.py \
 - [ ] `haribo_gold_bears_gummi_candy` — 반환/구매 둘 다 더블-FN. 신호가 WINDOW_SIZE/CONFIRM_FRAMES를 넘긴 적 없음. 원인 미파악.
 - [ ] `pepperidge_farm_milano_cookies_double_chocolate` — confirm=150 테스트(Phase 13)에서 검출은 되나 +50초 지연으로 order F1 악화. confirm 값 재탐색(60~80) 가능하나 우선순위 낮음.
 - [ ] `campbells_chicken_noodle_soup` — cam4가 구매(11s) 이후로도 계속 오감지. `campbells_chunky_classic_chicken_noodle`과 혼동 의심.
-- [ ] `frappuccino_coffee` — 영상 초반 노이즈로 너무 일찍(3.6s) 확정(실제 구매는 16s). confirm=200은 Phase 11에서 완전 미발화로 역효과. 적정 confirm 값(50~100 범위) 재탐색 필요.
-- [x] ~~SORT 트래커~~ → Phase 12에서 order F1 악화(85.4%→83.4%) 확인. `src/tracker.py` 및 관련 코드 main에서 완전 제거 (2026-06-25)
+- [ ] `frappuccino_coffee` — 영상 초반 노이즈로 너무 일찍(3.6s) 확정(실제 구매는 16s). confirm=200은 Phase 11에서 완전 미발화로 역효과. 적정 confirm 값(50~100 범위) 재탐색 필요. (`fix/frappuccino-init`/`fix/ghost-event-cooldown` 브랜치는 Phase 15에서 삭제됨 — 재시도 시 main에서 새로 브랜치 딸 것)
+- [ ] `feature/camera-weights`(정현수) — 좌우 occlusion 감지 + top캠 1.5배 weight 아이디어는 유효하나, base `event_detector.py`가 Phase 7에서 고친 버그 2개(UNKNOWN 상태, 구매-차단 제약)를 되돌리고 있어 현재 상태로 merge 불가. `compute_cam_weights()`만 최신 코드 위로 옮겨서 재작업 필요.
+- [x] ~~SORT 트래커~~ → Phase 12에서 "order F1 악화(85.4%→83.4%)"로 판정해 코드 제거했으나, **A6000 큐로 재측정하니 85.3%(거의 동급, count는 오히려 92.0%→92.9% 개선)** — GPU 비결정성이 원인이었음을 확인. Phase 15에서 main에 재도입 확정 (2026-06-25)
 - [x] ~~`fix/per-class-conf` (bulls_eye conf=0.2)~~ → Phase 14에서 효과 없음 확인, 브랜치 삭제 (2026-06-25)
 - [x] ~~`fix/pepperidge-milano-confirm`~~ → Phase 13에서 order F1 악화 확인, 브랜치 삭제 (2026-06-25)
+- [x] ~~`fix/frappuccino-init`/`fix/ghost-event-cooldown`~~ → confirm=200 회귀만 남아있고 건질 게 없어 Phase 15에서 브랜치 삭제, 진단도구 버그수정만 main에 반영 (2026-06-25)
 - [x] ~~`dove_white` 중복 발화~~ → quorum=2로 절충, 순오류 4건→2건 감소 (2026-06-23)
 - [x] ~~정확도 검증~~ → `data/ground_truth_v2.csv` + `tools/score_methods.py`(3종 방식) + 리더보드로 완료 (2026-06-23)
 - [x] ~~`redbull`/`crystal_hot_sauce`/`dr_pepper` 완전누락~~ → quorum=1 추가로 해결, F1 90.0%→91.5% (2026-06-23)
