@@ -183,6 +183,7 @@ def video_duration(video_paths):
 # 0: 왼쪽 앞  1: 오른쪽 앞  2: 위(top)  3: 오른쪽 뒤  4: 왼쪽 뒤
 
 _occlusion_stats = {"total": 0, "cams_excluded": 0}
+MIN_CORROBORATE = 3  # 카메라 제외에 필요한 corroborate 카메라 수 (2는 milano 과다발화 유발, 서버 테스트로 폐기)
 
 
 def compute_cam_weights(per_cam_dets, class_id=None):
@@ -194,17 +195,20 @@ def compute_cam_weights(per_cam_dets, class_id=None):
     2026-06-25: 좌(0,4)/우(1,3) 그룹 평균 비교 방식 -> 개별 카메라 단위로 일반화.
     haribo_gold_bears_gummi_candy(한쪽 그룹 전체가 막히는 패턴)는 그룹 비교로도
     구제됐지만 pepperidge_farm_milano_cookies_double_chocolate(probe3: 최대 3대
-    동시 -- 그룹 *내부*에서 비대칭으로 가려짐, 예: 왼쪽1+오른쪽1+top)는 그룹 평균이
-    서로 비슷해져서 70% 임계값을 못 넘었을 것으로 추정.
+    동시)는 그룹 평균이 서로 비슷해져서 70% 임계값을 못 넘었을 것으로 추정.
 
-    규칙: 카메라 i의 confidence가 0인데, 나머지 4대 중 2대 이상이 양수면 i를
-    완전히 제외(weight=0). "2대 이상 corroborate"라는 안전장치 덕분에:
-    - bumblebee_albacore/dove/redbull류(원래 1~2대만 보임, CLASS_QUORUM_OVERRIDE
-      대상)는 corroborate 조건을 못 채워서 이 함수가 기본 weight를 그대로 둠
-      (애초에 quorum 분기로 가서 weight 자체가 무시되니 무해하지만, 혹시 quorum
-      목록에 없는 비슷한 클래스가 있어도 단일 카메라 노이즈에 흔들리지 않음).
-    - milano처럼 정확히 3대가 보는 경우 나머지 2대(0-conf)가 둘 다 제외되어
-      보이는 3대만으로 투표.
+    규칙: 카메라 i의 confidence가 0인데, 나머지 4대 중 MIN_CORROBORATE대 이상이
+    양수면 i를 완전히 제외(weight=0).
+    - corroborate=2로 첫 시도: haribo는 구제됐지만 milano가 *과다발화*로 바뀜
+      (GT=1인데 Sub=4) -- milano는 "정확히 2대만 보임"이 자주/불안정하게 나타나서
+      median이 0<->1을 반복하며 여러 번 confirm된 것으로 보임(dove_white quorum=1
+      때와 동일 패턴). order F1 91.0%->90.3%로 악화, 서버 테스트로 확인 후 폐기.
+    - corroborate=3으로 상향: haribo(3대가 안정적으로 봄)는 여전히 구제, milano
+      (주로 2대)는 더 이상 조건을 못 채워서 기본 weight로 떨어짐(다시 미검출 --
+      "신호 부족"과 "노이즈성 과다발화" 둘 다보다는 안정적인 미검출 쪽이 나음).
+    - bumblebee_albacore/dove/redbull류(CLASS_QUORUM_OVERRIDE 대상, 원래 1~2대만
+      보임)는 어느 임계값에서도 조건을 못 채워서 영향 없음(quorum 분기가 weight를
+      이미 무시하므로 애초에 무해하긴 함).
     """
     conf = []
     for dets in per_cam_dets:
@@ -222,7 +226,7 @@ def compute_cam_weights(per_cam_dets, class_id=None):
         if conf[i] > 0:
             continue
         others_nonzero = sum(1 for j in range(n) if j != i and conf[j] > 0)
-        if others_nonzero >= 2:
+        if others_nonzero >= MIN_CORROBORATE:
             weights[i] = 0.0
             _occlusion_stats["cams_excluded"] += 1
 
