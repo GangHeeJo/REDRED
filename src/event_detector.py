@@ -80,12 +80,14 @@ class EventDetector:
         max_delta:      int = MAX_DELTA,
         confirm_frames: int = CONFIRM_FRAMES,
         max_inventory:  int = MAX_INVENTORY,
+        per_class_confirm: Optional[Dict[int, int]] = None,
     ):
         self.class_names    = class_names
         self.window_size    = window_size
         self.max_delta      = max_delta
         self.confirm_frames = confirm_frames
         self.max_inventory  = max_inventory
+        self.per_class_confirm = per_class_confirm or {}
 
         self.all_events: List[Event] = []
         self._event_counter = 0
@@ -169,7 +171,8 @@ class EventDetector:
                     self._candidate.pop(cls_id, None)
 
                 elif median == cand_count:
-                    if self._frame_idx - cand_since >= self.confirm_frames:
+                    cf = self.per_class_confirm.get(cls_id, self.confirm_frames)
+                    if self._frame_idx - cand_since >= cf:
                         # event confirmed — check physical constraints
                         delta  = cand_count - committed
                         action = "구매" if delta < 0 else "반환"
