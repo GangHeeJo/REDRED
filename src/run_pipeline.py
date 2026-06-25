@@ -181,23 +181,30 @@ def video_duration(video_paths):
 
 # Camera layout
 # 0: 왼쪽 앞  1: 오른쪽 앞  2: 위(top)  3: 오른쪽 뒤  4: 왼쪽 뒤
-_LEFT_CAMS  = [0, 4]
-_RIGHT_CAMS = [1, 3]
-_TOP_CAM    = 2
 
-
-_occlusion_stats = {"total": 0, "right_blocked": 0, "left_blocked": 0}
+_occlusion_stats = {"total": 0, "cams_excluded": 0}
 
 
 def compute_cam_weights(per_cam_dets, class_id=None):
     """
     class_id=None: 프레임 전체 평균 confidence로 occlusion 판단(레거시 동작).
     class_id=<int>: 그 클래스의 confidence만 사용 -- 같은 프레임의 무관한
-        클래스들이 occlusion 신호를 희석시키는 문제를 피함. 2026-06-25
-        whole-frame 버전으로는 haribo_gold_bears_gummi_candy는 구제됐지만
-        pepperidge_farm_milano_cookies_double_chocolate는 그대로였음 --
-        milano가 occlusion되는 시점에 다른 클래스들이 정상으로 보이면
-        평균에 묻혀서 70% 임계값을 못 넘었을 가능성.
+        클래스들이 occlusion 신호를 희석시키는 문제를 피함.
+
+    2026-06-25: 좌(0,4)/우(1,3) 그룹 평균 비교 방식 -> 개별 카메라 단위로 일반화.
+    haribo_gold_bears_gummi_candy(한쪽 그룹 전체가 막히는 패턴)는 그룹 비교로도
+    구제됐지만 pepperidge_farm_milano_cookies_double_chocolate(probe3: 최대 3대
+    동시 -- 그룹 *내부*에서 비대칭으로 가려짐, 예: 왼쪽1+오른쪽1+top)는 그룹 평균이
+    서로 비슷해져서 70% 임계값을 못 넘었을 것으로 추정.
+
+    규칙: 카메라 i의 confidence가 0인데, 나머지 4대 중 2대 이상이 양수면 i를
+    완전히 제외(weight=0). "2대 이상 corroborate"라는 안전장치 덕분에:
+    - bumblebee_albacore/dove/redbull류(원래 1~2대만 보임, CLASS_QUORUM_OVERRIDE
+      대상)는 corroborate 조건을 못 채워서 이 함수가 기본 weight를 그대로 둠
+      (애초에 quorum 분기로 가서 weight 자체가 무시되니 무해하지만, 혹시 quorum
+      목록에 없는 비슷한 클래스가 있어도 단일 카메라 노이즈에 흔들리지 않음).
+    - milano처럼 정확히 3대가 보는 경우 나머지 2대(0-conf)가 둘 다 제외되어
+      보이는 3대만으로 투표.
     """
     conf = []
     for dets in per_cam_dets:
@@ -207,21 +214,17 @@ def compute_cam_weights(per_cam_dets, class_id=None):
         relevant = dets if class_id is None else [d for d in dets if d["class_id"] == class_id]
         conf.append(sum(d["confidence"] for d in relevant) / len(relevant) if relevant else 0.0)
 
-    left_conf  = (conf[0] + conf[4]) / 2
-    right_conf = (conf[1] + conf[3]) / 2
-
     weights = [1.0, 1.0, 1.5, 1.0, 1.0]  # 위 카메라 기본 1.5배
+    n = len(conf)
 
-    # 0.5x/1.5x 곱셈으로는 weighted median의 과반 구성 자체가 안 바뀌어서 효과 없음
-    # (2026-06-25 server test: camera-weights-v2 결과가 베이스라인과 완전히 동일했음)
-    # -> 가려진 쪽은 weight=0으로 완전히 제외해서 median 투표 구성 자체를 바꿈
     _occlusion_stats["total"] += 1
-    if right_conf < left_conf * 0.7:    # 오른쪽 손 가림
-        weights[1] = 0.0; weights[3] = 0.0
-        _occlusion_stats["right_blocked"] += 1
-    elif left_conf < right_conf * 0.7:  # 왼쪽 손 가림
-        weights[0] = 0.0; weights[4] = 0.0
-        _occlusion_stats["left_blocked"] += 1
+    for i in range(n):
+        if conf[i] > 0:
+            continue
+        others_nonzero = sum(1 for j in range(n) if j != i and conf[j] > 0)
+        if others_nonzero >= 2:
+            weights[i] = 0.0
+            _occlusion_stats["cams_excluded"] += 1
 
     return weights
 
@@ -392,10 +395,10 @@ def main():
         print(f"Timed event log written to {args.timed_log}")
 
     _s = _occlusion_stats
-    print(f"Camera occlusion stats (per class-frame, now per-class instead of whole-frame): "
+    print(f"Camera occlusion stats (per-camera, per class-frame): "
           f"{_s['total']} class-frame pairs, "
-          f"right_blocked={_s['right_blocked']} ({_s['right_blocked']/max(1,_s['total'])*100:.1f}%), "
-          f"left_blocked={_s['left_blocked']} ({_s['left_blocked']/max(1,_s['total'])*100:.1f}%)")
+          f"{_s['cams_excluded']} individual camera-votes excluded "
+          f"({_s['cams_excluded']/max(1,_s['total']*5)*100:.1f}% of all camera-votes)")
 
     t_end = time.time()
     proc_time = t_end - t_start
