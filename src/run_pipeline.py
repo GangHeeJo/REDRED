@@ -339,11 +339,12 @@ def main():
                           ensure_ascii=False, indent=2)
             print(f"Initial inventory dumped to {init_dump_path}")
 
-    # Milano needs 3x longer confirm_frames to suppress oscillation-based over-firing.
-    # (quorum=2 alone caused 4 events at default CONFIRM_FRAMES=30; see multi_view_fusion.py)
+    # Milano needs longer confirm_frames to suppress oscillation-based over-firing.
+    # 90 fixed count but return fired 49s late and purchase barely missed ±3s;
+    # 45 (~4.5s) is the middle ground. (see multi_view_fusion.py docstring)
     _per_class_confirm = {}
     if _milano_id is not None:
-        _per_class_confirm[_milano_id] = 90
+        _per_class_confirm[_milano_id] = 45
 
     detector = EventDetector(class_names, initial_counts=initial_inventory,
                              per_class_confirm=_per_class_confirm)

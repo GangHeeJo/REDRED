@@ -55,17 +55,18 @@ campbells_chicken_noodle_soup was probed at the same time and shows the
 identical low-camera-count signature pre-purchase, but cam4 keeps reporting
 it continuously for ~100s *after* its GT purchase time (11s) -- almost
 certainly confusion with the visually similar campbells_chunky_classic_-
-chicken_noodle rather than a quorum problem. Added quorum=1 (2026-06-26)
-as a first attempt; risk: cam4 stops detecting at ~117s which may fire a
-spurious return event. If that FP appears, a bbox-position filter is the
-next step.
+chicken_noodle rather than a quorum problem. Deliberately left out of the
+override here; needs a bbox-position check before touching its fusion.
+quorum=1 was tried (2026-06-26) but created 3 events (GT=1) due to an early
+false positive from init confusion + FP return when cam4 confusion ends.
+Reverted; leaving as FN until bbox filter is implemented.
 
 pepperidge_farm_milano_cookies_double_chocolate: quorum=2 previously caused
 4 events (GT=2) when tried alone (fused count oscillated 0<->1 repeatedly,
 each stable period long enough to clear CONFIRM_FRAMES=30). Added back with
-quorum=2 (2026-06-26), but combined with per_class_confirm=90 in
-EventDetector to require 3x longer stability before firing; brief
-oscillations (~<9s) will not survive the longer window.
+quorum=2 (2026-06-26), combined with per_class_confirm=45 in EventDetector
+(~4.5s stability required). confirm=90 fixed the count but made return fire
+49s late and purchase just outside ±3s; 45 is a middle ground.
 """
 
 from typing import List, Dict, Optional, Union
@@ -89,10 +90,8 @@ CLASS_QUORUM_OVERRIDE: Dict[int, int] = {
     21: 1,   # dr_pepper
     29: 2,   # spam
     42: 2,   # pepperidge_farm_milano_cookies_double_chocolate (2026-06-26: quorum=2 +
-              #   per_class_confirm=90 in EventDetector. quorum=2 alone previously
-              #   over-fired (4 events, GT=2); high confirm_frames suppresses oscillations)
-    43: 1,   # campbells_chicken_noodle_soup (2026-06-26: cam4-only signal, quorum=1 to
-              #   recover the purchase. risk: FP return if cam4 confusion ends mid-video)
+              #   per_class_confirm=45 in EventDetector. quorum=2 alone previously
+              #   over-fired (4 events, GT=2); higher confirm_frames suppresses oscillations)
 }
 
 
