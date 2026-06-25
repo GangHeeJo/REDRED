@@ -37,7 +37,7 @@ import statistics
 # Parameters
 # ---------------------------------------------------------------
 
-WINDOW_SIZE    = 25   # sliding window size for median (odd recommended)
+WINDOW_SIZE    = 15   # sliding window size for median (odd recommended)
 MAX_DELTA      = 4    # max count change allowed per event
 CONFIRM_FRAMES = 30   # consecutive frames new state must persist to fire event
                       # skip=2 → 60 real frames ≈ 2 seconds
