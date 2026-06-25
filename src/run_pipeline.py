@@ -49,18 +49,27 @@ def load_initial_inventory_from_file(path: str) -> dict:
     return {int(k): int(v) for k, v in raw.items()}
 
 
-def estimate_initial_inventory(caps, model, nms_fn, n_frames, conf, iou, img_size, device) -> dict:
+def estimate_initial_inventory(caps, model, nms_fn, n_frames, conf, iou, img_size, device,
+                               cam_weight_excluded=None) -> dict:
     """
     Run detection on the first n_frames, fuse per-camera counts each frame,
     then take the per-class median. Rewinds all caps to frame 0 when done.
+    cam_weight_excluded: per-class camera-weight 메커니즘에서 제외할 class_id set.
+        초기재고 추정에도 동일 occlusion-aware weight를 적용해서, 첫 ~1초에 일부
+        카메라에서 가려진 클래스가 median=0으로 잘못 추정되는 문제를 방지.
+        (미적용 시: 해당 클래스가 initial_inventory=0으로 잡혀 첫 감지 시 가짜
+         "반환(0->1)" 이벤트가 WINDOW_SIZE+CONFIRM_FRAMES 시점에 일제히 발화됨 --
+         Frame 112에서 white_rain/frappuccino/coca_cola 3개가 동시에 뜨던 원인.)
     """
+    cam_weight_excluded = cam_weight_excluded or set()
     counts_history: dict = defaultdict(list)
     for _ in range(n_frames):
         frames = read_frames(caps)
         if all(f is None for f in frames):
             break
         per_cam = infer_batch(model, nms_fn, frames, conf, iou, img_size, device)
-        fused = fuse(per_cam)
+        cam_weights = compute_per_class_cam_weights(per_cam, exclude_class_ids=cam_weight_excluded)
+        fused = fuse(per_cam, cam_weights=cam_weights)
         for cls_id, cnt in fused.items():
             counts_history[cls_id].append(cnt)
 
@@ -319,6 +328,7 @@ def main():
         initial_inventory = estimate_initial_inventory(
             caps, model, nms_fn, args.init_frames,
             args.conf, args.iou, args.img_size, device,
+            cam_weight_excluded=_cam_weight_excluded,
         )
         print(f"Initial inventory: {len(initial_inventory)} classes detected")
         print("Initial inventory detail:", {class_names[k]: v for k, v in initial_inventory.items()})
