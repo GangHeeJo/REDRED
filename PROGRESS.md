@@ -5,21 +5,36 @@
 
 ---
 
-## 현재 상태 (2026-06-24 최종)
+## 현재 상태 (2026-06-25 최종)
 
 파이프라인 정상 동작 중. `data/ground_truth_v2.csv`(105개 실측 이벤트, **시간 포함**)가 현재 기준 GT — `tools/score_methods.py`로 3가지 방식 동시 채점.
 
+**현재 main 브랜치 = Phase 10 (spam quorum=2)**
+
 | 항목 | 값 |
 |------|-----|
-| RTF | 0.7575 (목표 < 1.0, 통과) |
-| F1 (count 기준, `tools/score.py`) | **92.0%** (TP=98 FP=10 FN=7) |
-| F1 (전체 순서 LCS, class 무관) | 85.4% |
-| F1 (실제 시각 비교, 지연 보정 ±3초) | 84.5% — 가장 엄격한 지표 |
-| 추정 총점 (정확도+RTF, /60) | **51.8점** (정확도 36.8 + RTF 15.0) — 리더보드 1위 |
+| RTF | 0.7575 (목표 < 1.0, **RTF≤1이면 20점 만점**) |
+| F1 (count 참고용) | 92.0% (TP=98 FP=10 FN=7) |
+| **F1 (order/LCS — `tools/score.py` 기준)** | **85.4%** (TP=91 FP=17 FN=14) |
+| F1 (time, 지연보정 ±3초) | 84.5% |
+| **추정 총점 (정확도+RTF, /60)** | **54.2점** (정확도 34.2 + RTF 20.0) |
 | 모델 mAP@0.5 | 98.1% (제공 가중치 `yolov7_custom.pt` 사용 중) |
 | 제출 파일 | `~/REDRED/output/submission_skip2.csv` |
 
-⚠️ "이벤트 수"(112개 등) 또는 단일 F1만으로 품질을 판단하지 않음 — **3가지 채점 방식을 같이 보고 판단**. 이유와 사용법은 Phase 7 참고. 리더보드: `output/leaderboard.html` (브라우저로 열기).
+**채점 기준 (2026-06-25 갱신):**
+- 정확도 40점: `score.py`가 **order/LCS F1 × 0.4** 기준으로 변경 (공식 미공개이나 이벤트번호 포함 기준에 더 근접)
+- RTF 20점: 대회 공고 기준 **RTF ≤ 1 → 만점(20점)**, RTF > 1 → 상대평가(미공개)
+- 기존 `20×(1-RTF/3)` 공식은 잘못된 역산값이었음 — 수정됨
+
+**미병합 브랜치 (서버에서 테스트 필요):**
+| 브랜치 | 대상 | 기대 효과 |
+|--------|------|---------|
+| `fix/tracker-default` | SORT 트래커 max_age=15 기본 적용 | count F1 92.0%→92.9% (A6000 확인) |
+| `fix/per-class-conf` | bulls_eye conf=0.2 | bulls_eye FN 해결 기대 |
+| `fix/frappuccino-init` | frappuccino confirm=200 | ⚠️ 회귀 의심 (재검증 필요) |
+| `fix/pepperidge-milano-confirm` | milano quorum=2 + confirm=150 | 중복발화 억제 기대 |
+
+⚠️ 단일 F1만으로 판단하지 말 것 — count/order/time 세 지표 같이 보기. 리더보드: `output/leaderboard.html` (브라우저로 열기).
 
 ---
 
