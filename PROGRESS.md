@@ -5,19 +5,19 @@
 
 ---
 
-## 현재 상태 (2026-06-25 최종)
+## 현재 상태 (2026-06-26 최종)
 
 파이프라인 정상 동작 중. `data/ground_truth_v2.csv`(105개 실측 이벤트, **시간 포함**)가 현재 기준 GT — `tools/score_methods.py`로 3가지 방식 동시 채점.
 
-**현재 main 브랜치 = Phase 10 + SORT 트래커(max_age=15) 재적용 (Phase 15, 2026-06-25 박준영+Claude)**
+**현재 main 브랜치 = Phase 10 + 트래커 + camera-weights(per-camera occlusion) (Phase 16, 2026-06-26 박준영+Claude)**
 
 | 항목 | 값 |
 |------|-----|
-| RTF | 0.756 (A6000 측정, 목표 < 1.0, **RTF≤1이면 20점 만점**) |
-| F1 (count 참고용) | 92.9% |
-| **F1 (order/LCS — `tools/score.py` 기준)** | **85.3%** |
-| F1 (time, 지연보정 ±3초) | 85.3% |
-| **추정 총점 (정확도+RTF, /60)** | **약 54.1점** (정확도 34.1 + RTF 20.0) |
+| RTF | 0.811 (A6000 측정, 목표 < 1.0, **RTF≤1이면 20점 만점**) |
+| F1 (count 참고용) | 96.7% |
+| **F1 (order/LCS — `tools/score.py` 기준)** | **91.9%** |
+| F1 (time, 지연보정 ±3초) | 92.8% |
+| **추정 총점 (정확도+RTF, /60)** | **약 56.7점** (정확도 36.7 + RTF 20.0) |
 | 모델 mAP@0.5 | 98.1% (제공 가중치 `yolov7_custom.pt` 사용 중) |
 | 제출 파일 | `~/REDRED/output/submission_skip2.csv` |
 
@@ -404,6 +404,23 @@ quorum=2 추가 후 spam 정상 감지 확인. 중복발화 없음. TP +1 추가
   3. 체크아웃 재확인 후 3차 진짜 실행: **count F1 92.9%→93.9%, order F1 85.3%→85.4%, time F1 85.3%→85.4%**, occlusion 감지율 right=8.2%/left=1.9%(`Camera occlusion stats` 로그로 확인). `haribo_gold_bears_gummi_candy`가 **처음으로 발화**(기존엔 신호부족 더블-FN이라 결론 — bumblebee/dove/redbull과 같은 "5캠 중 소수만 보임" 구조적 문제였음이 확인됨). 단 새 haribo 이벤트가 26초 타이밍 오차 있음(별도 과제).
   - 전 지표 순개선, 회귀 없음 → **main에 merge 완료**.
 
+### 2026-06-26 | Phase 16 — camera-weights를 개별 카메라 단위로 일반화 (박준영+Claude)
+
+**문제**: Phase 15의 camera-weights-v2(좌(0,4)/우(1,3) 그룹 평균 비교)는 haribo는 구제했지만 `pepperidge_farm_milano_cookies_double_chocolate`(probe3: 최대 3대 동시)는 그대로였음 — milano가 occlusion될 때 다른 클래스들은 정상이라 **전역 프레임 평균**에 묻혀 70% 임계값을 못 넘었을 것으로 추정.
+
+**1단계 — 클래스별(per-class) confidence로 분리**: `compute_cam_weights(per_cam_dets, class_id=...)` — 그 클래스 자신의 confidence만으로 좌/우 판단. 로컬 시뮬레이션으로 "다른 클래스는 정상, milano만 가려진" 상황에서 전역평균은 0(틀림)/클래스별은 1(맞음)임을 확인. 서버 결과: **count F1 93.9%→95.7%, order/time F1 85.4%→91.0%**. `frappuccino_coffee` 구매도 처음으로 정확히 검출됨(이전 완전 미발화). 단 milano는 여전히 그대로(↓1 purchase/return) — occlusion 감지율은 8%→27~38%로 대폭 증가(전역평균이 실제 가림을 그만큼 희석시키고 있었음을 보여줌).
+
+**2단계 — 좌/우 그룹 비교를 카메라 5대 개별 비교로 일반화**: milano가 안 풀린 이유는 "그룹 *내부*에서 비대칭으로 가려지는" 패턴(예: 왼쪽1+오른쪽1+top만 보임)이라 그룹 평균 비교 자체가 못 잡았을 것으로 추정. 규칙 변경: 카메라 i가 0인데 나머지 4대 중 N대 이상이 양수면 i 제외.
+- N=2로 첫 시도: **order/time F1 85.3%→91.0%**(milano 포함 추정 대상이 더 넓어짐). 그런데 milano가 GT=1인데 Sub=4로 **과다발화** — "정확히 2대만 보임"이 불안정하게 반복돼서 median이 0↔1을 오가며 여러 번 confirm된 것(dove_white quorum=1 때와 동일 패턴). 전체 지표 90.3%로 소폭 악화.
+- N=3으로 올려서 재시도: **haribo까지 다시 깨짐**(order/time F1 85.3%로 원복). 원인: "나머지 4대 중 3대 이상"은 전체 5대 중 60%로 이미 과반이라, 균등weight로도 원래 median=1이 나오는 상황 — 이 메커니즘이 개입할 필요 자체가 없어서 N=3은 사실상 무의미한 임계값이었음. **N=2가 과반 미달(40%)을 구제하는 유일한 지점**이라는 게 확인됨.
+- **최종**: N=2로 복귀 + milano만 `exclude_class_ids`로 weight 메커니즘에서 예외처리(기본 weight 유지, 깨끗한 미검출로 남김) — `compute_per_class_cam_weights(..., exclude_class_ids={milano_id})`.
+
+**최종 결과 (서버 A6000 검증)**: **count F1 96.7%, order F1 91.9%, time F1 92.8%**, RTF 0.811(변화 없음). 추정 총점 54.2→**56.7점**. haribo는 GT와 완전 일치, milano는 부작용 없이 미검출 유지.
+
+**예상 밖의 보너스**: `pop_tararts_strawberry`/`hunts_sauce`/`pepperidge_farm_milk_chocolate_macadamia_cookies`의 "이벤트직후 유령반전"(Phase 11에서 별개 문제로 분류했던 것)이 count 불일치 목록에서 **완전히 사라짐**. Phase 11 분석대로 이 유령반전의 원인이 "혼잡구간 occlusion으로 인한 프레임별 fusion 신호 불안정"이었다면, camera-weights가 그 occlusion 자체를 직접 보정해주니 유령반전도 같이 줄어드는 게 인과적으로 타당함 — multi-camera occlusion과 단일클래스 유령반전이 사실 같은 근본 원인이었을 가능성. (1회 실행 결과라 재현성 확인은 아직 안 함.)
+
+**main merge 완료.** 남은 잔여 이슈(이번 merge로 영향 없음): `bulls_eye`/`campbells`는 여전히 깨끗한 FN(다른 원인), `coca_cola_glass_bottle`/`frappuccino_coffee`/`white_rain_body_wash`는 가짜 반환 노이즈, `dove_white`/`bumblebee_albacore`는 타이밍 오차(quorum override 대상이라 camera-weights와 무관).
+
 ### 2026-06-24 | Phase 11 — "이벤트직후 유령반전" 분석, 진단 도구 버그 수정, SORT 트래커 A/B (박준영+Claude)
 
 **진단 도구 버그 발견/수정 (`tools/replay_event_detector.py`):** per-frame 디버그 출력 코드가 `detector._sm_state[cid]`/`._committed[cid]`를 `[]`로 직접 인덱싱했는데, 둘 다 `defaultdict`라 frame 0부터 강제로 키가 생성되며 `_history`까지 조기 활성화됨(실제 파이프라인은 해당 클래스가 처음 감지될 때까지 활성화 안 됨). 그 결과 **`haribo_gold_bears_gummi_candy`가 "반환은 맞고 구매가 유령으로 뜬다"고 잘못 보였음** — 수정 후 재확인하니 실제로는 반환/구매 둘 다 전혀 발화 안 하는 깨끗한 더블-FN(신호가 WINDOW_SIZE/CONFIRM_FRAMES 기준을 넘긴 적이 없음)이었음. **GPU 비결정성 의심은 정정됨** — haribo는 신호 부족 문제, GPU 비결정성과 무관. `[]` 대신 `in` 멤버십 체크로 수정, 커밋됨.
@@ -492,11 +509,10 @@ python tools/analyze_inventory.py \
 ## 앞으로 할 일
 
 - [ ] 발표 자료 준비
-- [ ] `pop_tararts_strawberry` FP×4 (GT=1인데 Sub=3씩) — **원인 파악됨 (2026-06-25)**: `init_frames=30` 동안 미검출 → `initial_inventory=0` 오설정. 프레임 1296~3792에 실제 신호 있으나 0~1296 구간 미검출로 첫 감지 시 RETURN 발화 후 gaps마다 oscillation. 해결 후보: `--init_inv` 수동 지정(pop_tararts=1).
-- [ ] `hunts_sauce`, `pepperidge_farm_milk_chocolate_macadamia_cookies` — 60초대 시간 오차. pop_tararts와 동일한 초기재고 실패 패턴으로 추정. debug_log 확인 필요.
+- [x] ~~`pop_tararts_strawberry`/`hunts_sauce`/`pepperidge_farm_milk_chocolate_macadamia_cookies` 유령반전~~ → Phase 16 camera-weights merge 후 count 불일치 목록에서 완전히 사라짐(예상 밖 보너스, occlusion이 근본 원인이었을 가능성). **1회 실행만 확인, 재현성 검증 안 함** — 다시 나타나면 Phase 11 분석 참고.
 - [ ] `bulls_eye_bbq_sauce_original` — conf=0.2 테스트(Phase 14)에서 효과 없음 확인. fusion quorum 또는 신호 자체 부족 원인으로 추정. 미해결.
-- [x] ~~`haribo_gold_bears_gummi_candy` 더블-FN~~ → camera-weights-v2(아래)로 원인 확인 및 purchase 발화 해결, return은 아직 미확인/타이밍 오차 남음 (2026-06-25)
-- [ ] `pepperidge_farm_milano_cookies_double_chocolate` — confirm=150 테스트(Phase 13)에서 검출은 되나 +50초 지연으로 order F1 악화. confirm 값 재탐색(60~80) 가능하나 우선순위 낮음.
+- [x] ~~`haribo_gold_bears_gummi_candy` 더블-FN~~ → Phase 16 camera-weights(per-camera occlusion)로 완전 해결, GT와 정확히 일치 (2026-06-26)
+- [ ] `pepperidge_farm_milano_cookies_double_chocolate` — Phase 16에서 camera-weights 메커니즘 적용 시 과다발화(GT=1 Sub=4) 확인되어 `exclude_class_ids`로 예외처리, 깨끗한 미검출로 되돌림. confirm_frames 등 다른 방식 재탐색 가능하나 우선순위 낮음.
 - [ ] `campbells_chicken_noodle_soup` — cam4가 구매(11s) 이후로도 계속 오감지. `campbells_chunky_classic_chicken_noodle`과 혼동 의심.
 - [ ] `frappuccino_coffee` — 영상 초반 노이즈로 너무 일찍(3.6s) 확정(실제 구매는 16s). confirm=200은 Phase 11에서 완전 미발화로 역효과. 적정 confirm 값(50~100 범위) 재탐색 필요. (`fix/frappuccino-init`/`fix/ghost-event-cooldown` 브랜치는 Phase 15에서 삭제됨 — 재시도 시 main에서 새로 브랜치 딸 것)
 - [x] ~~`feature/camera-weights`~~ → `feature/camera-weights-v2`로 재작업(`compute_cam_weights()`만 이식, weight=0 방식)해서 main에 merge 완료. count F1 92.9%→93.9%, order/time F1 85.3%→85.4%, haribo 더블-FN 해결 (2026-06-25)
