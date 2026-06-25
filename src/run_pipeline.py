@@ -199,12 +199,13 @@ def compute_cam_weights(per_cam_dets):
 
     weights = [1.0, 1.0, 1.5, 1.0, 1.0]  # 위 카메라 기본 1.5배
 
+    # 0.5x/1.5x 곱셈으로는 weighted median의 과반 구성 자체가 안 바뀌어서 효과 없음
+    # (2026-06-25 server test: camera-weights-v2 결과가 베이스라인과 완전히 동일했음)
+    # -> 가려진 쪽은 weight=0으로 완전히 제외해서 median 투표 구성 자체를 바꿈
     if right_conf < left_conf * 0.7:    # 오른쪽 손 가림
-        weights[1] *= 0.5; weights[3] *= 0.5
-        weights[0] *= 1.5; weights[4] *= 1.5
+        weights[1] = 0.0; weights[3] = 0.0
     elif left_conf < right_conf * 0.7:  # 왼쪽 손 가림
-        weights[0] *= 0.5; weights[4] *= 0.5
-        weights[1] *= 1.5; weights[3] *= 1.5
+        weights[0] = 0.0; weights[4] = 0.0
 
     return weights
 
