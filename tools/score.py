@@ -23,7 +23,7 @@ from collections import Counter
 import os
 import json
 
-GT_PATH          = "data/ground_truth.csv"
+GT_PATH          = "data/ground_truth_v2.csv"
 LEADERBOARD_PATH = "output/leaderboard.csv"
 HTML_PATH        = "output/leaderboard.html"
 
