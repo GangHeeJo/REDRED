@@ -57,6 +57,16 @@ it continuously for ~100s *after* its GT purchase time (11s) -- almost
 certainly confusion with the visually similar campbells_chunky_classic_-
 chicken_noodle rather than a quorum problem. Deliberately left out of the
 override here; needs a bbox-position check before touching its fusion.
+quorum=1 was tried (2026-06-26) but created 3 events (GT=1) due to an early
+false positive from init confusion + FP return when cam4 confusion ends.
+Reverted; leaving as FN until bbox filter is implemented.
+
+pepperidge_farm_milano_cookies_double_chocolate: quorum=2 previously caused
+4 events (GT=2) when tried alone (fused count oscillated 0<->1 repeatedly,
+each stable period long enough to clear CONFIRM_FRAMES=30). Added back with
+quorum=2 (2026-06-26), combined with per_class_confirm=45 in EventDetector
+(~4.5s stability required). confirm=90 fixed the count but made return fire
+49s late and purchase just outside ±3s; 45 is a middle ground.
 """
 
 from typing import List, Dict, Optional, Union
