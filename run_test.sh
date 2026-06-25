@@ -18,6 +18,7 @@ PYTHONPATH=$YOLOV7 python src/run_pipeline.py \
     --prices data/prices.csv \
     --out output/submission_skip${SKIP}.csv \
     --skip $SKIP \
+    --init_frames ${3:-30} \
     --conf 0.4 \
     --device 0 \
     --debug_log output/debug_frame_counts.csv \
