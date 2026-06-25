@@ -186,6 +186,9 @@ _RIGHT_CAMS = [1, 3]
 _TOP_CAM    = 2
 
 
+_occlusion_stats = {"total": 0, "right_blocked": 0, "left_blocked": 0}
+
+
 def compute_cam_weights(per_cam_dets):
     conf = []
     for dets in per_cam_dets:
@@ -202,10 +205,13 @@ def compute_cam_weights(per_cam_dets):
     # 0.5x/1.5x 곱셈으로는 weighted median의 과반 구성 자체가 안 바뀌어서 효과 없음
     # (2026-06-25 server test: camera-weights-v2 결과가 베이스라인과 완전히 동일했음)
     # -> 가려진 쪽은 weight=0으로 완전히 제외해서 median 투표 구성 자체를 바꿈
+    _occlusion_stats["total"] += 1
     if right_conf < left_conf * 0.7:    # 오른쪽 손 가림
         weights[1] = 0.0; weights[3] = 0.0
+        _occlusion_stats["right_blocked"] += 1
     elif left_conf < right_conf * 0.7:  # 왼쪽 손 가림
         weights[0] = 0.0; weights[4] = 0.0
+        _occlusion_stats["left_blocked"] += 1
 
     return weights
 
@@ -365,6 +371,11 @@ def main():
     if timed_file is not None:
         timed_file.close()
         print(f"Timed event log written to {args.timed_log}")
+
+    _s = _occlusion_stats
+    print(f"Camera occlusion stats: {_s['total']} frames, "
+          f"right_blocked={_s['right_blocked']} ({_s['right_blocked']/max(1,_s['total'])*100:.1f}%), "
+          f"left_blocked={_s['left_blocked']} ({_s['left_blocked']/max(1,_s['total'])*100:.1f}%)")
 
     t_end = time.time()
     proc_time = t_end - t_start
