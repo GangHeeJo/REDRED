@@ -339,7 +339,14 @@ def main():
                           ensure_ascii=False, indent=2)
             print(f"Initial inventory dumped to {init_dump_path}")
 
-    detector = EventDetector(class_names, initial_counts=initial_inventory)
+    # Milano needs 3x longer confirm_frames to suppress oscillation-based over-firing.
+    # (quorum=2 alone caused 4 events at default CONFIRM_FRAMES=30; see multi_view_fusion.py)
+    _per_class_confirm = {}
+    if _milano_id is not None:
+        _per_class_confirm[_milano_id] = 90
+
+    detector = EventDetector(class_names, initial_counts=initial_inventory,
+                             per_class_confirm=_per_class_confirm)
     vid_len  = video_duration(args.videos)
 
     fps_cap = cv2.VideoCapture(args.videos[0])
