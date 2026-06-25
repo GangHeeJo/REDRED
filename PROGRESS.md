@@ -404,6 +404,22 @@ quorum=2 추가 후 spam 정상 감지 확인. 중복발화 없음. TP +1 추가
   3. 체크아웃 재확인 후 3차 진짜 실행: **count F1 92.9%→93.9%, order F1 85.3%→85.4%, time F1 85.3%→85.4%**, occlusion 감지율 right=8.2%/left=1.9%(`Camera occlusion stats` 로그로 확인). `haribo_gold_bears_gummi_candy`가 **처음으로 발화**(기존엔 신호부족 더블-FN이라 결론 — bumblebee/dove/redbull과 같은 "5캠 중 소수만 보임" 구조적 문제였음이 확인됨). 단 새 haribo 이벤트가 26초 타이밍 오차 있음(별도 과제).
   - 전 지표 순개선, 회귀 없음 → **main에 merge 완료**.
 
+### 2026-06-26 | Phase 19 — 미발화 3건 해결 시도, 전부 기각 (박준영+Claude)
+
+campbells/milano/dove_white/white_rain 4개 클래스 추가 개선 시도. 전부 구조적 한계로 Phase 18 상태가 최선임을 확인.
+
+**campbells_chicken_noodle_soup**: quorum=1 시도 → cam4가 campbells_chunky와 혼동하여 purchase 3.6s 조기발화 + FP return + 117s FP purchase = 이벤트 3개 발생(GT=1). order F1 95.7%→94.3%로 악화. **기각**. bbox 필터 없이는 불가.
+
+**pepperidge_farm_milano_cookies_double_chocolate**:
+- quorum=2 + confirm=45: 4이벤트 과다발화, 타이밍 모두 틀림
+- quorum=2 + confirm=90: 2이벤트(count 맞음), return 49s 늦음/purchase ±3s 초과. order 악화
+- quorum=3(default) + per_class_confirm=9: WINDOW_SIZE=25 때문에 9프레임 run이 median을 못 뒤집음 → 이벤트 0건, Phase 18와 동일
+- 근본 원인: WINDOW_SIZE=25가 너무 커서 3-camera 신호(9fr/17fr)를 잡지 못함. quorum=2는 신호가 0↔1 진동해서 타이밍 불가. **기각**. WINDOW_SIZE를 낮추면 해결 가능하나(원래 설정 이유인 pepperidge_farm 노이즈가 Phase 16 camera-weights로 이미 해결됨), 전역 파라미터 변경 리스크 있어 보류.
+
+**dove_white/white_rain 타이밍**: per_class_confirm으로 지연 시도 → 계산값(220fr/105fr)이 Sample_1.mp4 타이밍에 맞춘 하드코딩이라 채점 영상에서 역효과 가능. Phase 11 per_class_cooldown 기각 때와 동일한 이유. **기각**.
+
+**최종 확인**: fix/milano-campbells 브랜치 모든 시도 revert → Phase 18 수치 재현 확인(count 98.6%, order 95.7%, time 96.6%, 58.3점). main merge 예정.
+
 ### 2026-06-26 | Phase 18 — bumblebee_albacore quorum 1→2, 타이밍 오차 해결 (박준영+Claude)
 
 Phase 16에서 `bumblebee_albacore`에 quorum=1을 설정했는데, 1대 카메라 신호만으로도 이벤트가 확정되다 보니 타이밍 오차가 생겼음:
@@ -536,7 +552,7 @@ python tools/analyze_inventory.py \
 - [x] ~~`pop_tararts_strawberry`/`hunts_sauce`/`pepperidge_farm_milk_chocolate_macadamia_cookies` 유령반전~~ → Phase 16 camera-weights merge 후 count 불일치 목록에서 완전히 사라짐(예상 밖 보너스, occlusion이 근본 원인이었을 가능성). **1회 실행만 확인, 재현성 검증 안 함** — 다시 나타나면 Phase 11 분석 참고.
 - [x] ~~`bulls_eye_bbq_sauce_original`~~ → Phase 17에서 초기재고 추정 개선으로 자연스럽게 해결(초기 ~1초 occlusion으로 initial_inventory=0 오설정됐다가 이제 정확히 1로 잡힘). 더 이상 count 불일치 목록에 없음 (2026-06-26)
 - [x] ~~`haribo_gold_bears_gummi_candy` 더블-FN~~ → Phase 16 camera-weights(per-camera occlusion)로 완전 해결, GT와 정확히 일치 (2026-06-26)
-- [ ] `pepperidge_farm_milano_cookies_double_chocolate` — Phase 16에서 camera-weights 메커니즘 적용 시 과다발화(GT=1 Sub=4) 확인되어 `exclude_class_ids`로 예외처리, 깨끗한 미검출로 되돌림. confirm_frames 등 다른 방식 재탐색 가능하나 우선순위 낮음.
+- [ ] `pepperidge_farm_milano_cookies_double_chocolate` — WINDOW_SIZE=25가 3-camera 신호(9fr/17fr)를 잡기에 너무 큼. quorum=2는 0↔1 진동으로 타이밍 불가. WINDOW_SIZE를 낮추면 해결 가능(pepperidge_farm 노이즈는 Phase 16 camera-weights로 이미 해결됨)하나 전역 파라미터 리스크로 보류. (Phase 19)
 - [ ] `campbells_chicken_noodle_soup` — cam4가 구매(11s) 이후로도 계속 오감지. `campbells_chunky_classic_chicken_noodle`과 혼동 의심.
 - [x] ~~`frappuccino_coffee`~~ → Phase 17에서 초기재고 추정 개선으로 해결(initial_inventory=1로 올바르게 시작, 가짜 반환이 사라지고 구매도 정상 발화). 더 이상 count 불일치 목록에 없음 (2026-06-26)
 - [x] ~~`feature/camera-weights`~~ → `feature/camera-weights-v2`로 재작업(`compute_cam_weights()`만 이식, weight=0 방식)해서 main에 merge 완료. count F1 92.9%→93.9%, order/time F1 85.3%→85.4%, haribo 더블-FN 해결 (2026-06-25)
