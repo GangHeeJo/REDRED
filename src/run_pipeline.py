@@ -183,7 +183,7 @@ def video_duration(video_paths):
 # 0: 왼쪽 앞  1: 오른쪽 앞  2: 위(top)  3: 오른쪽 뒤  4: 왼쪽 뒤
 
 _occlusion_stats = {"total": 0, "cams_excluded": 0}
-MIN_CORROBORATE = 3  # 카메라 제외에 필요한 corroborate 카메라 수 (2는 milano 과다발화 유발, 서버 테스트로 폐기)
+MIN_CORROBORATE = 2  # 카메라 제외에 필요한 corroborate 카메라 수
 
 
 def compute_cam_weights(per_cam_dets, class_id=None):
@@ -198,17 +198,17 @@ def compute_cam_weights(per_cam_dets, class_id=None):
     동시)는 그룹 평균이 서로 비슷해져서 70% 임계값을 못 넘었을 것으로 추정.
 
     규칙: 카메라 i의 confidence가 0인데, 나머지 4대 중 MIN_CORROBORATE대 이상이
-    양수면 i를 완전히 제외(weight=0).
-    - corroborate=2로 첫 시도: haribo는 구제됐지만 milano가 *과다발화*로 바뀜
-      (GT=1인데 Sub=4) -- milano는 "정확히 2대만 보임"이 자주/불안정하게 나타나서
-      median이 0<->1을 반복하며 여러 번 confirm된 것으로 보임(dove_white quorum=1
-      때와 동일 패턴). order F1 91.0%->90.3%로 악화, 서버 테스트로 확인 후 폐기.
-    - corroborate=3으로 상향: haribo(3대가 안정적으로 봄)는 여전히 구제, milano
-      (주로 2대)는 더 이상 조건을 못 채워서 기본 weight로 떨어짐(다시 미검출 --
-      "신호 부족"과 "노이즈성 과다발화" 둘 다보다는 안정적인 미검출 쪽이 나음).
+    양수면 i를 완전히 제외(weight=0). MIN_CORROBORATE=2가 유일하게 의미 있는 값임이
+    서버 테스트로 확인됨 -- "나머지 4대 중 N대 corroborate"는 전체 5대 중 N대가
+    보고 있다는 뜻인데, N>=3이면 이미 5대 중 과반(60%+)이라 균등weight로도 원래
+    median=1이 나옴(이 함수가 개입할 필요가 없는 상황). 즉 N=3으로 올리면 조건은
+    트리거되지만 결과가 안 바뀌는 무의미한 임계값이 되어, 의도와 달리 haribo까지
+    다시 미검출로 돌아감(과반 미달 40%를 구제하는 유일한 지점은 N=2). N=2 자체의
+    부작용(milano 과다발화, 아래 exclude_class_ids 참고)은 임계값이 아니라 클래스
+    단위 예외로 처리.
     - bumblebee_albacore/dove/redbull류(CLASS_QUORUM_OVERRIDE 대상, 원래 1~2대만
-      보임)는 어느 임계값에서도 조건을 못 채워서 영향 없음(quorum 분기가 weight를
-      이미 무시하므로 애초에 무해하긴 함).
+      보임)는 N=2 조건도 못 채워서 영향 없음(quorum 분기가 weight를 이미 무시하므로
+      애초에 무해하긴 함).
     """
     conf = []
     for dets in per_cam_dets:
@@ -233,13 +233,29 @@ def compute_cam_weights(per_cam_dets, class_id=None):
     return weights
 
 
-def compute_per_class_cam_weights(per_cam_dets):
-    """프레임에 등장한 클래스마다 따로 occlusion weight 계산 (class_id -> weights)."""
+_DEFAULT_CAM_WEIGHTS = [1.0, 1.0, 1.5, 1.0, 1.0]
+
+
+def compute_per_class_cam_weights(per_cam_dets, exclude_class_ids=None):
+    """
+    프레임에 등장한 클래스마다 따로 occlusion weight 계산 (class_id -> weights).
+    exclude_class_ids: 이 메커니즘이 노이즈를 유발하는 것으로 확인된 클래스는
+        기본 weight를 그대로 둠(occlusion 계산 자체를 스킵). 2026-06-25,
+        pepperidge_farm_milano_cookies_double_chocolate가 그 사례 -- "정확히
+        2대만 보임"이 자주/불안정하게 나타나는 클래스라 MIN_CORROBORATE=2로
+        구제하면 median이 0<->1을 반복하며 과다발화함(GT=1 Sub=4). 신호부족으로
+        깨끗하게 미검출되는 게 노이즈성 과다발화보다 나음.
+    """
+    exclude_class_ids = exclude_class_ids or set()
     class_ids = set()
     for dets in per_cam_dets:
         if dets:
             class_ids.update(d["class_id"] for d in dets)
-    return {cid: compute_cam_weights(per_cam_dets, class_id=cid) for cid in class_ids}
+    return {
+        cid: (list(_DEFAULT_CAM_WEIGHTS) if cid in exclude_class_ids
+              else compute_cam_weights(per_cam_dets, class_id=cid))
+        for cid in class_ids
+    }
 
 
 def main():
@@ -285,6 +301,13 @@ def main():
 
     class_names = load_names(args.names)
     prices      = load_prices(args.prices)
+
+    # pepperidge_farm_milano_cookies_double_chocolate: camera-weights 메커니즘이
+    # 노이즈성 과다발화를 유발하는 것으로 확인됨(compute_per_class_cam_weights
+    # docstring 참고) -- 기본 weight로 예외처리.
+    _milano_id = next((i for i, n in enumerate(class_names)
+                       if n == "pepperidge_farm_milano_cookies_double_chocolate"), None)
+    _cam_weight_excluded = {_milano_id} if _milano_id is not None else set()
 
     caps = open_videos(args.videos)
 
@@ -362,7 +385,8 @@ def main():
         if cam_tracker is not None:
             per_cam_dets = cam_tracker.update(per_cam_dets)
 
-        fused_counts = fuse(per_cam_dets, cam_weights=compute_per_class_cam_weights(per_cam_dets))
+        fused_counts = fuse(per_cam_dets, cam_weights=compute_per_class_cam_weights(
+            per_cam_dets, exclude_class_ids=_cam_weight_excluded))
 
         if debug_writer is not None:
             for cls_id, cnt in fused_counts.items():
