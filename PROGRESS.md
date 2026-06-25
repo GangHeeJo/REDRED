@@ -398,7 +398,8 @@ quorum=2 추가 후 spam 정상 감지 확인. 중복발화 없음. TP +1 추가
 
 **⚠️ 정정 (같은 날 늦게 발견): 83.4%는 GPU 비결정성이 아니라 `score.py`의 GT 파일 버그였음.** `tools/score.py`의 `GT_PATH` 기본값이 `data/ground_truth.csv`(Phase 8에서 폐기된 v1, 순서 일부 뒤바뀜+행 내용 오류 2건 있던 그 버전)로 남아있었는데, `run_test.sh`가 `score.py`를 호출할 때 `--gt`를 안 줘서 매번 이 구버전으로 채점되고 있었음(`score_methods.py`는 `--gt data/ground_truth_v2.csv`를 명시적으로 받아서 영향 없었음). 같은 `submission_skip2.csv`로 `python tools/score.py --sub output/submission_skip2.csv --gt data/ground_truth_v2.csv`를 돌리니 **정확히 85.3%(TP=90 FP=16 FN=15)**가 나와서 확인됨 — LCS 알고리즘 자체는 두 스크립트가 동일, GT 파일만 다름. **`GT_PATH`를 `ground_truth_v2.csv`로 수정함.** 즉 Phase 12의 트래커 거부 판정과 그 근거였던 "GPU 종류 비결정성" 둘 다 잘못된 진단이었음 — 트래커는 처음부터 안정적으로 baseline과 동급 이상이었음. (참고: `tools/analyze_detections.py`/`compare_to_ground_truth.py`/`diagnose_missing_events.py`는 Phase 7 시절 일회성 진단 스크립트라 여전히 v1을 기본값으로 쓰고 있음 — 지금 쓸 일 있으면 `--gt data/ground_truth_v2.csv` 명시할 것.)
 
-**현재 미병합 브랜치는 `feature/camera-weights`(정현수) 하나만 남음** — 카메라별 동적 weight(좌우 occlusion 감지 + top캠 1.5배) 아이디어는 유효하나, base가 된 `event_detector.py`가 Phase 7에서 고친 버그 2개(UNKNOWN 상태, 구매-차단 제약)를 그대로 되돌리고 있어 **현재 상태로 merge하면 안 됨** — 다음 작업으로 최신 `event_detector.py` 위에 `compute_cam_weights()`만 옮겨서 다시 테스트 필요.
+**현재 미병합 브랜치는 `feature/camera-weights`(정현수) 하나만 남음** — 카메라별 동적 weight(좌우 occlusion 감지 + top캠 1.5배) 아이디어는 유효하나, base가 된 `event_detector.py`가 Phase 7에서 고친 버그 2개(UNKNOWN 상태, 구매-차단 제약)를 그대로 되돌리고 있어 **현재 상태로 merge하면 안 됨**.
+- **`feature/camera-weights-v2`(박준영+Claude, 2026-06-25) 브랜치 구현됨**: `compute_cam_weights()` 함수만(정현수 원본과 diff 없음 확인) 최신 main 위로 옮겨 적용, `event_detector.py`는 무변경. `src/run_pipeline.py`만 31줄 추가. 서버에서 `git checkout feature/camera-weights-v2 && bash run_test.sh 2`로 테스트 후 main merge 여부 결정 필요(아직 안 함).
 
 ### 2026-06-24 | Phase 11 — "이벤트직후 유령반전" 분석, 진단 도구 버그 수정, SORT 트래커 A/B (박준영+Claude)
 
@@ -495,7 +496,8 @@ python tools/analyze_inventory.py \
 - [ ] `pepperidge_farm_milano_cookies_double_chocolate` — confirm=150 테스트(Phase 13)에서 검출은 되나 +50초 지연으로 order F1 악화. confirm 값 재탐색(60~80) 가능하나 우선순위 낮음.
 - [ ] `campbells_chicken_noodle_soup` — cam4가 구매(11s) 이후로도 계속 오감지. `campbells_chunky_classic_chicken_noodle`과 혼동 의심.
 - [ ] `frappuccino_coffee` — 영상 초반 노이즈로 너무 일찍(3.6s) 확정(실제 구매는 16s). confirm=200은 Phase 11에서 완전 미발화로 역효과. 적정 confirm 값(50~100 범위) 재탐색 필요. (`fix/frappuccino-init`/`fix/ghost-event-cooldown` 브랜치는 Phase 15에서 삭제됨 — 재시도 시 main에서 새로 브랜치 딸 것)
-- [ ] `feature/camera-weights`(정현수) — 좌우 occlusion 감지 + top캠 1.5배 weight 아이디어는 유효하나, base `event_detector.py`가 Phase 7에서 고친 버그 2개(UNKNOWN 상태, 구매-차단 제약)를 되돌리고 있어 현재 상태로 merge 불가. `compute_cam_weights()`만 최신 코드 위로 옮겨서 재작업 필요.
+- [ ] `feature/camera-weights`(정현수) — 좌우 occlusion 감지 + top캠 1.5배 weight 아이디어는 유효하나, base `event_detector.py`가 Phase 7에서 고친 버그 2개(UNKNOWN 상태, 구매-차단 제약)를 되돌리고 있어 현재 상태로 merge 불가.
+  - **브랜치 구현됨: `feature/camera-weights-v2`** — `compute_cam_weights()`만 최신 main 위로 이식, event_detector.py 무변경. 서버 테스트 후 merge 여부 결정 필요.
 - [x] ~~SORT 트래커~~ → Phase 12에서 "order F1 악화(85.4%→83.4%)"로 판정해 코드 제거했으나, A6000 큐로 재측정하니 85.3%(거의 동급, count는 오히려 92.0%→92.9% 개선). 83.4%의 진짜 원인은 GPU가 아니라 **`score.py`가 구버전 GT(v1)를 기본값으로 쓰던 버그**였음(`GT_PATH`를 v2로 수정함). Phase 15에서 main에 재도입 확정 (2026-06-25)
 - [x] ~~`score.py` GT 버그~~ → `GT_PATH` 기본값이 `data/ground_truth.csv`(v1, 폐기된 구버전)로 남아있어서 `run_test.sh` 자동채점이 매번 잘못된 GT로 계산되고 있었음. `ground_truth_v2.csv`로 수정 (2026-06-25)
 - [x] ~~`fix/per-class-conf` (bulls_eye conf=0.2)~~ → Phase 14에서 효과 없음 확인, 브랜치 삭제 (2026-06-25)
