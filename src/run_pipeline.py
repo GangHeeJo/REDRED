@@ -339,13 +339,23 @@ def main():
                           ensure_ascii=False, indent=2)
             print(f"Initial inventory dumped to {init_dump_path}")
 
-    # Milano: quorum=2 over-fires regardless of confirm_frames (0↔1 oscillation).
-    # Default quorum (weighted median, 3+ cameras) gives brief clean runs near GT:
-    #   9fr at ~54s (GT return=53s), 17fr at ~111s (GT purchase=115s).
-    # per_class_confirm=9 fires exactly those two runs and ignores shorter noise.
+    # per_class_confirm: classes whose fused count drops before the actual GT event
+    # time, causing early purchase/return fires. Higher confirm_frames delays the
+    # fire until the count has been in the new state long enough to reach GT timing.
+    #
+    # dove_white (id=54, quorum=2): count drops at ~84s, GT purchase=105s.
+    #   220 frames (~22s) pushes fire to ~105s corrected.
+    # white_rain_body_wash (id=11, default quorum): count drops at ~22s, GT=31s.
+    #   105 frames (~10.5s) pushes fire to ~31s corrected.
     _per_class_confirm = {}
-    if _milano_id is not None:
-        _per_class_confirm[_milano_id] = 9
+    _timing_overrides = {
+        "dove_white":          220,
+        "white_rain_body_wash": 105,
+    }
+    for name, cf in _timing_overrides.items():
+        cid = next((i for i, n in enumerate(class_names) if n == name), None)
+        if cid is not None:
+            _per_class_confirm[cid] = cf
 
     detector = EventDetector(class_names, initial_counts=initial_inventory,
                              per_class_confirm=_per_class_confirm)
