@@ -398,8 +398,11 @@ quorum=2 추가 후 spam 정상 감지 확인. 중복발화 없음. TP +1 추가
 
 **⚠️ 정정 (같은 날 늦게 발견): 83.4%는 GPU 비결정성이 아니라 `score.py`의 GT 파일 버그였음.** `tools/score.py`의 `GT_PATH` 기본값이 `data/ground_truth.csv`(Phase 8에서 폐기된 v1, 순서 일부 뒤바뀜+행 내용 오류 2건 있던 그 버전)로 남아있었는데, `run_test.sh`가 `score.py`를 호출할 때 `--gt`를 안 줘서 매번 이 구버전으로 채점되고 있었음(`score_methods.py`는 `--gt data/ground_truth_v2.csv`를 명시적으로 받아서 영향 없었음). 같은 `submission_skip2.csv`로 `python tools/score.py --sub output/submission_skip2.csv --gt data/ground_truth_v2.csv`를 돌리니 **정확히 85.3%(TP=90 FP=16 FN=15)**가 나와서 확인됨 — LCS 알고리즘 자체는 두 스크립트가 동일, GT 파일만 다름. **`GT_PATH`를 `ground_truth_v2.csv`로 수정함.** 즉 Phase 12의 트래커 거부 판정과 그 근거였던 "GPU 종류 비결정성" 둘 다 잘못된 진단이었음 — 트래커는 처음부터 안정적으로 baseline과 동급 이상이었음. (참고: `tools/analyze_detections.py`/`compare_to_ground_truth.py`/`diagnose_missing_events.py`는 Phase 7 시절 일회성 진단 스크립트라 여전히 v1을 기본값으로 쓰고 있음 — 지금 쓸 일 있으면 `--gt data/ground_truth_v2.csv` 명시할 것.)
 
-**현재 미병합 브랜치는 `feature/camera-weights`(정현수) 하나만 남음** — 카메라별 동적 weight(좌우 occlusion 감지 + top캠 1.5배) 아이디어는 유효하나, base가 된 `event_detector.py`가 Phase 7에서 고친 버그 2개(UNKNOWN 상태, 구매-차단 제약)를 그대로 되돌리고 있어 **현재 상태로 merge하면 안 됨**.
-- **`feature/camera-weights-v2`(박준영+Claude, 2026-06-25) 브랜치 구현됨**: `compute_cam_weights()` 함수만(정현수 원본과 diff 없음 확인) 최신 main 위로 옮겨 적용, `event_detector.py`는 무변경. `src/run_pipeline.py`만 31줄 추가. 서버에서 `git checkout feature/camera-weights-v2 && bash run_test.sh 2`로 테스트 후 main merge 여부 결정 필요(아직 안 함).
+**`feature/camera-weights`(정현수) → `feature/camera-weights-v2`(박준영+Claude)로 재작업 후 main merge 완료 (2026-06-25)**: 원본은 카메라별 동적 weight(좌우 occlusion 감지 + top캠 1.5배) 아이디어는 유효했으나 base `event_detector.py`가 Phase 7 버그 2개를 되돌리고 있어 merge 불가였음 — `compute_cam_weights()`만 최신 main 위로 이식(event_detector.py 무변경, diff 확인됨). 서버 A6000 검증 과정:
+  1. 1차(0.5x/1.5x 곱셈): baseline과 **완전히 동일한 점수** — `fuse_weighted_median`이 과반 투표 방식이라 1.5x 정도 곱으로는 median 구성이 거의 안 바뀜.
+  2. 2차(가려진 쪽 weight=0으로 완전 제외): 여전히 동일 → 알고보니 `git checkout`이 한 번도 실제로 안 먹혀서 줄곧 main에서 테스트하고 있었음(서버 git이 untracked 파일 충돌로 checkout silently 실패).
+  3. 체크아웃 재확인 후 3차 진짜 실행: **count F1 92.9%→93.9%, order F1 85.3%→85.4%, time F1 85.3%→85.4%**, occlusion 감지율 right=8.2%/left=1.9%(`Camera occlusion stats` 로그로 확인). `haribo_gold_bears_gummi_candy`가 **처음으로 발화**(기존엔 신호부족 더블-FN이라 결론 — bumblebee/dove/redbull과 같은 "5캠 중 소수만 보임" 구조적 문제였음이 확인됨). 단 새 haribo 이벤트가 26초 타이밍 오차 있음(별도 과제).
+  - 전 지표 순개선, 회귀 없음 → **main에 merge 완료**.
 
 ### 2026-06-24 | Phase 11 — "이벤트직후 유령반전" 분석, 진단 도구 버그 수정, SORT 트래커 A/B (박준영+Claude)
 
@@ -492,12 +495,12 @@ python tools/analyze_inventory.py \
 - [ ] `pop_tararts_strawberry` FP×4 (GT=1인데 Sub=3씩) — **원인 파악됨 (2026-06-25)**: `init_frames=30` 동안 미검출 → `initial_inventory=0` 오설정. 프레임 1296~3792에 실제 신호 있으나 0~1296 구간 미검출로 첫 감지 시 RETURN 발화 후 gaps마다 oscillation. 해결 후보: `--init_inv` 수동 지정(pop_tararts=1).
 - [ ] `hunts_sauce`, `pepperidge_farm_milk_chocolate_macadamia_cookies` — 60초대 시간 오차. pop_tararts와 동일한 초기재고 실패 패턴으로 추정. debug_log 확인 필요.
 - [ ] `bulls_eye_bbq_sauce_original` — conf=0.2 테스트(Phase 14)에서 효과 없음 확인. fusion quorum 또는 신호 자체 부족 원인으로 추정. 미해결.
-- [ ] `haribo_gold_bears_gummi_candy` — 반환/구매 둘 다 더블-FN. 신호가 WINDOW_SIZE/CONFIRM_FRAMES를 넘긴 적 없음. 원인 미파악.
+- [x] ~~`haribo_gold_bears_gummi_candy` 더블-FN~~ → camera-weights-v2(아래)로 원인 확인 및 purchase 발화 해결, return은 아직 미확인/타이밍 오차 남음 (2026-06-25)
 - [ ] `pepperidge_farm_milano_cookies_double_chocolate` — confirm=150 테스트(Phase 13)에서 검출은 되나 +50초 지연으로 order F1 악화. confirm 값 재탐색(60~80) 가능하나 우선순위 낮음.
 - [ ] `campbells_chicken_noodle_soup` — cam4가 구매(11s) 이후로도 계속 오감지. `campbells_chunky_classic_chicken_noodle`과 혼동 의심.
 - [ ] `frappuccino_coffee` — 영상 초반 노이즈로 너무 일찍(3.6s) 확정(실제 구매는 16s). confirm=200은 Phase 11에서 완전 미발화로 역효과. 적정 confirm 값(50~100 범위) 재탐색 필요. (`fix/frappuccino-init`/`fix/ghost-event-cooldown` 브랜치는 Phase 15에서 삭제됨 — 재시도 시 main에서 새로 브랜치 딸 것)
-- [ ] `feature/camera-weights`(정현수) — 좌우 occlusion 감지 + top캠 1.5배 weight 아이디어는 유효하나, base `event_detector.py`가 Phase 7에서 고친 버그 2개(UNKNOWN 상태, 구매-차단 제약)를 되돌리고 있어 현재 상태로 merge 불가.
-  - **브랜치 구현됨: `feature/camera-weights-v2`** — `compute_cam_weights()`만 최신 main 위로 이식, event_detector.py 무변경. 서버 테스트 후 merge 여부 결정 필요.
+- [x] ~~`feature/camera-weights`~~ → `feature/camera-weights-v2`로 재작업(`compute_cam_weights()`만 이식, weight=0 방식)해서 main에 merge 완료. count F1 92.9%→93.9%, order/time F1 85.3%→85.4%, haribo 더블-FN 해결 (2026-06-25)
+- [ ] `haribo_gold_bears_gummi_candy` 새 purchase 이벤트 타이밍 오차(26초, GT=163s/Sub=139.8s) — camera-weights 적용으로 처음 발화는 됐으나 정확한 시각은 아직 안 맞음.
 - [x] ~~SORT 트래커~~ → Phase 12에서 "order F1 악화(85.4%→83.4%)"로 판정해 코드 제거했으나, A6000 큐로 재측정하니 85.3%(거의 동급, count는 오히려 92.0%→92.9% 개선). 83.4%의 진짜 원인은 GPU가 아니라 **`score.py`가 구버전 GT(v1)를 기본값으로 쓰던 버그**였음(`GT_PATH`를 v2로 수정함). Phase 15에서 main에 재도입 확정 (2026-06-25)
 - [x] ~~`score.py` GT 버그~~ → `GT_PATH` 기본값이 `data/ground_truth.csv`(v1, 폐기된 구버전)로 남아있어서 `run_test.sh` 자동채점이 매번 잘못된 GT로 계산되고 있었음. `ground_truth_v2.csv`로 수정 (2026-06-25)
 - [x] ~~`fix/per-class-conf` (bulls_eye conf=0.2)~~ → Phase 14에서 효과 없음 확인, 브랜치 삭제 (2026-06-25)
