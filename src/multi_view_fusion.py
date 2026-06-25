@@ -89,9 +89,6 @@ CLASS_QUORUM_OVERRIDE: Dict[int, int] = {
     39: 1,   # crystal_hot_sauce
     21: 1,   # dr_pepper
     29: 2,   # spam
-    42: 2,   # pepperidge_farm_milano_cookies_double_chocolate (2026-06-26: quorum=2 +
-              #   per_class_confirm=45 in EventDetector. quorum=2 alone previously
-              #   over-fired (4 events, GT=2); higher confirm_frames suppresses oscillations)
 }
 
 

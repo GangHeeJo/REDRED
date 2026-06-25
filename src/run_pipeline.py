@@ -339,12 +339,13 @@ def main():
                           ensure_ascii=False, indent=2)
             print(f"Initial inventory dumped to {init_dump_path}")
 
-    # Milano needs longer confirm_frames to suppress oscillation-based over-firing.
-    # 90 fixed count but return fired 49s late and purchase barely missed ±3s;
-    # 45 (~4.5s) is the middle ground. (see multi_view_fusion.py docstring)
+    # Milano: quorum=2 over-fires regardless of confirm_frames (0↔1 oscillation).
+    # Default quorum (weighted median, 3+ cameras) gives brief clean runs near GT:
+    #   9fr at ~54s (GT return=53s), 17fr at ~111s (GT purchase=115s).
+    # per_class_confirm=9 fires exactly those two runs and ignores shorter noise.
     _per_class_confirm = {}
     if _milano_id is not None:
-        _per_class_confirm[_milano_id] = 45
+        _per_class_confirm[_milano_id] = 9
 
     detector = EventDetector(class_names, initial_counts=initial_inventory,
                              per_class_confirm=_per_class_confirm)
