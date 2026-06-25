@@ -377,7 +377,7 @@ quorum=2 추가 후 spam 정상 감지 확인. 중복발화 없음. TP +1 추가
 | 브랜치 | count F1 | order F1 | 결과 |
 |--------|---------|---------|------|
 | Phase 10 baseline | 92.0% | 85.4% | 기준 |
-| Phase 12: tracker max_age=15 | 92.9% | 83.4% | ❌ order 악화 (현재 GPU 한정, A6000은 85.3%) |
+| Phase 12: tracker max_age=15 | 92.9% | 83.4%→**85.3%(정정)** | ~~❌ order 악화~~ → `score.py`가 구버전 GT(v1) 쓰던 버그였음(아래 Phase 15 정정 참고). 실제론 baseline과 동급 이상, main에 재도입함 |
 | Phase 13: milano quorum=2+confirm=150 | 93.0% | 84.7% | ❌ 검출은 되나 confirm 지연으로 순서 틀림 |
 | Phase 14: bulls_eye conf=0.2 | 92.0% | 85.4% | ❌ 효과 없음 (threshold 문제 아님) |
 
@@ -394,7 +394,9 @@ quorum=2 추가 후 spam 정상 감지 확인. 중복발화 없음. TP +1 추가
 
 **브랜치 정리**: 어수선하게 쌓인 미병합 브랜치들을 main 하나로 정리하는 작업. `fix/frappuccino-init`/`fix/ghost-event-cooldown`은 둘 다 `confirm_frames=200`이 frappuccino 구매를 완전 미발화시키는 회귀(Phase 11)를 그대로 갖고 있고 건질 만한 추가 가치가 없어서 **삭제**. 단 `fix/ghost-event-cooldown`에만 있던 `tools/replay_event_detector.py`의 defaultdict-peek 버그 수정(haribo 오판 원인, Phase 11 참고)은 **main에 별도로 반영**.
 
-**트래커 재도입 — Phase 12 판정 재검토**: Phase 12에서 "order F1 85.4%→83.4% 악화"로 판정해 `fix/tracker-default`를 삭제했었는데, 그 각주("현재 GPU 한정, A6000은 85.3%")를 다시 검증함. Phase 11에서 A6000 큐로 직접 측정한 결과(count 92.0%→92.9%, order 85.4%→85.3%, time 84.5%→85.3%, RTF 0.770→0.756)는 baseline과 거의 동급이거나 더 나음 — 83.4%는 다른(비A6000) GPU에서 측정된 값으로, **GPU 종류에 따른 비결정성이 실제 효과보다 더 큰 변동을 만든 사례**로 판단. `run_test.sh`에 `--use_tracker --tracker_max_age 15` 재추가, main에 직접 반영.
+**트래커 재도입 — Phase 12 판정 재검토**: Phase 12에서 "order F1 85.4%→83.4% 악화"로 판정해 `fix/tracker-default`를 삭제했었는데, 그 각주("현재 GPU 한정, A6000은 85.3%")를 다시 검증함. Phase 11에서 A6000 큐로 직접 측정한 결과(count 92.0%→92.9%, order 85.4%→85.3%, time 84.5%→85.3%, RTF 0.770→0.756)는 baseline과 거의 동급이거나 더 나음. `run_test.sh`에 `--use_tracker --tracker_max_age 15` 재추가, main에 직접 반영. (83.4%의 진짜 원인은 GPU가 아니었음 — 아래 정정 참고)
+
+**⚠️ 정정 (같은 날 늦게 발견): 83.4%는 GPU 비결정성이 아니라 `score.py`의 GT 파일 버그였음.** `tools/score.py`의 `GT_PATH` 기본값이 `data/ground_truth.csv`(Phase 8에서 폐기된 v1, 순서 일부 뒤바뀜+행 내용 오류 2건 있던 그 버전)로 남아있었는데, `run_test.sh`가 `score.py`를 호출할 때 `--gt`를 안 줘서 매번 이 구버전으로 채점되고 있었음(`score_methods.py`는 `--gt data/ground_truth_v2.csv`를 명시적으로 받아서 영향 없었음). 같은 `submission_skip2.csv`로 `python tools/score.py --sub output/submission_skip2.csv --gt data/ground_truth_v2.csv`를 돌리니 **정확히 85.3%(TP=90 FP=16 FN=15)**가 나와서 확인됨 — LCS 알고리즘 자체는 두 스크립트가 동일, GT 파일만 다름. **`GT_PATH`를 `ground_truth_v2.csv`로 수정함.** 즉 Phase 12의 트래커 거부 판정과 그 근거였던 "GPU 종류 비결정성" 둘 다 잘못된 진단이었음 — 트래커는 처음부터 안정적으로 baseline과 동급 이상이었음. (참고: `tools/analyze_detections.py`/`compare_to_ground_truth.py`/`diagnose_missing_events.py`는 Phase 7 시절 일회성 진단 스크립트라 여전히 v1을 기본값으로 쓰고 있음 — 지금 쓸 일 있으면 `--gt data/ground_truth_v2.csv` 명시할 것.)
 
 **현재 미병합 브랜치는 `feature/camera-weights`(정현수) 하나만 남음** — 카메라별 동적 weight(좌우 occlusion 감지 + top캠 1.5배) 아이디어는 유효하나, base가 된 `event_detector.py`가 Phase 7에서 고친 버그 2개(UNKNOWN 상태, 구매-차단 제약)를 그대로 되돌리고 있어 **현재 상태로 merge하면 안 됨** — 다음 작업으로 최신 `event_detector.py` 위에 `compute_cam_weights()`만 옮겨서 다시 테스트 필요.
 
@@ -494,7 +496,8 @@ python tools/analyze_inventory.py \
 - [ ] `campbells_chicken_noodle_soup` — cam4가 구매(11s) 이후로도 계속 오감지. `campbells_chunky_classic_chicken_noodle`과 혼동 의심.
 - [ ] `frappuccino_coffee` — 영상 초반 노이즈로 너무 일찍(3.6s) 확정(실제 구매는 16s). confirm=200은 Phase 11에서 완전 미발화로 역효과. 적정 confirm 값(50~100 범위) 재탐색 필요. (`fix/frappuccino-init`/`fix/ghost-event-cooldown` 브랜치는 Phase 15에서 삭제됨 — 재시도 시 main에서 새로 브랜치 딸 것)
 - [ ] `feature/camera-weights`(정현수) — 좌우 occlusion 감지 + top캠 1.5배 weight 아이디어는 유효하나, base `event_detector.py`가 Phase 7에서 고친 버그 2개(UNKNOWN 상태, 구매-차단 제약)를 되돌리고 있어 현재 상태로 merge 불가. `compute_cam_weights()`만 최신 코드 위로 옮겨서 재작업 필요.
-- [x] ~~SORT 트래커~~ → Phase 12에서 "order F1 악화(85.4%→83.4%)"로 판정해 코드 제거했으나, **A6000 큐로 재측정하니 85.3%(거의 동급, count는 오히려 92.0%→92.9% 개선)** — GPU 비결정성이 원인이었음을 확인. Phase 15에서 main에 재도입 확정 (2026-06-25)
+- [x] ~~SORT 트래커~~ → Phase 12에서 "order F1 악화(85.4%→83.4%)"로 판정해 코드 제거했으나, A6000 큐로 재측정하니 85.3%(거의 동급, count는 오히려 92.0%→92.9% 개선). 83.4%의 진짜 원인은 GPU가 아니라 **`score.py`가 구버전 GT(v1)를 기본값으로 쓰던 버그**였음(`GT_PATH`를 v2로 수정함). Phase 15에서 main에 재도입 확정 (2026-06-25)
+- [x] ~~`score.py` GT 버그~~ → `GT_PATH` 기본값이 `data/ground_truth.csv`(v1, 폐기된 구버전)로 남아있어서 `run_test.sh` 자동채점이 매번 잘못된 GT로 계산되고 있었음. `ground_truth_v2.csv`로 수정 (2026-06-25)
 - [x] ~~`fix/per-class-conf` (bulls_eye conf=0.2)~~ → Phase 14에서 효과 없음 확인, 브랜치 삭제 (2026-06-25)
 - [x] ~~`fix/pepperidge-milano-confirm`~~ → Phase 13에서 order F1 악화 확인, 브랜치 삭제 (2026-06-25)
 - [x] ~~`fix/frappuccino-init`/`fix/ghost-event-cooldown`~~ → confirm=200 회귀만 남아있고 건질 게 없어 Phase 15에서 브랜치 삭제, 진단도구 버그수정만 main에 반영 (2026-06-25)
