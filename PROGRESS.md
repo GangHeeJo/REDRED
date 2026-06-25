@@ -365,44 +365,29 @@ quorum=2 추가 후 spam 정상 감지 확인. 중복발화 없음. TP +1 추가
 - `frappuccino_coffee`: 너무 일찍(3.6s) 확정 (실제 16s)
 - `campbells`: chunky 클래스 혼동
 
-### 2026-06-25 | Phase 12~14 — 브랜치 전수 테스트 및 코드 정리 (강희조+Claude)
+### 2026-06-25 | Phase 12~14 — 채점 기준 갱신 + 브랜치 전수 테스트 (강희조+Claude)
 
-**채점 방식 갱신 (이번 세션):**
-- `tools/score.py`: order/LCS F1 기반으로 채점 전환, RTF≤1=20점 만점으로 수정
-- 기존 리더보드 항목 전부 새 기준으로 재계산 반영
+**채점 기준 갱신:**
+- `tools/score.py`: 정확도 기준 count F1 → **order/LCS F1**, RTF 공식 → **RTF≤1=20점 만점**
+- 리더보드 기존 항목 전부 재계산
 
-**Phase 12 — SORT 트래커 on main:**
-- `--use_tracker --tracker_max_age 15` 적용 상태로 서버 실행
-- 결과: order F1 **85.4% → 83.4%** (FP 17→18, 악화)
-- 확인용 baseline 재실행(tracker 없음): order F1 85.4% 재현 → **트래커가 원인임 확정**
-- Phase 11(A6000)에서 85.3%로 거의 동일했던 것과 달리 현재 GPU에서 악화 — GPU 비결정성 or frappuccino confirm=200 유무 차이로 추정
+**브랜치 테스트 결과:**
 
-**Phase 13 — fix/pepperidge-milano-confirm:**
-- milano quorum=2 + per_class_confirm=150(~10초) 적용
-- count F1: 92.0%→93.0% (TP+2: milano purchase/return 이제 검출됨)
-- order F1: **85.4%→84.7%** (FP 17→19, 악화)
-- 원인: milano는 검출되지만 confirm=150 지연으로 Sub 내 순서가 틀림 (return +50초 지연, 3종 채점 모두서 FP로 처리됨)
-- **결론: 버림**
+| 브랜치 | count F1 | order F1 | 결과 |
+|--------|---------|---------|------|
+| Phase 10 baseline | 92.0% | 85.4% | 기준 |
+| Phase 12: tracker max_age=15 | 92.9% | 83.4% | ❌ order 악화 (현재 GPU 한정, A6000은 85.3%) |
+| Phase 13: milano quorum=2+confirm=150 | 93.0% | 84.7% | ❌ 검출은 되나 confirm 지연으로 순서 틀림 |
+| Phase 14: bulls_eye conf=0.2 | 92.0% | 85.4% | ❌ 효과 없음 (threshold 문제 아님) |
 
-**Phase 14 — fix/per-class-conf (bulls_eye conf=0.2):**
-- count/order/time F1 세 지표 모두 Phase 10과 완전 동일 (92.0%/85.4%/84.5%)
-- bulls_eye 여전히 FN — conf=0.2로 낮춰도 여전히 미검출
-- 원인: threshold 문제가 아니라 fusion quorum 또는 신호 자체 부족 문제
-- **결론: 효과 없음, 버림**
+- 브랜치 3개 삭제: `fix/pepperidge-milano-confirm`, `fix/tracker-default`, `fix/per-class-conf`
+- `tracker.py` 코드는 복원 유지 (`--use_tracker` 플래그로 선택 활성화 가능, run_test.sh는 off)
+- `--tracker_max_age` 기본값 3 → **15** 로 변경
 
-**코드 정리:**
-- `src/tracker.py` 삭제
-- `src/run_pipeline.py`에서 트래커 import/argparse/cam_tracker 로직 전부 제거
-- `run_test.sh`에서 `--use_tracker` 제거
-- 원격 브랜치 삭제: `fix/pepperidge-milano-confirm`, `fix/tracker-default`, `fix/per-class-conf`
-
-**`pop_tararts_strawberry` debug_log 분석 (GT=1인데 Sub=3인 주원인):**
-- `output/debug_frame_counts.csv`에서 신호 분포 확인:
-  - 프레임 0~1296 (0~43s): 완전 미검출 (count=0)
-  - 프레임 1296~3792 (43~126s): count=1 (중간 gaps 있음)
-  - 프레임 3792~ (126s~): 미검출 → GT purchase=127s와 일치
-- **근본 원인: 초기 재고 추정 실패.** `--init_frames 30`(0~2초)동안 미검출 → `initial_inventory[pop_tararts]=0`으로 잘못 설정. 이후 프레임 1296에서 첫 검출 시 RETURN 이벤트 발화, 이후 gaps마다 PURCHASE/RETURN 반복 oscillation.
-- 가능한 해결책: `--init_inv` 로 pop_tararts 초기 재고를 수동으로 1로 지정, 또는 `--init_frames` 대폭 확대. 단, gaps가 16초 이상이어서 confirm_frames 조정만으론 불가.
+**`pop_tararts_strawberry` 원인 분석:**
+- debug_log 확인: 프레임 0~1296(0~43s) 미검출, 1296~3792(43~126s) 신호 있음, 3792~(126s~) 미검출 → GT purchase=127s 일치
+- **원인: 초기 재고 추정 실패.** init_frames=30 동안 미검출 → initial_inventory=0 오설정 → 첫 감지 시 RETURN 발화, 이후 16초 gaps마다 oscillation 반복
+- 해결 후보: `--init_inv` 수동 지정(pop_tararts=1)
 
 ### 2026-06-24 | Phase 11 — "이벤트직후 유령반전" 분석, 진단 도구 버그 수정, SORT 트래커 A/B (박준영+Claude)
 
