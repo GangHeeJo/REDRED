@@ -404,6 +404,22 @@ quorum=2 추가 후 spam 정상 감지 확인. 중복발화 없음. TP +1 추가
   3. 체크아웃 재확인 후 3차 진짜 실행: **count F1 92.9%→93.9%, order F1 85.3%→85.4%, time F1 85.3%→85.4%**, occlusion 감지율 right=8.2%/left=1.9%(`Camera occlusion stats` 로그로 확인). `haribo_gold_bears_gummi_candy`가 **처음으로 발화**(기존엔 신호부족 더블-FN이라 결론 — bumblebee/dove/redbull과 같은 "5캠 중 소수만 보임" 구조적 문제였음이 확인됨). 단 새 haribo 이벤트가 26초 타이밍 오차 있음(별도 과제).
   - 전 지표 순개선, 회귀 없음 → **main에 merge 완료**.
 
+### 2026-06-26 | Phase 18 — bumblebee_albacore quorum 1→2, 타이밍 오차 해결 (박준영+Claude)
+
+Phase 16에서 `bumblebee_albacore`에 quorum=1을 설정했는데, 1대 카메라 신호만으로도 이벤트가 확정되다 보니 타이밍 오차가 생겼음:
+- return: Sub=54.1s, GT=59s, diff=**4.9s** (1대가 실제보다 일찍 감지)
+- purchase: Sub=119.9s, GT=103s, diff=**16.9s** (1대가 ~14s간 false-positive 발화)
+
+로컬 `debug_frame_counts.csv`로 quorum=2 시뮬레이션:
+- return → 62.3s, diff=**3.3s** ✓ (±3s 이내)
+- purchase → 105.8s, diff=**2.8s** ✓ (±3s 이내)
+
+`src/multi_view_fusion.py`의 `CLASS_QUORUM_OVERRIDE`에서 bumblebee(id=2) 1→2로 변경. 서버 A6000 검증으로 두 이벤트 모두 time mismatch 목록에서 사라짐.
+
+추가로 `per_class_confirm` 인프라를 `EventDetector`에 재추가 — `fix/frappuccino-init`(Phase 15) 삭제 시 같이 제거됐던 것. 로컬 replay 테스트 시 필요.
+
+**결과 (서버 A6000 검증)**: count F1 **98.6%**(불변), order F1 **93.7%→95.7%**, time F1 **94.7%→96.6%**, RTF 불변, 추정 총점 **57.5→58.3점**. time mismatch 4건→2건(남은 것: dove_white purchase 22.7s, white_rain_body_wash purchase 10.2s). **main에 merge 완료.**
+
 ### 2026-06-26 | Phase 17 — 초기재고 추정에도 camera-weights 적용 (박준영+Claude)
 
 `estimate_initial_inventory()`가 `fuse(per_cam)` — 균등weight — 을 쓰고 있어서, 영상 시작 직후 ~1초(init_frames=30) 동안 일부 카메라에서 가려진 클래스가 median=0으로 잘못 집계됨. 그 결과 해당 클래스가 initial_inventory=0(없음)으로 잡히고, 나중에 시스템이 처음으로 안정적으로 감지하는 순간(`WINDOW_SIZE+CONFIRM_FRAMES=55` 처리프레임 = raw frame ~110 = Frame 112)에 `반환(0→1)` 가짜 이벤트가 일제히 발화됨 — 이게 매 실행마다 Frame 112에서 `white_rain_body_wash`/`frappuccino_coffee`/`coca_cola_glass_bottle` 3개가 동시에 뜨던 이유.
@@ -490,7 +506,7 @@ YOLOv7의 `attempt_load`를 쓰면 내부의 `attempt_download`가 파일 경로
 | `CONFIRM_FRAMES` | 30 | `src/event_detector.py` — candidate 확정까지 필요한 연속 프레임(skip=2 기준 ~2초) |
 | `MAX_DELTA` | 4 | `src/event_detector.py` — 1회 이벤트당 허용 최대 변화량 |
 | `MAX_INVENTORY` | 1 | `src/event_detector.py` — 슬롯당 물리적 최대 재고 |
-| `CLASS_QUORUM_OVERRIDE` | {2:1, 53:1, 54:2, 15:1, 39:1, 21:1, 29:2} | `src/multi_view_fusion.py` — bumblebee_albacore(1), dove_pink(1), dove_white(2), redbull(1), crystal_hot_sauce(1), dr_pepper(1), spam(2). 숫자는 이벤트로 인정하는 데 필요한 동시 카메라 수 |
+| `CLASS_QUORUM_OVERRIDE` | {2:2, 53:1, 54:2, 15:1, 39:1, 21:1, 29:2} | `src/multi_view_fusion.py` — bumblebee_albacore(2), dove_pink(1), dove_white(2), redbull(1), crystal_hot_sauce(1), dr_pepper(1), spam(2). 숫자는 이벤트로 인정하는 데 필요한 동시 카메라 수 |
 | `--conf` | 0.4 | `run_test.sh` |
 | `--skip` | 2 | `run_test.sh` |
 
@@ -524,6 +540,7 @@ python tools/analyze_inventory.py \
 - [ ] `campbells_chicken_noodle_soup` — cam4가 구매(11s) 이후로도 계속 오감지. `campbells_chunky_classic_chicken_noodle`과 혼동 의심.
 - [x] ~~`frappuccino_coffee`~~ → Phase 17에서 초기재고 추정 개선으로 해결(initial_inventory=1로 올바르게 시작, 가짜 반환이 사라지고 구매도 정상 발화). 더 이상 count 불일치 목록에 없음 (2026-06-26)
 - [x] ~~`feature/camera-weights`~~ → `feature/camera-weights-v2`로 재작업(`compute_cam_weights()`만 이식, weight=0 방식)해서 main에 merge 완료. count F1 92.9%→93.9%, order/time F1 85.3%→85.4%, haribo 더블-FN 해결 (2026-06-25)
+- [x] ~~`bumblebee_albacore` 타이밍 오차~~ → Phase 18에서 quorum 1→2로 해결. return diff 4.9s→3.3s, purchase diff 16.9s→2.8s, 둘 다 ±3s 이내 (2026-06-26)
 - [ ] `haribo_gold_bears_gummi_candy` 새 purchase 이벤트 타이밍 오차(26초, GT=163s/Sub=139.8s) — camera-weights 적용으로 처음 발화는 됐으나 정확한 시각은 아직 안 맞음.
 - [x] ~~SORT 트래커~~ → Phase 12에서 "order F1 악화(85.4%→83.4%)"로 판정해 코드 제거했으나, A6000 큐로 재측정하니 85.3%(거의 동급, count는 오히려 92.0%→92.9% 개선). 83.4%의 진짜 원인은 GPU가 아니라 **`score.py`가 구버전 GT(v1)를 기본값으로 쓰던 버그**였음(`GT_PATH`를 v2로 수정함). Phase 15에서 main에 재도입 확정 (2026-06-25)
 - [x] ~~`score.py` GT 버그~~ → `GT_PATH` 기본값이 `data/ground_truth.csv`(v1, 폐기된 구버전)로 남아있어서 `run_test.sh` 자동채점이 매번 잘못된 GT로 계산되고 있었음. `ground_truth_v2.csv`로 수정 (2026-06-25)
