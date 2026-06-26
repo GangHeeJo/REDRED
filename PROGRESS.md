@@ -404,6 +404,20 @@ quorum=2 추가 후 spam 정상 감지 확인. 중복발화 없음. TP +1 추가
   3. 체크아웃 재확인 후 3차 진짜 실행: **count F1 92.9%→93.9%, order F1 85.3%→85.4%, time F1 85.3%→85.4%**, occlusion 감지율 right=8.2%/left=1.9%(`Camera occlusion stats` 로그로 확인). `haribo_gold_bears_gummi_candy`가 **처음으로 발화**(기존엔 신호부족 더블-FN이라 결론 — bumblebee/dove/redbull과 같은 "5캠 중 소수만 보임" 구조적 문제였음이 확인됨). 단 새 haribo 이벤트가 26초 타이밍 오차 있음(별도 과제).
   - 전 지표 순개선, 회귀 없음 → **main에 merge 완료**.
 
+### 2026-06-26 | Phase 22 — CSV 포맷 수정: 총 재고 금액 + UTF-8 BOM (강희조+Claude)
+
+대회 스펙 재확인: "이벤트 발생 후 총 재고 금액"은 상품별 누적 판매액이 아니라 **이벤트 후 전체 진열대 재고 × 단가 합산**이었음.
+
+**변경사항:**
+
+1. `csv_generator.py`: `total_mode="inventory"` 옵션 추가 — 이벤트 발생 후 모든 클래스의 `inventory[c] × price[c]` 합산. 헤더도 `"총액"` → `"총 재고 금액"` 자동 변경.
+2. `run_pipeline.py`: `total_mode="per_class"` → `"inventory"` 전환.
+3. `run_pipeline.py`: `encoding="utf-8-sig"` 추가 — Excel에서 바로 열면 한글 깨지던 문제 수정.
+
+점수 변화 없음 (채점은 재고 수량/이벤트 순서 기준, 총액은 평가 외 항목).
+
+---
+
 ### 2026-06-26 | Phase 21 — milano per_class_confirm=3 시도 및 기각 (강희조+Claude)
 
 WINDOW_SIZE=15 환경에서 milano(class_id=42)에 `per_class_confirm=3` 적용. 9fr 신호가 15-frame window에서 median을 뒤집을 수 있게 됐으므로 confirm을 짧게 줘서 잡는 시도.

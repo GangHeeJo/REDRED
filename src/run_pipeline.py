@@ -458,7 +458,8 @@ def main():
         out_path=args.out,
         initial_inventory=initial_inventory,
         include_action=True,
-        total_mode="per_class",
+        total_mode="inventory",
+        encoding="utf-8-sig",
     )
 
 

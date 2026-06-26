@@ -479,9 +479,9 @@ def events_to_csv(
     Returns:
         rows written to CSV, excluding header.
     """
-    if total_mode not in {"global", "per_class", "event"}:
+    if total_mode not in {"global", "per_class", "event", "inventory"}:
         raise ValueError(
-            "total_mode must be one of: 'global', 'per_class', 'event'"
+            "total_mode must be one of: 'global', 'per_class', 'event', 'inventory'"
         )
 
     price_map = normalize_prices(prices)
@@ -518,7 +518,8 @@ def events_to_csv(
     if include_delta:
         header.append("변화량")
 
-    header += ["이벤트 후 재고 수량", "총액"]
+    total_header = "총 재고 금액" if total_mode == "inventory" else "총액"
+    header += ["이벤트 후 재고 수량", total_header]
 
     rows: List[List[str]] = []
     skipped_count = 0
@@ -605,6 +606,12 @@ def events_to_csv(
             total_to_write = global_total
         elif total_mode == "per_class":
             total_to_write = class_total[cls_id]
+        elif total_mode == "inventory":
+            # 이벤트 발생 후 전체 재고 금액 합산 (inventory는 이미 after로 업데이트된 상태)
+            total_to_write = sum(
+                Decimal(inventory.get(c, 0)) * price_map[c][1]
+                for c in price_map
+            )
         else:
             total_to_write = event_amount
 
