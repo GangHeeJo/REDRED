@@ -85,7 +85,17 @@ def estimate_initial_inventory(caps, model, nms_fn, n_frames, conf, iou, img_siz
 
 
 def load_model(weights: str, device: str):
-    """Load YOLOv7 directly via torch.load (bypasses attempt_download 버그)."""
+    """모델 로드. ultralytics 가중치(.pt YOLO11)이면 ultralytics YOLO 사용, 아니면 YOLOv7."""
+    try:
+        from ultralytics import YOLO
+        model = YOLO(weights)
+        model.to(device)
+        print(f"[INFO] Loaded ultralytics YOLO model: {weights}")
+        return model, None  # nms_fn=None → ultralytics 모드 신호
+    except Exception:
+        pass
+
+    # YOLOv7 fallback
     yolov7_root = str(Path.home() / "yolov7")
     if yolov7_root not in sys.path:
         sys.path.insert(0, yolov7_root)
@@ -94,10 +104,10 @@ def load_model(weights: str, device: str):
 
     ckpt = torch.load(weights, map_location=device)
     model = (ckpt.get("ema") or ckpt["model"]).float().fuse().eval()
-    # PyTorch 1.12+ 호환성 패치
     for m in model.modules():
         if isinstance(m, nn.Upsample):
             m.recompute_scale_factor = None
+    print(f"[INFO] Loaded YOLOv7 model: {weights}")
     return model, non_max_suppression
 
 
@@ -110,19 +120,37 @@ def _preprocess_single(frame, img_size=640):
 
 def infer_batch(model, nms_fn, frames, conf_thres=0.4, iou_thres=0.45,
                 img_size=640, device="cpu"):
-    """5개 카메라 프레임을 GPU 한 번에 배치 추론."""
+    """5개 카메라 프레임을 GPU 한 번에 배치 추론. nms_fn=None이면 ultralytics 모드."""
     valid_idx = [i for i, f in enumerate(frames) if f is not None]
     if not valid_idx:
         return [None] * len(frames)
 
+    per_cam = [None] * len(frames)
+
+    if nms_fn is None:
+        # ultralytics YOLO11 모드
+        valid_frames = [frames[i] for i in valid_idx]
+        results = model(valid_frames, conf=conf_thres, iou=iou_thres,
+                        imgsz=img_size, verbose=False, device=device)
+        for out_i, cam_i in enumerate(valid_idx):
+            dets = []
+            boxes = results[out_i].boxes
+            if boxes is not None and len(boxes):
+                for box in boxes:
+                    dets.append({
+                        "class_id":   int(box.cls),
+                        "confidence": float(box.conf),
+                        "bbox":       box.xyxy[0].tolist(),
+                    })
+            per_cam[cam_i] = dets
+        return per_cam
+
+    # YOLOv7 모드 (기존)
     tensors = [_preprocess_single(frames[i], img_size) for i in valid_idx]
     batch = torch.stack(tensors).to(device)
-
     with torch.no_grad():
         preds = model(batch)[0]
     preds = nms_fn(preds, conf_thres, iou_thres)
-
-    per_cam = [None] * len(frames)
     for out_i, cam_i in enumerate(valid_idx):
         pred = preds[out_i]
         dets = []
