@@ -9,15 +9,15 @@
 
 파이프라인 정상 동작 중. `data/ground_truth_v2.csv`(105개 실측 이벤트, **시간 포함**)가 현재 기준 GT — `tools/score_methods.py`로 3가지 방식 동시 채점.
 
-**현재 main 브랜치 = Phase 10 + 트래커 + camera-weights(per-camera) + 초기재고 추정 개선 (Phase 17, 2026-06-26 박준영+Claude)**
+**현재 main 브랜치 = Phase 10 + 트래커 + camera-weights(per-camera) + 초기재고 추정 개선 + WINDOW_SIZE=15 (Phase 20, 2026-06-26 강희조+Claude)**
 
 | 항목 | 값 |
 |------|-----|
-| RTF | 0.818 (A6000 측정, 목표 < 1.0, **RTF≤1이면 20점 만점**) |
+| RTF | 0.751 (A6000 측정, 목표 < 1.0, **RTF≤1이면 20점 만점**) |
 | F1 (count 참고용) | **98.6% (FP=0)** |
-| **F1 (order/LCS — `tools/score.py` 기준)** | **93.7%** |
-| F1 (time, 지연보정 ±3초) | 94.7% |
-| **추정 총점 (정확도+RTF, /60)** | **약 57.5점** (정확도 37.5 + RTF 20.0) |
+| **F1 (order/LCS — `tools/score.py` 기준)** | **96.6%** |
+| F1 (time, 지연보정 ±3초) | 96.6% |
+| **추정 총점 (정확도+RTF, /60)** | **약 58.6점** (정확도 38.6 + RTF 20.0) |
 | 모델 mAP@0.5 | 98.1% (제공 가중치 `yolov7_custom.pt` 사용 중) |
 | 제출 파일 | `~/REDRED/output/submission_skip2.csv` |
 
@@ -403,6 +403,21 @@ quorum=2 추가 후 spam 정상 감지 확인. 중복발화 없음. TP +1 추가
   2. 2차(가려진 쪽 weight=0으로 완전 제외): 여전히 동일 → 알고보니 `git checkout`이 한 번도 실제로 안 먹혀서 줄곧 main에서 테스트하고 있었음(서버 git이 untracked 파일 충돌로 checkout silently 실패).
   3. 체크아웃 재확인 후 3차 진짜 실행: **count F1 92.9%→93.9%, order F1 85.3%→85.4%, time F1 85.3%→85.4%**, occlusion 감지율 right=8.2%/left=1.9%(`Camera occlusion stats` 로그로 확인). `haribo_gold_bears_gummi_candy`가 **처음으로 발화**(기존엔 신호부족 더블-FN이라 결론 — bumblebee/dove/redbull과 같은 "5캠 중 소수만 보임" 구조적 문제였음이 확인됨). 단 새 haribo 이벤트가 26초 타이밍 오차 있음(별도 과제).
   - 전 지표 순개선, 회귀 없음 → **main에 merge 완료**.
+
+### 2026-06-26 | Phase 20 — WINDOW_SIZE 25→15 (강희조+Claude)
+
+`pepperidge_farm_milk_choc` 노이즈 억제를 위해 25로 설정했던 `WINDOW_SIZE`를 **15**로 낮춤. Phase 16 camera-weights로 해당 노이즈가 이미 해결됐으므로 낮춰도 FP 증가 없음.
+
+milano 감지(9fr 신호 → 25-frame window에서 9/25=36%로 median 미달)가 목적이었으나 **milano는 여전히 미감지** — quorum=3(default) 조건 자체가 병목. 대신 기존 이벤트들이 더 빨리 확정되면서 LCS 순서 매칭 1건 개선.
+
+| 지표 | Phase 18 | Phase 20 | 변화 |
+|------|---------|---------|------|
+| count F1 | 98.6% (FP=0) | 98.6% (FP=0) | 동일 |
+| order F1 | 95.7% | **96.6%** | +0.9% |
+| time F1 | 96.6% | 96.6% | 동일 |
+| 추정 총점 | 58.3점 | **58.6점** | +0.3 |
+
+FP=0 유지, 회귀 없음. 원복 필요 시 `src/event_detector.py`의 `WINDOW_SIZE = 15` → `25` 1줄 변경. **main merge 완료.**
 
 ### 2026-06-26 | Phase 19 — 미발화 3건 해결 시도, 전부 기각 (박준영+Claude)
 
