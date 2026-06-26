@@ -416,6 +416,8 @@ quorum=2 추가 후 spam 정상 감지 확인. 중복발화 없음. TP +1 추가
 
 점수 변화 없음 (채점은 재고 수량/이벤트 순서 기준, 총액은 평가 외 항목).
 
+4. `data/ground_truth_v2.csv`: `total_inventory_krw` 컬럼 추가 — 이벤트별 정답 총 재고 금액(원). 초기 재고는 GT 첫 등장 `before` 기준(19개=1, 41개=0). Event 1 후 62,600원 → Event 105 후 0원(전부 판매).
+
 ---
 
 ### 2026-06-26 | Phase 21 — milano per_class_confirm=3 시도 및 기각 (강희조+Claude)
