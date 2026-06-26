@@ -404,6 +404,23 @@ quorum=2 추가 후 spam 정상 감지 확인. 중복발화 없음. TP +1 추가
   3. 체크아웃 재확인 후 3차 진짜 실행: **count F1 92.9%→93.9%, order F1 85.3%→85.4%, time F1 85.3%→85.4%**, occlusion 감지율 right=8.2%/left=1.9%(`Camera occlusion stats` 로그로 확인). `haribo_gold_bears_gummi_candy`가 **처음으로 발화**(기존엔 신호부족 더블-FN이라 결론 — bumblebee/dove/redbull과 같은 "5캠 중 소수만 보임" 구조적 문제였음이 확인됨). 단 새 haribo 이벤트가 26초 타이밍 오차 있음(별도 과제).
   - 전 지표 순개선, 회귀 없음 → **main에 merge 완료**.
 
+### 2026-06-26 | Phase 21 — milano per_class_confirm=3 시도 및 기각 (강희조+Claude)
+
+WINDOW_SIZE=15 환경에서 milano(class_id=42)에 `per_class_confirm=3` 적용. 9fr 신호가 15-frame window에서 median을 뒤집을 수 있게 됐으므로 confirm을 짧게 줘서 잡는 시도.
+
+**결과 (서버 A6000):**
+
+| 지표 | Phase 20 (main) | Phase 21 | 변화 |
+|------|----------------|---------|------|
+| count F1 | 98.6% | 99.5% (FN=1, campbells만 남음) | +0.9% ✅ |
+| order F1 | **96.6%** | 95.7% | **-0.9%** ❌ |
+| time F1 | 96.6% | 96.7% | +0.1% |
+| 추정 총점 | **58.6점** | 58.3점 | -0.3 ❌ |
+
+milano는 감지됐으나 **return이 GT=53.0s인데 Sub=113.2s로 60초 늦게 발화** — confirm=3이 53초 시점의 짧은 신호를 못 잡고, 훨씬 나중에 다른 burst에서 발화한 것. 그 결과 LCS 순서에서 FP가 2→4로 증가, order F1 악화. count는 좋아졌으나 총점 기준으로 Phase 20이 더 나음. **브랜치 삭제.**
+
+**결론:** milano는 신호 자체가 짧고 불규칙해서 confirm 값으로 타이밍을 맞추기 어려움. count만 보면 잡히나 순서/타이밍이 틀려 오히려 손해.
+
 ### 2026-06-26 | Phase 20 — WINDOW_SIZE 25→15 (강희조+Claude)
 
 `pepperidge_farm_milk_choc` 노이즈 억제를 위해 25로 설정했던 `WINDOW_SIZE`를 **15**로 낮춤. Phase 16 camera-weights로 해당 노이즈가 이미 해결됐으므로 낮춰도 FP 증가 없음.
