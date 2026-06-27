@@ -673,8 +673,10 @@ python tools/analyze_inventory.py \
 - [x] ~~`pop_tararts_strawberry`/`hunts_sauce`/`pepperidge_farm_milk_chocolate_macadamia_cookies` 유령반전~~ → Phase 16 camera-weights merge 후 count 불일치 목록에서 완전히 사라짐(예상 밖 보너스, occlusion이 근본 원인이었을 가능성). **1회 실행만 확인, 재현성 검증 안 함** — 다시 나타나면 Phase 11 분석 참고.
 - [x] ~~`bulls_eye_bbq_sauce_original`~~ → Phase 17에서 초기재고 추정 개선으로 자연스럽게 해결(초기 ~1초 occlusion으로 initial_inventory=0 오설정됐다가 이제 정확히 1로 잡힘). 더 이상 count 불일치 목록에 없음 (2026-06-26)
 - [x] ~~`haribo_gold_bears_gummi_candy` 더블-FN~~ → Phase 16 camera-weights(per-camera occlusion)로 완전 해결, GT와 정확히 일치 (2026-06-26)
-- [ ] `pepperidge_farm_milano_cookies_double_chocolate` — WINDOW_SIZE=25가 3-camera 신호(9fr/17fr)를 잡기에 너무 큼. quorum=2는 0↔1 진동으로 타이밍 불가. WINDOW_SIZE를 낮추면 해결 가능(pepperidge_farm 노이즈는 Phase 16 camera-weights로 이미 해결됨)하나 전역 파라미터 리스크로 보류. (Phase 19)
-- [ ] `campbells_chicken_noodle_soup` — cam4가 구매(11s) 이후로도 계속 오감지. `campbells_chunky_classic_chicken_noodle`과 혼동 의심.
+- [x] ~~`pepperidge_farm_milano_cookies_double_chocolate`~~ → Phase 24에서 CLASS_CAM_WHITELIST=[3,4] + quorum=1으로 해결. cam0 노이즈 제거로 order F1 정상 발화 확인 (2026-06-27)
+- [x] ~~`dove_white` 타이밍 오차~~ → Phase 24에서 CLASS_CAM_WHITELIST=[3] + quorum=1으로 22.5s→0s 오차 해결 (2026-06-27)
+- [ ] `campbells_chicken_noodle_soup` — cam0 whitelist 적용으로 purchase는 살아났으나, initial_inventory=0 오추정(cam0가 raw frame 36부터 감지, init_frames=30 window 밖)으로 FP return 잔존. bbox 필터 없이는 구조적 한계.
+- [ ] `white_rain_body_wash` — 모든 카메라가 영상 끝까지 감지, occlusion 메커니즘이 21-23s에 fused count 오하락 → FP purchase. confirm=120(과지연), occlusion 제외(악화) 모두 실패. 구조적 한계.
 - [x] ~~`frappuccino_coffee`~~ → Phase 17에서 초기재고 추정 개선으로 해결(initial_inventory=1로 올바르게 시작, 가짜 반환이 사라지고 구매도 정상 발화). 더 이상 count 불일치 목록에 없음 (2026-06-26)
 - [x] ~~`feature/camera-weights`~~ → `feature/camera-weights-v2`로 재작업(`compute_cam_weights()`만 이식, weight=0 방식)해서 main에 merge 완료. count F1 92.9%→93.9%, order/time F1 85.3%→85.4%, haribo 더블-FN 해결 (2026-06-25)
 - [x] ~~`bumblebee_albacore` 타이밍 오차~~ → Phase 18에서 quorum 1→2로 해결. return diff 4.9s→3.3s, purchase diff 16.9s→2.8s, 둘 다 ±3s 이내 (2026-06-26)
