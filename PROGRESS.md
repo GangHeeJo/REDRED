@@ -404,24 +404,53 @@ quorum=2 추가 후 spam 정상 감지 확인. 중복발화 없음. TP +1 추가
   3. 체크아웃 재확인 후 3차 진짜 실행: **count F1 92.9%→93.9%, order F1 85.3%→85.4%, time F1 85.3%→85.4%**, occlusion 감지율 right=8.2%/left=1.9%(`Camera occlusion stats` 로그로 확인). `haribo_gold_bears_gummi_candy`가 **처음으로 발화**(기존엔 신호부족 더블-FN이라 결론 — bumblebee/dove/redbull과 같은 "5캠 중 소수만 보임" 구조적 문제였음이 확인됨). 단 새 haribo 이벤트가 26초 타이밍 오차 있음(별도 과제).
   - 전 지표 순개선, 회귀 없음 → **main에 merge 완료**.
 
-### 2026-06-27 | Phase 24 — 카메라별 감지 분석 + per-class 카메라 화이트리스트 (강희조+Claude) [진행 중]
+### 2026-06-27 | Phase 24 — per-class 카메라 화이트리스트 (강희조+Claude) [완료, 브랜치 보존]
 
-**목표: order F1 100% (현재 96.6% → 남은 오류 4건)**
+**목표:** order F1 100% 시도 (main 기준 96.6%)
 
-남은 오류 원인 분석:
-- `pepperidge_farm_milano`: 신호 짧고 불규칙, quorum/confirm 어떻게 조정해도 타이밍 불일치
-- `campbells_chicken_noodle_soup`: cam4가 campbells_chunky와 혼동, bbox 필터 없이 quorum 조정 불가
-- `haribo_gold_bears_gummi_candy`: 23s 타이밍 오차 (time F1 영향)
-- `dove_white` / `white_rain_body_wash`: 각각 22.5s / 10.2s 오차
+**`--per_cam_log` 추가 (`src/run_pipeline.py`):**
+퓨전 이전 카메라별 raw 감지 수 저장 옵션. 서버 실행 후 클래스별 카메라 분포 분석.
 
-**접근:** 기존 `CLASS_QUORUM_OVERRIDE`(몇 대가 동의해야 하는지)에서 한 단계 더 나아가 **클래스별로 사용할 카메라 자체를 선택**. 어느 카메라가 어느 상품을 실제로 잘 보는지 데이터로 파악 후 화이트리스트 하드코딩.
+**per_cam_log 분석 결과:**
 
-**추가 내용 (`src/run_pipeline.py`):**
-- `--per_cam_log <csv>` 옵션 추가 — 퓨전 이전 카메라별 raw 감지 수를 `(frame_idx, cam_id, class_id, class_name, count)` 형태로 저장. 이 데이터로 클래스별 "어느 카메라가 실제로 보는지" 분석 가능.
+| 클래스 | 유효 카메라 | 분석 |
+|--------|------------|------|
+| campbells (43) | cam0=64fr, cam4=39fr | cam4가 chunky 혼동 주범 → cam0만 사용 |
+| milano (42) | cam3=929fr, cam4=492fr, cam0=20fr(노이즈) | cam3+cam4만 |
+| dove_white (54) | cam3=614fr, cam2=311fr, cam4=184fr, cam0=1fr | cam3만, quorum=1 |
 
-**브랜치:** `fix/cam-whitelist` (origin에 push됨)
+**`CLASS_CAM_WHITELIST` 구현 (`src/multi_view_fusion.py`):**
+```python
+CLASS_CAM_WHITELIST = {
+    43: [0],     # campbells: cam4 chunky혼동 차단
+    42: [3, 4],  # milano: cam0 노이즈 제거, quorum=1
+    54: [3],     # dove_white: cam3만, quorum=1
+}
+```
 
-**다음 단계:** 서버에서 `--per_cam_log` 포함 실행 → 분석 → `multi_view_fusion.py`에 `CLASS_CAM_WHITELIST` 구현.
+**결과 (서버 A6000, fix/cam-whitelist):**
+
+| 지표 | Phase 20 (main) | Phase 24 | 변화 |
+|------|----------------|---------|------|
+| count F1 | 98.6% | 99.5% | +0.9% |
+| order F1 | 96.6% | **98.6%** | **+2.0%p** |
+| time F1 | 96.6% | 98.6% | +2.0% |
+| RTF | 0.751 | 0.749 | 동일 |
+| 추정 총점 | 58.6점 | **59.4점** | **+0.8점** |
+
+milan purchase/return 모두 감지됨 ✅, dove_white 타이밍 22.5s 오차 해소 ✅
+
+**남은 문제 (구조적 한계로 판단):**
+- `campbells`: initial_inventory=0으로 잘못 추정(cam0가 init_frames=30 window 밖인 raw frame 36부터 감지) → FP return 발생. 모든 quorum/confirm/whitelist 조합 시도했으나 FP return↔purchase 간 트레이드오프로 order F1 변화 없음.
+- `white_rain`: 모든 카메라가 영상 끝까지 감지(cam0~4: 60~477s). occlusion 메커니즘이 fused count를 21-23s에 오하락시켜 FP purchase 발생. occlusion 제외 시도 → 오히려 악화(59.4→59.2). confirm=120 시도 → 50s로 과지연(59.4→59.4 유지). 구조적 한계.
+
+**시도 이력:**
+1. cam-whitelist 첫 적용 → **59.4 (최고점)**
+2. campbells confirm=90 → 59.4 (FP↔FN 상쇄)
+3. white_rain confirm=120 → 59.4 (50s 과지연)
+4. white_rain occlusion 제외 → **59.2 (악화)** → 즉시 revert
+
+**최종 상태:** 첫 적용 시점 코드로 복원. `fix/cam-whitelist` 브랜치 보존(main merge 미진행).
 
 ---
 
