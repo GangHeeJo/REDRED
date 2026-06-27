@@ -404,6 +404,27 @@ quorum=2 추가 후 spam 정상 감지 확인. 중복발화 없음. TP +1 추가
   3. 체크아웃 재확인 후 3차 진짜 실행: **count F1 92.9%→93.9%, order F1 85.3%→85.4%, time F1 85.3%→85.4%**, occlusion 감지율 right=8.2%/left=1.9%(`Camera occlusion stats` 로그로 확인). `haribo_gold_bears_gummi_candy`가 **처음으로 발화**(기존엔 신호부족 더블-FN이라 결론 — bumblebee/dove/redbull과 같은 "5캠 중 소수만 보임" 구조적 문제였음이 확인됨). 단 새 haribo 이벤트가 26초 타이밍 오차 있음(별도 과제).
   - 전 지표 순개선, 회귀 없음 → **main에 merge 완료**.
 
+### 2026-06-27 | Phase 24 — 카메라별 감지 분석 + per-class 카메라 화이트리스트 (강희조+Claude) [진행 중]
+
+**목표: order F1 100% (현재 96.6% → 남은 오류 4건)**
+
+남은 오류 원인 분석:
+- `pepperidge_farm_milano`: 신호 짧고 불규칙, quorum/confirm 어떻게 조정해도 타이밍 불일치
+- `campbells_chicken_noodle_soup`: cam4가 campbells_chunky와 혼동, bbox 필터 없이 quorum 조정 불가
+- `haribo_gold_bears_gummi_candy`: 23s 타이밍 오차 (time F1 영향)
+- `dove_white` / `white_rain_body_wash`: 각각 22.5s / 10.2s 오차
+
+**접근:** 기존 `CLASS_QUORUM_OVERRIDE`(몇 대가 동의해야 하는지)에서 한 단계 더 나아가 **클래스별로 사용할 카메라 자체를 선택**. 어느 카메라가 어느 상품을 실제로 잘 보는지 데이터로 파악 후 화이트리스트 하드코딩.
+
+**추가 내용 (`src/run_pipeline.py`):**
+- `--per_cam_log <csv>` 옵션 추가 — 퓨전 이전 카메라별 raw 감지 수를 `(frame_idx, cam_id, class_id, class_name, count)` 형태로 저장. 이 데이터로 클래스별 "어느 카메라가 실제로 보는지" 분석 가능.
+
+**브랜치:** `fix/cam-whitelist` (origin에 push됨)
+
+**다음 단계:** 서버에서 `--per_cam_log` 포함 실행 → 분석 → `multi_view_fusion.py`에 `CLASS_CAM_WHITELIST` 구현.
+
+---
+
 ### 2026-06-26 | Phase 23 — YOLO11 학습 및 파이프라인 테스트, 기각 (강희조+Claude)
 
 YOLO11m(ultralytics) 학습 후 파이프라인에 적용. 학습 조건: 증강 제외 18,392장, 50epoch, batch=32, A6000.
