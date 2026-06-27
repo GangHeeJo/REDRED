@@ -5,19 +5,19 @@
 
 ---
 
-## 현재 상태 (2026-06-26 최종)
+## 현재 상태 (2026-06-27 최종)
 
 파이프라인 정상 동작 중. `data/ground_truth_v2.csv`(105개 실측 이벤트, **시간 포함**)가 현재 기준 GT — `tools/score_methods.py`로 3가지 방식 동시 채점.
 
-**현재 main 브랜치 = Phase 10 + 트래커 + camera-weights(per-camera) + 초기재고 추정 개선 + WINDOW_SIZE=15 (Phase 20, 2026-06-26 강희조+Claude)**
+**현재 최고 성능 = fix/cam-whitelist 브랜치 (Phase 24, 2026-06-27 강희조+Claude) — main merge 미진행**
 
 | 항목 | 값 |
 |------|-----|
 | RTF | 0.751 (A6000 측정, 목표 < 1.0, **RTF≤1이면 20점 만점**) |
-| F1 (count 참고용) | **98.6% (FP=0)** |
-| **F1 (order/LCS — `tools/score.py` 기준)** | **96.6%** |
-| F1 (time, 지연보정 ±3초) | 96.6% |
-| **추정 총점 (정확도+RTF, /60)** | **약 58.6점** (정확도 38.6 + RTF 20.0) |
+| F1 (count 참고용) | **99.5%** |
+| **F1 (order/LCS — `tools/score.py` 기준)** | **98.6%** |
+| F1 (time, 지연보정 ±3초) | 98.6% |
+| **추정 총점 (정확도+RTF, /60)** | **약 59.4점** (정확도 39.4 + RTF 20.0) |
 | 모델 mAP@0.5 | 98.1% (제공 가중치 `yolov7_custom.pt` 사용 중) |
 | 제출 파일 | `~/REDRED/output/submission_skip2.csv` |
 
