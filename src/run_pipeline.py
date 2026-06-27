@@ -319,7 +319,9 @@ def main():
     # docstring 참고) -- 기본 weight로 예외처리.
     _milano_id = next((i for i, n in enumerate(class_names)
                        if n == "pepperidge_farm_milano_cookies_double_chocolate"), None)
-    _cam_weight_excluded = {_milano_id} if _milano_id is not None else set()
+    _white_rain_id = next((i for i, n in enumerate(class_names)
+                           if n == "white_rain_body_wash"), None)
+    _cam_weight_excluded = {id_ for id_ in [_milano_id, _white_rain_id] if id_ is not None}
 
     caps = open_videos(args.videos)
 
@@ -349,8 +351,6 @@ def main():
     _per_class_confirm = {}
     if _campbells_id is not None:
         _per_class_confirm[_campbells_id] = 90  # FP return 차단
-    if _white_rain_id is not None:
-        _per_class_confirm[_white_rain_id] = 120  # 23.2s → ~29s: dr_pepper 이후 순서 맞춤
 
     detector = EventDetector(class_names, initial_counts=initial_inventory,
                              per_class_confirm=_per_class_confirm)
