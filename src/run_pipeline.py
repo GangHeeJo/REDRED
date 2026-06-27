@@ -342,7 +342,11 @@ def main():
                           ensure_ascii=False, indent=2)
             print(f"Initial inventory dumped to {init_dump_path}")
 
+    _campbells_id = next((i for i, n in enumerate(class_names)
+                          if n == "campbells_chicken_noodle_soup"), None)
     _per_class_confirm = {}
+    if _campbells_id is not None:
+        _per_class_confirm[_campbells_id] = 90  # FP return 차단: cam0 노이즈성 재감지 방지
 
     detector = EventDetector(class_names, initial_counts=initial_inventory,
                              per_class_confirm=_per_class_confirm)
