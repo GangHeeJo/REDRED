@@ -291,6 +291,9 @@ def main():
                         help="CSV path: dump (time_sec,class_name,action) for every fired event, "
                              "for time-based scoring (tools/score_methods.py). Not part of the "
                              "official submission format -- diagnostic only.")
+    parser.add_argument("--per_cam_log", default=None,
+                        help="CSV path: dump per-camera raw counts (frame_idx,cam_id,class_id,class_name,count) "
+                             "BEFORE fusion, for camera whitelist analysis.")
 
     # Tracker 옵션
     parser.add_argument("--use_tracker",      action="store_true",
@@ -362,6 +365,14 @@ def main():
     else:
         print("카운팅 방식 사용 (--use_tracker로 트래커 활성화 가능)")
 
+    per_cam_writer = None
+    per_cam_file = None
+    if args.per_cam_log:
+        import csv as _csv
+        per_cam_file = open(args.per_cam_log, "w", newline="", encoding="utf-8")
+        per_cam_writer = _csv.writer(per_cam_file)
+        per_cam_writer.writerow(["frame_idx", "cam_id", "class_id", "class_name", "count"])
+
     debug_writer = None
     debug_file = None
     if args.debug_log:
@@ -398,6 +409,16 @@ def main():
         if cam_tracker is not None:
             per_cam_dets = cam_tracker.update(per_cam_dets)
 
+        if per_cam_writer is not None:
+            for cam_id, dets in enumerate(per_cam_dets):
+                if dets is None:
+                    continue
+                counts = {}
+                for d in dets:
+                    counts[d["class_id"]] = counts.get(d["class_id"], 0) + 1
+                for cls_id, cnt in counts.items():
+                    per_cam_writer.writerow([frame_idx, cam_id, cls_id, class_names[cls_id], cnt])
+
         fused_counts = fuse(per_cam_dets, cam_weights=compute_per_class_cam_weights(
             per_cam_dets, exclude_class_ids=_cam_weight_excluded))
 
@@ -426,6 +447,10 @@ def main():
     for cap in caps:
         if cap:
             cap.release()
+
+    if per_cam_file is not None:
+        per_cam_file.close()
+        print(f"Per-camera log written to {args.per_cam_log}")
 
     if debug_file is not None:
         debug_file.close()
