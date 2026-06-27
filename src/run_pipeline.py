@@ -344,9 +344,13 @@ def main():
 
     _campbells_id = next((i for i, n in enumerate(class_names)
                           if n == "campbells_chicken_noodle_soup"), None)
+    _white_rain_id = next((i for i, n in enumerate(class_names)
+                           if n == "white_rain_body_wash"), None)
     _per_class_confirm = {}
     if _campbells_id is not None:
-        _per_class_confirm[_campbells_id] = 90  # FP return 차단: cam0 노이즈성 재감지 방지
+        _per_class_confirm[_campbells_id] = 90  # FP return 차단
+    if _white_rain_id is not None:
+        _per_class_confirm[_white_rain_id] = 120  # 23.2s → ~29s: dr_pepper 이후 순서 맞춤
 
     detector = EventDetector(class_names, initial_counts=initial_inventory,
                              per_class_confirm=_per_class_confirm)
