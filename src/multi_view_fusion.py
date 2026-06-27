@@ -84,11 +84,23 @@ CLASS_QUORUM_OVERRIDE: Dict[int, int] = {
     2:  2,   # bumblebee_albacore (2026-06-26: 1→2. quorum=1은 1대 오탐으로 purchase 14s 지연,
               #   1대 선감지로 return 7.6s 조기 발화. 로컬 시뮬레이션: quorum=2로 둘 다 ±3s 내로 개선)
     53: 1,   # dove_pink
-    54: 2,   # dove_white
+    54: 1,   # dove_white (2026-06-27: quorum=2→1, cam3 단독 화이트리스트로 노이즈 차단)
     15: 1,   # redbull
     39: 1,   # crystal_hot_sauce
     21: 1,   # dr_pepper
     29: 2,   # spam
+    42: 1,   # pepperidge_farm_milano (2026-06-27: cam3+cam4 화이트리스트, quorum=1)
+}
+
+# class_id -> 허용 카메라 인덱스 목록. 여기 없는 카메라의 감지는 퓨전에서 완전 제외.
+# per_cam_log 분석 결과 (2026-06-27):
+#   campbells(43): cam0=64fr, cam4=39fr — cam4가 campbells_chunky와 혼동, cam0만 사용
+#   milano(42): cam3=929fr, cam4=492fr, cam0=20fr(노이즈) — cam3+cam4만
+#   dove_white(54): cam3=614fr, cam2=311fr, cam4=184fr, cam0=1fr(노이즈) — cam3만(타이밍 개선 목적)
+CLASS_CAM_WHITELIST: Dict[int, List[int]] = {
+    43: [0],     # campbells_chicken_noodle_soup: cam4 chunky혼동 차단
+    42: [3, 4],  # pepperidge_farm_milano: 노이즈 cam0 제거
+    54: [3],     # dove_white: 가장 지배적인 cam3만 (타이밍 22.5s 오차 개선 목적)
 }
 
 
@@ -143,12 +155,18 @@ def fuse_weighted_median(
     result: Dict[int, int] = {}
     for cls_id in all_classes:
         cls_weights = cam_weights.get(cls_id, default_weights) if per_class_weights else cam_weights
+        whitelist = CLASS_CAM_WHITELIST.get(cls_id)
         votes = []
         weights = []
         for cam_idx, dets in active:
+            if whitelist is not None and cam_idx not in whitelist:
+                continue
             cnt = sum(1 for d in dets if d["class_id"] == cls_id)
             votes.append(cnt)
             weights.append(cls_weights[cam_idx])
+
+        if not votes:
+            continue
 
         if cls_id in class_quorum_override:
             quorum = class_quorum_override[cls_id]
