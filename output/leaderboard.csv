@@ -30,3 +30,4 @@ timestamp,description,total_gt,total_sub,TP,FP,FN,Precision,Recall,F1,RTF,accura
 2026-06-27 19:14,cam-whitelist: campbells/milano/dove_white,105,106,104,2,1,98.1%,99.0%,98.6%,0.7493,39.4,20.0,59.4
 2026-06-27 19:20,campbells confirm=90 FP return 차단,105,104,103,1,2,99.0%,98.1%,98.6%,0.7511,39.4,20.0,59.4
 2026-06-27 19:41,white_rain confirm=120 순서 맞춤,105,104,103,1,2,99.0%,98.1%,98.6%,0.7566,39.4,20.0,59.4
+2026-06-27 19:49,white_rain occlusion 제외,105,105,103,2,2,98.1%,98.1%,98.1%,0.7513,39.2,20.0,59.2
