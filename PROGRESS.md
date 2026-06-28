@@ -433,6 +433,70 @@ quorum=2 추가 후 spam 정상 감지 확인. 중복발화 없음. TP +1 추가
 
 ---
 
+### 2026-06-28 | Phase 26 — 최신 논문 기술 적용 시도 (강희조+Claude) [진행 중]
+
+**목적:** 정성평가 발표용 "최신 연구 흐름 적용 시도 + 이유 분석". 도움이 되면 채택, 안 되면 왜 안 되는지 분석.
+
+#### 검토한 논문들
+
+| 논문 | 연도 | 핵심 기술 | 우리 적용 가능성 |
+|------|------|-----------|-----------------|
+| [ByteTrack: ECCV 2022](https://arxiv.org/abs/2110.06864) | 2022 | 2-stage matching으로 저신뢰도 detection도 track 유지 | ✅ **구현 완료** (test/bytetrack) |
+| [Survey: Autonomous Retail (2025)](https://arxiv.org/abs/2503.07997) | 2025 | 무인판매대 기술 조망 (손 감지, BEV, 다중카메라 추적) | 아이디어 참고 |
+| [Hand-Object Interaction (2025)](https://arxiv.org/abs/2507.13326) | 2025 | 손-물체 상호작용으로 구매 이벤트 직접 감지 | ❌ egocentric 카메라 전용, 고정 카메라 학습 데이터 없음 |
+| [MCBLT: Multi-Camera 3D (2024)](https://arxiv.org/abs/2412.00692) | 2024 | 다중 카메라 homography로 3D 위치 융합 | ❌ 카메라 캘리브레이션 행렬 필요, 환경 미비 |
+| [Enhanced Self-Checkout YOLOv10 (2024)](https://arxiv.org/abs/2407.21308) | 2024 | 개선된 감지 모델 + 체크아웃 파이프라인 | ❌ 모델 재학습 필요 (YOLO11 시도에서 이미 실패, Phase 23) |
+
+#### Phase 26-A: ByteTrack (2-stage matching) 적용
+
+**근거:** ByteTrack은 SORT와 달리 low-confidence detection을 Stage 2에서 미매칭 track에 추가 연결.
+우리 파이프라인에서 기대 효과:
+- `white_rain_body_wash` 21-23s 구간 occlusion → confidence 하락한 detection이 기존 track 유지 → fused count 하락 방지 → FP purchase 제거 기대
+- low-confidence(0.4~0.6)로 새 track 생성 안 함 → FP track 억제
+
+**구현 (`src/tracker.py`, `test/bytetrack` 브랜치):**
+```python
+class ByteSort(Sort):
+    # Stage 1: conf >= high_thresh(0.6) → 모든 기존 track 매칭
+    # Stage 2: conf < high_thresh → Stage 1 미매칭 track에만 추가 매칭
+    # 새 track은 Stage 1 (high-conf) 미매칭만 생성
+```
+`--tracker_type bytetrack` 플래그 추가. SORT 인터페이스 완전 호환.
+
+**로컬 검증:**
+```
+FP noise (conf=0.45 x5):
+  SORT:      confirmed tracks=1 (FP track 생성됨)
+  ByteSort:  confirmed tracks=0 (low-conf → 새 track 생성 안 함)
+```
+
+**서버 테스트 커맨드:**
+```bash
+git fetch && git checkout test/bytetrack && git pull
+PYTHONPATH=~/yolov7 python src/run_pipeline.py \
+    --videos ~/Dataset/4.TestVideo_Sample/cam{0..4}/Sample_1.mp4 \
+    --weights ~/Dataset/yolov7_custom.pt \
+    --names data/names.txt --prices data/prices.csv \
+    --out output/submission_bytetrack.csv \
+    --skip 2 --conf 0.4 --device 0 \
+    --use_tracker --tracker_type bytetrack --tracker_max_age 15 \
+    --timed_log output/sub_bytetrack_timed.csv
+python tools/score_methods.py --gt data/ground_truth_v2.csv \
+    --sub output/submission_bytetrack.csv --timed output/sub_bytetrack_timed.csv
+```
+
+**결과:** (서버 테스트 후 기입)
+
+#### 구조적으로 적용 불가한 기술 분석 (발표용)
+
+1. **Hand-Object Interaction Detection** — 구매 이벤트를 count 변화가 아닌 "손이 물건 집는 동작"으로 직접 감지. 정확도·실시간성 모두 우월할 수 있으나: (a) 기존 논문들이 egocentric(1인칭) 카메라 기반 — 우리 고정 카메라와 시점 전혀 다름, (b) 고정 카메라 기준 학습 데이터 없음, (c) 추가 모델 추론으로 RTF 크게 저하 예상. **"다음 단계 개선 방향"으로 발표에서 언급 적합.**
+
+2. **Multi-camera 3D Tracking (BEV fusion)** — 5대 카메라를 homography로 Bird's Eye View로 통합해 정확한 위치 기반 count. 우리 weighted median보다 이론적으로 우수하나: (a) 카메라 내/외부 파라미터 캘리브레이션 행렬 필요, (b) 대회 환경에서 캘리브레이션 데이터 미제공. **캘리브레이션이 있었다면 적용 가능했을 것으로 분석.**
+
+3. **YOLO11 / YOLOv10 재학습** — Phase 23에서 이미 시도. YOLO11m 18k장 학습 → order F1 73.4% (기존 98.6% 대비 -25%p). 제공 가중치(`yolov7_custom.pt`, mAP 98.1%)가 20만 장 풀 학습 결과라 18k 재학습으론 경쟁 불가. **"최신 아키텍처 전환 시도, 데이터 규모 문제로 기각" 스토리.**
+
+---
+
 ### 2026-06-27 | Phase 24 — per-class 카메라 화이트리스트 (강희조+Claude) [완료, main merge 완료]
 
 **목표:** order F1 100% 시도 (main 기준 96.6%)
