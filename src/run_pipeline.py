@@ -297,13 +297,18 @@ def main():
 
     # Tracker 옵션
     parser.add_argument("--use_tracker",      action="store_true",
-                        help="SORT 트래커 활성화 (--use_tracker 없으면 기존 카운팅 방식)")
+                        help="트래커 활성화 (--use_tracker 없으면 기존 카운팅 방식)")
+    parser.add_argument("--tracker_type",     type=str, default="sort",
+                        choices=["sort", "bytetrack"],
+                        help="트래커 알고리즘: sort (기본) | bytetrack (2-stage matching, ECCV 2022)")
     parser.add_argument("--tracker_max_age",  type=int, default=15,
                         help="트래커: 미감지 허용 최대 프레임 수 (A/B 테스트: 15 최적)")
     parser.add_argument("--tracker_min_hits", type=int, default=3,
                         help="트래커: 확정까지 필요한 연속 감지 횟수")
     parser.add_argument("--tracker_iou",      type=float, default=0.3,
                         help="트래커: 매칭 최소 IoU")
+    parser.add_argument("--tracker_high_thresh", type=float, default=0.6,
+                        help="ByteTrack 전용: Stage 1/2 분기 confidence 기준 (기본 0.6)")
     args = parser.parse_args()
 
     device = f"cuda:{args.device}" if args.device.isdigit() else args.device
@@ -361,9 +366,13 @@ def main():
             max_age=args.tracker_max_age,
             min_hits=args.tracker_min_hits,
             iou_threshold=args.tracker_iou,
+            tracker_type=args.tracker_type,
+            high_thresh=args.tracker_high_thresh,
         )
-        print(f"SORT 트래커 활성화 (max_age={args.tracker_max_age}, "
-              f"min_hits={args.tracker_min_hits}, iou={args.tracker_iou})")
+        print(f"{args.tracker_type.upper()} 트래커 활성화 (max_age={args.tracker_max_age}, "
+              f"min_hits={args.tracker_min_hits}, iou={args.tracker_iou}"
+              + (f", high_thresh={args.tracker_high_thresh}" if args.tracker_type == "bytetrack" else "")
+              + ")")
     else:
         print("카운팅 방식 사용 (--use_tracker로 트래커 활성화 가능)")
 
