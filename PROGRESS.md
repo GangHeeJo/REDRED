@@ -5,11 +5,12 @@
 
 ---
 
-## 현재 상태 (2026-06-27 최종)
+## 현재 상태 (2026-06-28 최종)
 
 파이프라인 정상 동작 중. `data/ground_truth_v2.csv`(105개 실측 이벤트, **시간 포함**)가 현재 기준 GT — `tools/score_methods.py`로 3가지 방식 동시 채점.
 
-**현재 최고 성능 = fix/cam-whitelist 브랜치 (Phase 24, 2026-06-27 강희조+Claude) — main merge 미진행**
+**현재 최고 성능 = main (Phase 24, 2026-06-27 강희조+Claude, main merge 완료)**  
+**발표용 범용 기준선 = test/generic-pipeline (Phase 25, 2026-06-28) — order F1 91.7%**
 
 | 항목 | 값 |
 |------|-----|
@@ -404,7 +405,35 @@ quorum=2 추가 후 spam 정상 감지 확인. 중복발화 없음. TP +1 추가
   3. 체크아웃 재확인 후 3차 진짜 실행: **count F1 92.9%→93.9%, order F1 85.3%→85.4%, time F1 85.3%→85.4%**, occlusion 감지율 right=8.2%/left=1.9%(`Camera occlusion stats` 로그로 확인). `haribo_gold_bears_gummi_candy`가 **처음으로 발화**(기존엔 신호부족 더블-FN이라 결론 — bumblebee/dove/redbull과 같은 "5캠 중 소수만 보임" 구조적 문제였음이 확인됨). 단 새 haribo 이벤트가 26초 타이밍 오차 있음(별도 과제).
   - 전 지표 순개선, 회귀 없음 → **main에 merge 완료**.
 
-### 2026-06-27 | Phase 24 — per-class 카메라 화이트리스트 (강희조+Claude) [완료, 브랜치 보존]
+### 2026-06-28 | Phase 25 — 완전 범용 파이프라인 기준선 측정 (강희조+Claude)
+
+**목적:** 정성평가 발표용. 영상 특화 튜닝 전부 제거하고 순수 범용 파이프라인 성능 측정.
+
+**제거한 설정 (`test/generic-pipeline` 브랜치):**
+- `CLASS_QUORUM_OVERRIDE = {}` → 기본 weighted median만
+- `CLASS_CAM_WHITELIST = {}` → 카메라 필터링 없음
+- `_DEFAULT_CAM_WEIGHTS = [1,1,1,1,1]` → cam2 1.5배 사전지식 제거
+- `_cam_weight_excluded = set()` → milano 예외 제거
+
+**결과 (서버 A6000, test/generic-pipeline):**
+
+| 지표 | 범용 파이프라인 | Phase 24 (튜닝) | 차이 |
+|------|----------------|----------------|------|
+| count F1 | 93.6% | 99.5% | -5.9%p |
+| order F1 | **91.7%** | **98.6%** | **-6.9%p** |
+| time F1 | 89.9% | 98.6% | -8.7%p |
+| 추정 총점 | ~56.7점 | 59.4점 | -2.7점 |
+
+**범용에서 낮은 원인:**
+- milano/dove_pink: 2대만 보여 median 0↔1 반복 → 과다발화 (각 4회/3회, GT=1회)
+- redbull/crystal_hot_sauce/campbells: 5대 과반 구조적 불가 → 아예 미감지
+- dove_white/white_rain: 타이밍 오차 22s/10s
+
+**의의:** "범용 91.7% → 영상 분석+튜닝 98.6%" 기여도 정량화 (발표용). **브랜치 보존, main merge 안 함.**
+
+---
+
+### 2026-06-27 | Phase 24 — per-class 카메라 화이트리스트 (강희조+Claude) [완료, main merge 완료]
 
 **목표:** order F1 100% 시도 (main 기준 96.6%)
 
