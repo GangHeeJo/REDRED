@@ -80,28 +80,9 @@ DetectionList = List[Dict]   # [{class_id, confidence, bbox}, ...]
 # fused via "N-th highest vote" instead of the full weighted median. See
 # module docstring for why each of these needs a lower quorum than the
 # camera-majority default.
-CLASS_QUORUM_OVERRIDE: Dict[int, int] = {
-    2:  2,   # bumblebee_albacore (2026-06-26: 1→2. quorum=1은 1대 오탐으로 purchase 14s 지연,
-              #   1대 선감지로 return 7.6s 조기 발화. 로컬 시뮬레이션: quorum=2로 둘 다 ±3s 내로 개선)
-    53: 1,   # dove_pink
-    54: 1,   # dove_white (2026-06-27: quorum=2→1, cam3 단독 화이트리스트로 노이즈 차단)
-    15: 1,   # redbull
-    39: 1,   # crystal_hot_sauce
-    21: 1,   # dr_pepper
-    29: 2,   # spam
-    42: 1,   # pepperidge_farm_milano (2026-06-27: cam3+cam4 화이트리스트, quorum=1)
-}
+CLASS_QUORUM_OVERRIDE: Dict[int, int] = {}
 
-# class_id -> 허용 카메라 인덱스 목록. 여기 없는 카메라의 감지는 퓨전에서 완전 제외.
-# per_cam_log 분석 결과 (2026-06-27):
-#   campbells(43): cam0=64fr, cam4=39fr — cam4가 campbells_chunky와 혼동, cam0만 사용
-#   milano(42): cam3=929fr, cam4=492fr, cam0=20fr(노이즈) — cam3+cam4만
-#   dove_white(54): cam3=614fr, cam2=311fr, cam4=184fr, cam0=1fr(노이즈) — cam3만(타이밍 개선 목적)
-CLASS_CAM_WHITELIST: Dict[int, List[int]] = {
-    43: [0],     # campbells_chicken_noodle_soup: cam4 chunky혼동 차단
-    42: [3, 4],  # pepperidge_farm_milano: 노이즈 cam0 제거
-    54: [3],     # dove_white: 가장 지배적인 cam3만 (타이밍 22.5s 오차 개선 목적)
-}
+CLASS_CAM_WHITELIST: Dict[int, List[int]] = {}
 
 
 def count_per_class(detections: DetectionList) -> Dict[int, float]:

@@ -242,7 +242,7 @@ def compute_cam_weights(per_cam_dets, class_id=None):
     return weights
 
 
-_DEFAULT_CAM_WEIGHTS = [1.0, 1.0, 1.5, 1.0, 1.0]
+_DEFAULT_CAM_WEIGHTS = [1.0, 1.0, 1.0, 1.0, 1.0]
 
 
 def compute_per_class_cam_weights(per_cam_dets, exclude_class_ids=None):
@@ -317,9 +317,7 @@ def main():
     # pepperidge_farm_milano_cookies_double_chocolate: camera-weights 메커니즘이
     # 노이즈성 과다발화를 유발하는 것으로 확인됨(compute_per_class_cam_weights
     # docstring 참고) -- 기본 weight로 예외처리.
-    _milano_id = next((i for i, n in enumerate(class_names)
-                       if n == "pepperidge_farm_milano_cookies_double_chocolate"), None)
-    _cam_weight_excluded = {_milano_id} if _milano_id is not None else set()
+    _cam_weight_excluded = set()
 
     caps = open_videos(args.videos)
 
