@@ -8,6 +8,7 @@ Cut & Paste Augmentation for unmanned vending machine dataset.
     3. Perspective Warp  : 원근 변환 → 5개 카메라 각도 차이 모사 (확률 0.5)
     4. Random Erasing    : 화면 일부를 랜덤 노이즈로 가림 → occlusion 대응
     5. Blur + Noise      : Gaussian blur + Gaussian noise → 실제 카메라 품질 모사
+    6. Hand Occlusion    : 피부색 직사각형으로 손 가려짐 모사 (Paper D, SNU CAPP)
 
 Usage:
     python cut_paste_aug.py \
@@ -255,6 +256,83 @@ def add_blur_and_noise(canvas, blur_prob=0.3, noise_prob=0.3):
 
 
 # ---------------------------------------------------------------
+# 추가 증강 기법 6: Hand Occlusion (Paper D, SNU CAPP)
+# ---------------------------------------------------------------
+
+# 다양한 피부톤 팔레트 (BGR)
+_SKIN_TONES = [
+    (140, 180, 220),  # 밝은 피부
+    (100, 130, 175),  # 중간-밝은 피부
+    (70,  100, 145),  # 중간 피부
+    (40,   65, 105),  # 중간-어두운 피부
+    (20,   35,  65),  # 어두운 피부
+]
+
+
+def hand_occlusion(canvas, labels, prob=0.4, min_cover=0.2, max_cover=0.6,
+                   per_obj_prob=0.6):
+    """
+    [추가] 피부색 직사각형으로 손 가려짐 모사 (Paper D).
+
+    상품을 집거나 넣을 때 손이 상품 일부를 가리는 상황을 합성.
+    bbox는 변경하지 않음 — 가려진 채로도 인식하도록 학습.
+
+    prob         : 이미지 단위 적용 확률
+    min/max_cover: 상품 bbox 대비 직사각형 크기 비율
+    per_obj_prob : 각 상품에 대해 적용할 확률 (prob 통과 후)
+    """
+    if not labels or random.random() > prob:
+        return canvas
+
+    h, w = canvas.shape[:2]
+
+    for label in labels:
+        if random.random() > per_obj_prob:
+            continue
+
+        parts = label.split()
+        cx_n = float(parts[1]); cy_n = float(parts[2])
+        bw_n = float(parts[3]); bh_n = float(parts[4])
+
+        cx = cx_n * w; cy = cy_n * h
+        bw = bw_n * w; bh = bh_n * h
+
+        x1 = int(cx - bw / 2); y1 = int(cy - bh / 2)
+        x2 = int(cx + bw / 2); y2 = int(cy + bh / 2)
+
+        cover     = random.uniform(min_cover, max_cover)
+        direction = random.choice(["top", "bottom", "left", "right"])
+
+        if direction == "top":
+            rx1, ry1, rx2, ry2 = x1, y1, x2, int(y1 + bh * cover)
+        elif direction == "bottom":
+            rx1, ry1, rx2, ry2 = x1, int(y2 - bh * cover), x2, y2
+        elif direction == "left":
+            rx1, ry1, rx2, ry2 = x1, y1, int(x1 + bw * cover), y2
+        else:
+            rx1, ry1, rx2, ry2 = int(x2 - bw * cover), y1, x2, y2
+
+        rx1 = max(0, rx1); ry1 = max(0, ry1)
+        rx2 = min(w, rx2); ry2 = min(h, ry2)
+        if rx2 <= rx1 or ry2 <= ry1:
+            continue
+
+        color = random.choice(_SKIN_TONES)
+        ph, pw = ry2 - ry1, rx2 - rx1
+        patch = np.full((ph, pw, 3), color, dtype=np.int16)
+        patch += np.random.normal(0, 12, patch.shape).astype(np.int16)
+        patch = np.clip(patch, 0, 255).astype(np.uint8)
+
+        alpha = random.uniform(0.75, 0.95)
+        roi = canvas[ry1:ry2, rx1:rx2].astype(np.float32)
+        canvas[ry1:ry2, rx1:rx2] = (
+            patch * alpha + roi * (1 - alpha)
+        ).astype(np.uint8)
+
+    return canvas
+
+
+# ---------------------------------------------------------------
 # 메인 증강 함수
 # ---------------------------------------------------------------
 
@@ -268,6 +346,7 @@ def augment_one(
     use_perspective=True,
     use_erasing=True,
     use_blur_noise=True,
+    use_hand_occlusion=True,
 ):
     bg_path = random.choice(bg_paths)
     bg = cv2.imread(bg_path)
@@ -321,7 +400,10 @@ def augment_one(
             yolo_labels.append(f"{class_id} {cx:.6f} {cy:.6f} {bw:.6f} {bh:.6f}")
 
     # --- 추가 증강 적용 순서 ---
-    # Flip → Perspective → Erasing → Blur/Noise
+    # Hand Occlusion → Flip → Perspective → Erasing → Blur/Noise
+    if use_hand_occlusion:
+        canvas = hand_occlusion(canvas, yolo_labels)
+
     if use_hflip:
         canvas, yolo_labels = random_hflip(canvas, yolo_labels)
 
@@ -366,6 +448,8 @@ def main():
                         help="Random Erasing 비활성화")
     parser.add_argument("--no_blur",        action="store_true",
                         help="Blur + Noise 비활성화")
+    parser.add_argument("--no_hand_occ",   action="store_true",
+                        help="Hand Occlusion 비활성화")
 
     args = parser.parse_args()
 
@@ -381,7 +465,8 @@ def main():
           f"flip={'off' if args.no_flip else 'on'}, "
           f"perspective={'off' if args.no_perspective else 'on'}, "
           f"erasing={'off' if args.no_erasing else 'on'}, "
-          f"blur+noise={'off' if args.no_blur else 'on'}")
+          f"blur+noise={'off' if args.no_blur else 'on'}, "
+          f"hand_occ={'off' if args.no_hand_occ else 'on'}")
 
     canvas_size = (args.canvas_w, args.canvas_h)
 
@@ -394,6 +479,7 @@ def main():
             use_perspective=not args.no_perspective,
             use_erasing=not args.no_erasing,
             use_blur_noise=not args.no_blur,
+            use_hand_occlusion=not args.no_hand_occ,
         )
         name = f"aug_{i:05d}"
         cv2.imwrite(os.path.join(args.out_dir, "images", name + ".jpg"), canvas)
