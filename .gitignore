@@ -29,3 +29,9 @@ submission_draft.csv
 .ruff_cache/
 .vscode/
 .idea/
+
+# COLMAP (바이너리, git 제외)
+colmap/
+
+# COLMAP 작업 폴더
+colmap_workspace/
