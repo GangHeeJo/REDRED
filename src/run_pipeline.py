@@ -32,7 +32,7 @@ from pathlib import Path
 # Allow importing sibling modules
 sys.path.insert(0, str(Path(__file__).parent))
 from event_detector import EventDetector
-from multi_view_fusion import fuse, CLASS_INIT_INVENTORY_OVERRIDE
+from multi_view_fusion import fuse
 from csv_generator import load_prices, events_to_csv
 from tracker import MultiCameraTracker
 
@@ -333,8 +333,6 @@ def main():
             args.conf, args.iou, args.img_size, device,
             cam_weight_excluded=_cam_weight_excluded,
         )
-        for cls_id, cnt in CLASS_INIT_INVENTORY_OVERRIDE.items():
-            initial_inventory[cls_id] = cnt
         print(f"Initial inventory: {len(initial_inventory)} classes detected")
         print("Initial inventory detail:", {class_names[k]: v for k, v in initial_inventory.items()})
         if args.debug_log:
