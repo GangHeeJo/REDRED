@@ -154,28 +154,19 @@ class Sort:
         self.iou_threshold = iou_threshold
         self.trackers: List[KalmanBoxTracker] = []
 
-    def _build_iou_matrix(self, detections: List[Dict], predicted: List) -> np.ndarray:
-        n_d, n_t = len(detections), len(self.trackers)
-        iou_mat  = np.zeros((n_d, n_t))
-        for d_i, det in enumerate(detections):
-            for t_i, trk in enumerate(self.trackers):
-                if det["class_id"] == trk.class_id:
-                    iou_mat[d_i, t_i] = _iou(det["bbox"], predicted[t_i])
-        return iou_mat
-
     def _do_match(self, detections: List[Dict], predicted: List,
                   trk_indices: Optional[List[int]] = None):
-        """매칭 수행 후 (matched_det_set, matched_trk_set) 반환."""
+        """매칭 수행. 매칭된 track에 update() 호출(side effect).
+        Returns (matched_det_set, matched_trk_set) — 인덱스는 각각 detections, self.trackers 기준."""
         if not self.trackers or not detections:
             return set(), set()
         if trk_indices is None:
             trk_indices = list(range(len(self.trackers)))
 
-        sub_dets = detections
-        n_d = len(sub_dets)
+        n_d = len(detections)
         n_t = len(trk_indices)
         iou_mat = np.zeros((n_d, n_t))
-        for d_i, det in enumerate(sub_dets):
+        for d_i, det in enumerate(detections):
             for sub_i, t_i in enumerate(trk_indices):
                 trk = self.trackers[t_i]
                 if det["class_id"] == trk.class_id:
@@ -237,9 +228,11 @@ class ByteSort(Sort):
         matched_high, matched_trk = self._do_match(dets_high, predicted)
 
         # Stage 2: low-confidence → Stage 1 미매칭 track만
+        # predicted는 Stage 1 이전 값이지만, unmatched_trk는 Stage 1에서 update()가
+        # 호출되지 않은 track만 포함하므로 해당 인덱스의 predicted는 여전히 유효함
         unmatched_trk = [i for i in range(len(self.trackers)) if i not in matched_trk]
         if dets_low and unmatched_trk:
-            matched_low, matched_trk_low = self._do_match(dets_low, predicted, unmatched_trk)
+            _, matched_trk_low = self._do_match(dets_low, predicted, unmatched_trk)
             matched_trk |= matched_trk_low
 
         # 새 track: high-confidence 미매칭만 (low는 새 track 생성 안 함)
