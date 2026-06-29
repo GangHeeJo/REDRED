@@ -1,21 +1,17 @@
 """
 YOLO11 Knowledge Distillation Trainer.
 
-Teacher(YOLOv7)가 생성한 GT box별 soft label(.npy)을 이용해
-YOLO11 student 학습 시 classification loss에 KL divergence를 추가한다.
+Teacher(YOLOv7) soft label(.npy)을 loss 함수 내부에서 im_file 경로로 직접 로드해
+classification loss에 KL divergence를 추가한다. DataLoader 수정 없음.
 
 KD Loss:
-  L_total = (1-alpha)*L_det + alpha * tau^2 * KL(teacher_soft || student_soft)
+  L = (1-alpha)*L_det  +  alpha * tau^2 * KL(teacher_avg || student_avg)
+
+  teacher_avg: 이미지 내 GT box별 soft label의 평균 [nc]
+  student_avg: top-K anchor 예측 확률의 평균 [nc]
 
 Usage:
-    from kd_trainer import KDTrainer
-    trainer = KDTrainer(
-        soft_label_dir="~/Dataset/soft_labels",
-        alpha=0.5, tau=4.0,
-        model="yolo11m.pt", data="data/custom.yaml",
-        epochs=100, batch=16, imgsz=640,
-    )
-    trainer.train()
+    bash train_kd.sh --skip_softlabel --epochs 100 --batch 16
 """
 import os
 import numpy as np
@@ -29,144 +25,79 @@ from ultralytics.utils.loss import v8DetectionLoss
 
 class KDDetectionLoss(v8DetectionLoss):
     """
-    v8DetectionLoss에 KD soft-label KL loss를 추가.
+    v8DetectionLoss + per-image KL divergence KD term.
 
-    __call__ 시그니처는 동일 (preds, batch).
-    batch에 'soft_labels' 키가 있으면 KL divergence term 추가.
+    soft label은 batch["im_file"] 경로 stem으로 soft_label_dir에서 로드.
+    DataLoader/collate 수정 불필요.
     """
 
-    def __init__(self, model, alpha=0.5, tau=4.0, **kwargs):
-        super().__init__(model, **kwargs)
-        self.alpha = alpha
-        self.tau   = tau
+    def __init__(self, model, soft_label_dir, kd_alpha=0.5, kd_tau=4.0):
+        super().__init__(model)
+        self.soft_label_dir = Path(soft_label_dir).expanduser()
+        self.kd_alpha = kd_alpha
+        self.kd_tau   = kd_tau
 
     def __call__(self, preds, batch):
         base_loss, loss_items = super().__call__(preds, batch)
 
-        if "soft_labels" not in batch or batch["soft_labels"] is None:
+        im_files = batch.get("im_file", [])
+        if not im_files:
             return base_loss, loss_items
 
-        # soft_labels: list of tensors (one per image), each [N_gt_i, nc]
-        soft_labels_batch = batch["soft_labels"]
-        device = base_loss.device
+        device     = base_loss.device
+        batch_size = len(im_files)
 
-        # --- student class prediction 수집 ---
-        # ultralytics v8 loss 내부에서 이미 GT→anchor 할당이 완료된 뒤이므로
-        # pred_scores (sigmoid 후 [B, num_anchors, nc])를 직접 가져온다.
-        # forward의 두 번째 원소 (aux output 없을 때 preds[1])가 raw [B, nc+4+reg, A] 텐서.
-        if isinstance(preds, (list, tuple)):
-            raw = preds[1] if len(preds) > 1 else preds[0]
-        else:
-            raw = preds
+        # student class predictions: [B, A, nc]
+        feats = preds[1] if isinstance(preds, tuple) else preds
+        pred_all = torch.cat(
+            [xi.view(batch_size, self.no, -1) for xi in feats], dim=2
+        )  # [B, no, A]
+        pred_scores = pred_all[:, self.reg_max * 4:, :].permute(0, 2, 1).sigmoid()  # [B, A, nc]
 
-        # raw: [B, nc+reg_max*4, A] — ultralytics detect head format
-        # cls scores are the last nc channels
-        nc = self.nc
-        # [B, A, nc]
-        cls_logits = raw[:, -nc:, :].permute(0, 2, 1)  # [B, A, nc]
+        kd_loss = base_loss * 0.0  # 0, 그래프에 연결
+        n_valid = 0
 
-        kd_loss = torch.tensor(0.0, device=device)
-        total_gt = 0
-
-        for b_idx in range(len(soft_labels_batch)):
-            soft = soft_labels_batch[b_idx]  # [N_gt, nc] numpy or tensor
-            if soft is None or (hasattr(soft, '__len__') and len(soft) == 0):
-                continue
-            if not isinstance(soft, torch.Tensor):
-                soft = torch.tensor(soft, dtype=torch.float32)
-            soft = soft.to(device)               # [N_gt, nc]
-            n_gt = soft.shape[0]
-            if n_gt == 0:
+        for b_idx, im_file in enumerate(im_files):
+            stem = Path(im_file).stem
+            npy_path = self.soft_label_dir / (stem + ".npy")
+            if not npy_path.exists():
                 continue
 
-            # batch의 GT 인덱스로 해당 이미지 GT box들에 할당된 anchor 찾기
-            # batch["batch_idx"] == b_idx인 행들
-            gt_mask = batch["batch_idx"] == b_idx
-            if gt_mask.sum() == 0:
+            soft = np.load(str(npy_path))  # [N_gt, nc]
+            if soft.shape[0] == 0:
                 continue
 
-            # 각 GT box에 가장 가까운 anchor를 cls_logits에서 가져오기.
-            # 간단한 근사: GT box center를 feature map 좌표로 변환 후 nearest anchor 선택.
-            # 정확한 TAL assignment는 손대지 않고, center-distance 기반 근사를 사용.
-            gt_bboxes = batch["bboxes"][gt_mask]  # [n_gt_local, 4] xywhn
-            img_h = img_w = self.imgsz if hasattr(self, "imgsz") else 640
+            # teacher: GT box별 soft label 평균 [nc]
+            teacher_dist = torch.from_numpy(soft.mean(axis=0)).float().to(device)
 
-            # GT center in [0,1]
-            cx = gt_bboxes[:, 0]  # [n_gt_local]
-            cy = gt_bboxes[:, 1]
+            # student: max confidence 상위 50개 anchor 평균 [nc]
+            student_cls = pred_scores[b_idx]                     # [A, nc]
+            topk        = min(50, student_cls.shape[0])
+            top_idx     = student_cls.max(dim=1).values.topk(topk).indices
+            student_dist = student_cls[top_idx].mean(dim=0)       # [nc]
 
-            # Anchor center positions (ultralytics는 feature map grid center가 anchor)
-            # cls_logits[b_idx]: [A, nc] — A = sum over scales of H*W*na
-            # 근사: anchor center를 직접 구하는 대신, top-nc를 이용한 soft matching
-            # 실용적 접근: batch["gt_assign"] 또는 b_idx image에 할당된 anchors를
-            #   batch["targets"] 에서 추출한다.
-            # ultralytics 내부 self.assigner가 forward_targets를 저장하면 좋지만
-            # API가 버전마다 다르므로, student의 top-1 prediction per GT box를 사용.
+            # temperature softmax
+            tau = self.kd_tau
+            t_log  = torch.log(teacher_dist + 1e-8) / tau
+            s_log  = torch.log(student_dist + 1e-8) / tau
+            t_soft = F.softmax(t_log, dim=0)
+            s_lsft = F.log_softmax(s_log, dim=0)
 
-            # student cls pred for this image: [A, nc]
-            student_cls = cls_logits[b_idx]  # [A, nc]
-
-            # GT별로: student의 class score 중 teacher soft label의 argmax class에
-            # 가장 높은 score를 가진 anchor를 target anchor로 선택 (nearest top-1)
-            teacher_cls = soft[:n_gt].float()                 # [n_gt, nc]
-            teacher_hard = teacher_cls.argmax(dim=1)          # [n_gt]
-
-            # 각 GT에 대해 teacher가 지목한 class에서 가장 score 높은 anchor index
-            # [A, nc] → [n_gt, A]: teacher class에서의 student score
-            student_for_teacher = student_cls[:, teacher_hard].T  # [n_gt, A]
-            best_anchor = student_for_teacher.argmax(dim=1)        # [n_gt]
-
-            student_probs = student_cls[best_anchor].sigmoid()     # [n_gt, nc]
-
-            # KL divergence: sum_c p_t * log(p_t / p_s)
-            # = F.kl_div(log(p_s), p_t, reduction='batchmean') * n
-            kl = F.kl_div(
-                torch.log(student_probs + 1e-8),
-                teacher_cls,
-                reduction="sum",
-            )
+            kl = F.kl_div(s_lsft, t_soft, reduction="sum") * (tau ** 2)
             kd_loss = kd_loss + kl
-            total_gt += n_gt
+            n_valid += 1
 
-        if total_gt > 0:
-            kd_loss = kd_loss / total_gt * (self.tau ** 2)
+        if n_valid > 0:
+            kd_loss = kd_loss / n_valid
 
-        combined = (1.0 - self.alpha) * base_loss + self.alpha * kd_loss
+        combined = (1.0 - self.kd_alpha) * base_loss + self.kd_alpha * kd_loss
         return combined, loss_items
-
-
-class KDDataset(torch.utils.data.Dataset):
-    """
-    ultralytics YOLODataset를 래핑해서 soft_label 필드를 추가한다.
-    """
-
-    def __init__(self, base_dataset, soft_label_dir):
-        self.base = base_dataset
-        self.soft_dir = Path(soft_label_dir).expanduser()
-
-    def __len__(self):
-        return len(self.base)
-
-    def __getitem__(self, idx):
-        item = self.base[idx]
-        # img_path에서 stem 추출
-        img_path = getattr(self.base, "im_files", None)
-        stem = Path(img_path[idx]).stem if img_path else None
-        soft = None
-        if stem:
-            npy_path = self.soft_dir / (stem + ".npy")
-            if npy_path.exists():
-                soft = np.load(str(npy_path))
-        item["soft_label"] = soft
-        return item
 
 
 class KDTrainer(DetectionTrainer):
     """
-    soft_label_dir와 KD 하이퍼파라미터를 받아 KD 학습을 수행.
-
-    ultralytics는 trainer(overrides=dict, _callbacks=...) 형태로 호출하므로
-    KD 전용 파라미터는 overrides dict에서 pop해서 꺼낸다.
+    KD 하이퍼파라미터를 overrides dict에서 추출해 KDDetectionLoss를 사용하는 trainer.
+    ultralytics는 trainer(overrides=dict, _callbacks=...) 형태로 호출한다.
     """
 
     def __init__(self, cfg=None, overrides=None, _callbacks=None):
@@ -174,54 +105,32 @@ class KDTrainer(DetectionTrainer):
         overrides = dict(overrides or {})
         self.soft_label_dir = Path(overrides.pop("soft_label_dir", "~/Dataset/soft_labels")).expanduser()
         self.kd_alpha = float(overrides.pop("kd_alpha", 0.5))
-        self.kd_tau   = float(overrides.pop("kd_tau", 4.0))
+        self.kd_tau   = float(overrides.pop("kd_tau",   4.0))
         super().__init__(cfg=cfg or DEFAULT_CFG, overrides=overrides, _callbacks=_callbacks)
 
-    def get_dataloader(self, dataset_path, batch_size, rank, mode):
-        loader = super().get_dataloader(dataset_path, batch_size, rank, mode)
-        if mode == "train":
-            loader.dataset.__class__ = type(
-                "KDWrapped",
-                (KDDataset, loader.dataset.__class__),
-                {},
-            )
-            loader.dataset.soft_dir = self.soft_label_dir
-            loader.dataset.base     = loader.dataset
-        return loader
-
     def init_criterion(self):
-        loss_fn = KDDetectionLoss(
+        return KDDetectionLoss(
             self.model,
-            alpha=self.kd_alpha,
-            tau=self.kd_tau,
+            soft_label_dir=self.soft_label_dir,
+            kd_alpha=self.kd_alpha,
+            kd_tau=self.kd_tau,
         )
-        return loss_fn
-
-    @staticmethod
-    def collate_fn(batch):
-        """ultralytics default collate + soft_labels 처리."""
-        from ultralytics.data.dataset import YOLODataset
-        result = YOLODataset.collate_fn(batch)
-        soft_labels = [item.get("soft_label") for item in batch]
-        result["soft_labels"] = soft_labels
-        return result
 
 
 def train_kd(
-    model_path: str = "yolo11m.pt",
-    data_yaml: str   = "data/custom.yaml",
-    soft_label_dir: str = "~/Dataset/soft_labels",
-    epochs: int     = 100,
-    batch: int      = 16,
-    imgsz: int      = 640,
-    device: str     = "0",
-    project: str    = "runs/kd",
-    name: str       = "yolo11m_kd",
-    alpha: float    = 0.5,
-    tau: float      = 4.0,
-    resume: bool    = False,
+    model_path:     str   = "yolo11m.pt",
+    data_yaml:      str   = "data/custom.yaml",
+    soft_label_dir: str   = "~/Dataset/soft_labels",
+    epochs:         int   = 100,
+    batch:          int   = 16,
+    imgsz:          int   = 640,
+    device:         str   = "0",
+    project:        str   = "runs/kd",
+    name:           str   = "yolo11m_kd",
+    alpha:          float = 0.5,
+    tau:            float = 4.0,
+    resume:         bool  = False,
 ):
-    """KD 학습 진입점."""
     model = YOLO(model_path)
     model.train(
         trainer=KDTrainer,
@@ -233,11 +142,9 @@ def train_kd(
         project=project,
         name=name,
         resume=resume,
-        # KDTrainer kwargs (overrides dict에서 pop됨)
         soft_label_dir=soft_label_dir,
         kd_alpha=alpha,
         kd_tau=tau,
-        # standard hyperparams
         lr0=0.01,
         lrf=0.1,
         momentum=0.937,
