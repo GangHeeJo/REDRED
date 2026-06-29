@@ -139,7 +139,7 @@ class MultiCamDiffMonitor:
                 if d is None:
                     continue
                 if self.accum_diff[i] is None:
-                    self.accum_diff[i] = d.astype(np.uint8)
+                    self.accum_diff[i] = d  # cv2.absdiff → already uint8
                 else:
                     self.accum_diff[i] = np.maximum(self.accum_diff[i], d)
 
@@ -159,7 +159,7 @@ class MultiCamDiffMonitor:
             _accumulate(diffs)
             if max_motion <= self.diff_area_thresh:
                 self.state = "SETTLING"
-                self.settle_count = 1
+                self.settle_count = 1  # 이 조용한 프레임 자체를 1로 계산 시작
             elif self.active_frames > MAX_INTERACTION_FRAMES:
                 # 너무 오래 지속 → 강제 리셋
                 self.state = "IDLE"
