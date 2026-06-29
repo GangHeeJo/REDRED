@@ -1,10 +1,15 @@
 """
-Event-Triggered Pipeline
+Event-Triggered Pipeline + ROI Crop
 
 매 프레임 YOLO 대신:
   1. 프레임 차분으로 interaction 구간 감지 (YOLO 없이, 매우 빠름)
   2. 구간 직전 안정 프레임 (before) vs 직후 안정 프레임 (after) 에만 YOLO 실행
   3. before/after fused count 차이 = 이벤트
+
+ROI Crop (논문 아이디어):
+  - ACTIVE 구간 동안 누적 diff → 변화 영역(ROI) 자동 계산
+  - before/after 를 ROI 영역만 crop → YOLO 에 넣음
+  - 효과: RTF 추가 감소 (작은 이미지) + 가려진 상품 해상도 향상
 
 장점:
   - YOLO 실행 횟수 대폭 감소 → RTF 개선
@@ -47,6 +52,8 @@ DIFF_PIXEL_THRESH = 25     # absdiff 픽셀값 변화 감지 임계값
 DIFF_AREA_THRESH  = 0.012  # 전체 픽셀의 N% 이상 변하면 interaction
 SETTLE_FRAMES     = 25     # interaction 후 이 프레임만큼 조용해야 after 확정
 MAX_INTERACTION_FRAMES = 300  # 이 이상 지속되면 강제 종료 (오감지 방지)
+ROI_PAD           = 0.20   # ROI bounding box 패딩 비율 (상하좌우 20%)
+ROI_MIN_AREA      = 0.02   # ROI 가 전체 이미지의 N% 미만이면 전체 프레임 사용
 
 
 class MultiCamDiffMonitor:
@@ -71,12 +78,35 @@ class MultiCamDiffMonitor:
         self.settle_count    = 0
         self.active_frames   = 0
         self.before_frames   = [None] * n_cams  # interaction 직전 안정 프레임
+        self.accum_diff      = [None] * n_cams  # ACTIVE 동안 누적 diff (max)
 
     def _motion(self, gray_new, gray_old):
         if gray_new is None or gray_old is None:
             return 0.0
         diff = cv2.absdiff(gray_new, gray_old)
         return float((diff > DIFF_PIXEL_THRESH).mean())
+
+    def _compute_roi(self, accum, img_h, img_w):
+        """누적 diff → ROI (x1,y1,x2,y2). 변화 없거나 너무 작으면 None."""
+        if accum is None:
+            return None
+        mask = accum > DIFF_PIXEL_THRESH
+        rows = np.any(mask, axis=1)
+        cols = np.any(mask, axis=0)
+        if not rows.any():
+            return None
+        rmin, rmax = int(np.where(rows)[0][0]),  int(np.where(rows)[0][-1])
+        cmin, cmax = int(np.where(cols)[0][0]),  int(np.where(cols)[0][-1])
+        # 패딩
+        pad_y = int((rmax - rmin) * ROI_PAD)
+        pad_x = int((cmax - cmin) * ROI_PAD)
+        rmin = max(0, rmin - pad_y);  rmax = min(img_h, rmax + pad_y + 1)
+        cmin = max(0, cmin - pad_x);  cmax = min(img_w, cmax + pad_x + 1)
+        # 너무 작으면 전체 사용
+        area_ratio = (rmax - rmin) * (cmax - cmin) / (img_h * img_w)
+        if area_ratio < ROI_MIN_AREA:
+            return None
+        return (cmin, rmin, cmax, rmax)  # x1,y1,x2,y2
 
     def update(self, frames):
         """
@@ -109,6 +139,8 @@ class MultiCamDiffMonitor:
             if max_motion > self.diff_area_thresh:
                 self.state = "ACTIVE"
                 self.active_frames = 1
+                # 누적 diff 초기화
+                self.accum_diff = [None] * self.n_cams
             else:
                 # 안정 프레임 갱신
                 for i, f in enumerate(frames):
@@ -117,11 +149,18 @@ class MultiCamDiffMonitor:
 
         elif self.state == "ACTIVE":
             self.active_frames += 1
+            # 누적 diff 업데이트 (max로 누적)
+            for i in range(self.n_cams):
+                if grays[i] is not None and self.prev_grays[i] is not None:
+                    d = cv2.absdiff(grays[i], self.prev_grays[i])
+                    if self.accum_diff[i] is None:
+                        self.accum_diff[i] = d.astype(np.uint8)
+                    else:
+                        self.accum_diff[i] = np.maximum(self.accum_diff[i], d)
             if max_motion <= self.diff_area_thresh:
                 self.state = "SETTLING"
                 self.settle_count = 1
             elif self.active_frames > MAX_INTERACTION_FRAMES:
-                # 너무 오래 지속 → 강제 리셋
                 self.state = "IDLE"
                 self.active_frames = 0
 
@@ -134,6 +173,14 @@ class MultiCamDiffMonitor:
                 if self.settle_count >= self.settle_frames:
                     before = list(self.before_frames)
                     after  = [f.copy() if f is not None else None for f in frames]
+                    # ROI 계산 (카메라별)
+                    rois = []
+                    for i, f in enumerate(frames):
+                        if f is not None:
+                            h, w = f.shape[:2]
+                            rois.append(self._compute_roi(self.accum_diff[i], h, w))
+                        else:
+                            rois.append(None)
                     # after → 새 before
                     for i, f in enumerate(frames):
                         if f is not None:
@@ -141,14 +188,28 @@ class MultiCamDiffMonitor:
                     self.state        = "IDLE"
                     self.settle_count = 0
                     self.active_frames = 0
-                    trigger = (before, after)
+                    self.accum_diff   = [None] * self.n_cams
+                    trigger = (before, after, rois)
 
         return trigger
 
 
-def fuse_frames(model, nms_fn, frames, conf, iou, img_size, device):
+def crop_frames(frames, rois):
+    """각 카메라 프레임을 ROI 영역으로 crop. roi=None이면 전체 사용."""
+    cropped = []
+    for f, roi in zip(frames, rois):
+        if f is None or roi is None:
+            cropped.append(f)
+        else:
+            x1, y1, x2, y2 = roi
+            cropped.append(f[y1:y2, x1:x2])
+    return cropped
+
+
+def fuse_frames(model, nms_fn, frames, conf, iou, img_size, device, rois=None):
     """프레임 배치 YOLO → 5카메라 fusion → {cls_id: count}"""
-    per_cam = infer_batch(model, nms_fn, frames, conf, iou, img_size, device)
+    inference_frames = crop_frames(frames, rois) if rois else frames
+    per_cam = infer_batch(model, nms_fn, inference_frames, conf, iou, img_size, device)
     cam_w   = compute_per_class_cam_weights(per_cam)
     return fuse(per_cam, cam_weights=cam_w), per_cam
 
@@ -241,13 +302,14 @@ def main():
         result = monitor.update(frames)
 
         if result is not None:
-            before_frames, after_frames = result
+            before_frames, after_frames, rois = result
             yolo_calls += 2
+            roi_used = sum(1 for r in rois if r is not None)
 
             b_counts, _ = fuse_frames(model, nms_fn, before_frames,
-                                      args.conf, args.iou, args.img_size, device)
+                                      args.conf, args.iou, args.img_size, device, rois)
             a_counts, _ = fuse_frames(model, nms_fn, after_frames,
-                                      args.conf, args.iou, args.img_size, device)
+                                      args.conf, args.iou, args.img_size, device, rois)
 
             new_events = make_events(b_counts, a_counts, class_names,
                                      counter, committed)
@@ -255,7 +317,7 @@ def main():
 
             for ev in new_events:
                 print(f"  [Frame ~{frame_idx}] {ev.class_name}: {ev.action} "
-                      f"({ev.before}->{ev.after})")
+                      f"({ev.before}->{ev.after})  ROI {roi_used}/5캠")
 
         frame_idx += 1
 
