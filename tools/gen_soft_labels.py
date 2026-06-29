@@ -71,6 +71,12 @@ def main():
     device = torch.device(f"cuda:{args.device}" if args.device != "cpu" else "cpu")
     os.makedirs(args.out_dir, exist_ok=True)
 
+    # PyTorch 버전 호환성 패치: recompute_scale_factor 속성 제거된 이후 버전 대응
+    import torch.nn.functional as F_nn
+    torch.nn.Upsample.forward = lambda self, x: F_nn.interpolate(
+        x, self.size, self.scale_factor, self.mode, self.align_corners
+    )
+
     print("Loading YOLOv7 teacher...")
     ckpt = torch.load(args.weights, map_location=device)
     model = ckpt["model"].float().eval().to(device)
@@ -109,44 +115,37 @@ def main():
         inp = torch.from_numpy(img_resized).permute(2,0,1).float().div(255).unsqueeze(0).to(device)
 
         with torch.no_grad():
-            raw = model(inp)  # list of [1, anchors, H, W, 5+nc]
+            raw = model(inp)
 
-        # 모든 scale의 predictions 합치기 (pre-NMS)
-        all_boxes, all_cls_probs = [], []
+        # YOLOv7 eval 모드 출력: (z_cat, x_list)
+        #   z_cat: [1, N_all, 5+nc]  — 모든 scale 합쳐진 상태, sigmoid 이미 적용됨
+        #     [:, :2]  = cx, cy (pixels, img_size 기준)
+        #     [:, 2:4] = w, h   (pixels, img_size 기준)
+        #     [:, 4]   = obj_conf (sigmoid)
+        #     [:, 5:]  = class_probs (sigmoid)
+        z_cat = raw[0] if isinstance(raw, (list, tuple)) else raw
+        pred_all = z_cat[0]  # [N_all, 5+nc]
+
         scale_x, scale_y = args.img_size / iw, args.img_size / ih
-
-        for out in raw[0] if isinstance(raw, (list, tuple)) else [raw]:
-            if out.dim() == 5:  # [1, na, H, W, 5+nc]
-                out = out.view(1, -1, 5 + num_classes)
-            # out: [1, N, 5+nc]
-            pred = out[0]  # [N, 5+nc]
-            obj_conf = pred[:, 4].sigmoid()
-            mask = obj_conf > args.conf
-            if mask.sum() == 0:
-                continue
-            pred = pred[mask]
-            # xywh (0~1 normalized to img_size) → xyxy in original pixel
-            xy   = pred[:, :2].sigmoid() * args.img_size
-            wh   = pred[:, 2:4].exp() * args.img_size
-            boxes_xyxy = torch.stack([
-                (xy[:,0]-wh[:,0]/2) / scale_x,
-                (xy[:,1]-wh[:,1]/2) / scale_y,
-                (xy[:,0]+wh[:,0]/2) / scale_x,
-                (xy[:,1]+wh[:,1]/2) / scale_y,
-            ], dim=1)
-            cls_probs = pred[:, 5:].sigmoid()  # [N, nc]
-            all_boxes.append(boxes_xyxy)
-            all_cls_probs.append(cls_probs)
-
-        if not all_boxes:
+        obj_conf = pred_all[:, 4]  # 이미 sigmoid 됨
+        mask = obj_conf > args.conf
+        if mask.sum() == 0:
             # teacher가 아무것도 못 잡으면 uniform soft label
             soft = np.full((len(cls_ids), num_classes), 1.0/num_classes, dtype=np.float32)
             np.save(out_path, soft)
             continue
 
-        pred_boxes  = torch.cat(all_boxes,    dim=0).to(device)
-        pred_probs  = torch.cat(all_cls_probs, dim=0).to(device)
-        gt_boxes    = gt_boxes.to(device)
+        pred_filt = pred_all[mask]  # [M, 5+nc]
+        cx, cy = pred_filt[:, 0], pred_filt[:, 1]
+        w,  h  = pred_filt[:, 2], pred_filt[:, 3]
+        pred_boxes = torch.stack([
+            (cx - w/2) / scale_x,
+            (cy - h/2) / scale_y,
+            (cx + w/2) / scale_x,
+            (cy + h/2) / scale_y,
+        ], dim=1)
+        pred_probs = pred_filt[:, 5:]  # [M, nc] 이미 sigmoid 됨
+        gt_boxes   = gt_boxes.to(device)
 
         # GT box마다 best IoU anchor의 class probs 추출
         iou = box_iou_xyxy(gt_boxes, pred_boxes)  # [N_gt, N_pred]
