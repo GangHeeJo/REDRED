@@ -26,20 +26,16 @@ Usage:
 """
 
 import argparse
-import json
 import time
 import sys
 import os
 import cv2
 import numpy as np
 from pathlib import Path
-from collections import defaultdict
-
 sys.path.insert(0, str(Path(__file__).parent))
 from run_pipeline import (
     load_model, infer_batch, open_videos, read_frames,
     video_duration, load_names, compute_per_class_cam_weights,
-    load_initial_inventory_from_file,
 )
 from multi_view_fusion import fuse
 from event_detector import Event
@@ -214,17 +210,18 @@ def crop_frames(frames, rois):
 
 def fuse_frames(model, nms_fn, frames, conf, iou, img_size, device, rois=None):
     """프레임 배치 YOLO → 5카메라 fusion → {cls_id: count}"""
-    inference_frames = crop_frames(frames, rois) if rois else frames
+    # rois가 전부 None이면 풀 프레임 그대로 사용
+    if rois and any(r is not None for r in rois):
+        inference_frames = crop_frames(frames, rois)
+    else:
+        inference_frames = frames
     per_cam = infer_batch(model, nms_fn, inference_frames, conf, iou, img_size, device)
     cam_w   = compute_per_class_cam_weights(per_cam)
     return fuse(per_cam, cam_weights=cam_w), per_cam
 
 
-def make_events(before_counts, after_counts, class_names, counter, committed):
-    """
-    before/after count 비교 → Event 리스트.
-    committed: {cls_id: int} — 현재까지의 확정 재고 (FP 필터용)
-    """
+def make_events(before_counts, after_counts, class_names, counter, frame_idx):
+    """before/after count 비교 → Event 리스트."""
     events = []
     all_cls = set(before_counts) | set(after_counts)
 
@@ -236,7 +233,6 @@ def make_events(before_counts, after_counts, class_names, counter, committed):
             continue
 
         action = "반환" if delta > 0 else "구매"
-        committed[cls_id] = a
         counter[0] += 1
         name = class_names[cls_id] if cls_id < len(class_names) else f"class_{cls_id}"
         events.append(Event(
@@ -246,7 +242,7 @@ def make_events(before_counts, after_counts, class_names, counter, committed):
             action     = action,
             before     = b,
             after      = a,
-            frame_idx  = -1,
+            frame_idx  = frame_idx,
         ))
     return events
 
@@ -266,8 +262,6 @@ def main():
                         help="프레임 차분 임계값 (기본 0.012)")
     parser.add_argument("--settle",    type=int,   default=SETTLE_FRAMES,
                         help="안정화 필요 프레임 수 (기본 25)")
-    parser.add_argument("--init_inv",  default=None,
-                        help='초기 재고 JSON {"0": 1, ...}')
     args = parser.parse_args()
 
     device = f"cuda:{args.device}" if args.device.isdigit() else args.device
@@ -282,14 +276,6 @@ def main():
     monitor = MultiCamDiffMonitor(n_cams,
                                   diff_area_thresh=args.diff_thresh,
                                   settle_frames=args.settle)
-
-    # 초기 재고
-    if args.init_inv:
-        committed = defaultdict(int,
-                                json.loads(args.init_inv) if args.init_inv.startswith("{")
-                                else load_initial_inventory_from_file(args.init_inv))
-    else:
-        committed = defaultdict(int)
 
     all_events = []
     counter    = [0]   # mutable int
@@ -309,6 +295,12 @@ def main():
 
         if result is not None:
             before_frames, after_frames, rois = result
+
+            # before_frames 가 전부 None이면 (영상 시작 직후 trigger) 건너뜀
+            if all(f is None for f in before_frames):
+                frame_idx += 1
+                continue
+
             yolo_calls += 2
             roi_used = sum(1 for r in rois if r is not None)
 
@@ -318,11 +310,11 @@ def main():
                                       args.conf, args.iou, args.img_size, device, rois)
 
             new_events = make_events(b_counts, a_counts, class_names,
-                                     counter, committed)
+                                     counter, frame_idx)
             all_events.extend(new_events)
 
             for ev in new_events:
-                print(f"  [Frame ~{frame_idx}] {ev.class_name}: {ev.action} "
+                print(f"  [Frame {frame_idx}] {ev.class_name}: {ev.action} "
                       f"({ev.before}->{ev.after})  ROI {roi_used}/5캠")
 
         frame_idx += 1
