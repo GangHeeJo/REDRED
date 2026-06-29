@@ -103,6 +103,13 @@ CLASS_CAM_WHITELIST: Dict[int, List[int]] = {
     54: [3],     # dove_white: 가장 지배적인 cam3만 (타이밍 22.5s 오차 개선 목적)
 }
 
+# class_id -> 강제 초기 재고. estimate_initial_inventory() 결과를 덮어씀.
+# 사용 사례: cam0가 init_frames(=30) window 밖에서 처음 감지를 시작하는 클래스 —
+#   추정 결과가 0이 되어 첫 감지 시 FP return이 발생하는 문제를 방지.
+CLASS_INIT_INVENTORY_OVERRIDE: Dict[int, int] = {
+    43: 1,  # campbells_chicken_noodle_soup: cam0가 raw frame 36부터 감지 → 추정=0 → FP return
+}
+
 
 def count_per_class(detections: DetectionList) -> Dict[int, float]:
     """Sum confidence scores per class as a soft count."""
