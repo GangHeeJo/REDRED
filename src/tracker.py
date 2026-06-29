@@ -96,13 +96,11 @@ class KalmanBoxTracker:
 
         self._s = np.array([cx, cy, w, h, 0., 0., 0., 0.])
         self.hits              = 1
-        self.age               = 0
         self.time_since_update = 0
 
     def predict(self):
         """Constant velocity 예측."""
         self._s[:4] += self._s[4:]
-        self.age += 1
         self.time_since_update += 1
         return self._get_bbox()
 
@@ -232,8 +230,7 @@ class ByteSort(Sort):
         # 호출되지 않은 track만 포함하므로 해당 인덱스의 predicted는 여전히 유효함
         unmatched_trk = [i for i in range(len(self.trackers)) if i not in matched_trk]
         if dets_low and unmatched_trk:
-            _, matched_trk_low = self._do_match(dets_low, predicted, unmatched_trk)
-            matched_trk |= matched_trk_low
+            self._do_match(dets_low, predicted, unmatched_trk)  # 매칭된 track 상태 업데이트만
 
         # 새 track: high-confidence 미매칭만 (low는 새 track 생성 안 함)
         for d_i, det in enumerate(dets_high):
