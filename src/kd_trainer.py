@@ -164,13 +164,18 @@ class KDDataset(torch.utils.data.Dataset):
 class KDTrainer(DetectionTrainer):
     """
     soft_label_dir와 KD 하이퍼파라미터를 받아 KD 학습을 수행.
+
+    ultralytics는 trainer(overrides=dict, _callbacks=...) 형태로 호출하므로
+    KD 전용 파라미터는 overrides dict에서 pop해서 꺼낸다.
     """
 
-    def __init__(self, soft_label_dir, alpha=0.5, tau=4.0, **kwargs):
-        self.soft_label_dir = Path(soft_label_dir).expanduser()
-        self.kd_alpha = alpha
-        self.kd_tau   = tau
-        super().__init__(**kwargs)
+    def __init__(self, cfg=None, overrides=None, _callbacks=None):
+        from ultralytics.cfg import DEFAULT_CFG
+        overrides = dict(overrides or {})
+        self.soft_label_dir = Path(overrides.pop("soft_label_dir", "~/Dataset/soft_labels")).expanduser()
+        self.kd_alpha = float(overrides.pop("kd_alpha", 0.5))
+        self.kd_tau   = float(overrides.pop("kd_tau", 4.0))
+        super().__init__(cfg=cfg or DEFAULT_CFG, overrides=overrides, _callbacks=_callbacks)
 
     def get_dataloader(self, dataset_path, batch_size, rank, mode):
         loader = super().get_dataloader(dataset_path, batch_size, rank, mode)
@@ -228,10 +233,10 @@ def train_kd(
         project=project,
         name=name,
         resume=resume,
-        # KDTrainer kwargs
+        # KDTrainer kwargs (overrides dict에서 pop됨)
         soft_label_dir=soft_label_dir,
-        alpha=alpha,
-        tau=tau,
+        kd_alpha=alpha,
+        kd_tau=tau,
         # standard hyperparams
         lr0=0.01,
         lrf=0.1,
