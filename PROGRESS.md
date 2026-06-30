@@ -823,6 +823,51 @@ output/debug_kd_clean_frame_counts.csv  ← 퓨전 후 프레임별 count (blip 
 
 ---
 
+## 2026-06-30 | Phase 28 — KD 모델 파라미터 튜닝 브랜치 테스트 (강희조)
+
+> 채점 영상 = 샘플 영상 동일 확인. 경진대회 평가 기준: **이벤트 순서(order F1) 기반** (이벤트 번호, 재고 수량, 총액 모두 순서에 종속).
+
+### 브랜치별 테스트 결과
+
+| 브랜치 | 변경 내용 | Count F1 | Order F1 | 판정 |
+|--------|----------|---------|---------|------|
+| main 기준선 | KD 모델 기본 | 96.7% | 91.1% | 기준 |
+| `feat/per-class-confirm` | per_class_confirm={8:60,28:60} | 97.7% | 91.1% | ✅ 채택 |
+| `feat/init-frames-60` | --init_frames 60 | 96.7% | 91.2% | ❌ 기각 (quaker FP 회귀) |
+| `feat/milano-confirm` | per_class_confirm={8:60,28:60,42:150} | 97.7% | 90.1% | ❌ 기각 (order 하락) |
+| `feat/hunts-confirm` | per_class_confirm={8:120,28:60} | 98.6% | 90.0% | ❌ 기각 (order 하락) |
+
+### 각 브랜치 기각 이유
+
+**feat/init-frames-60**: `--init_frames 60`으로 hersheys_cocoa init 개선 시도. quaker_big_chewy 초기재고 추정이 바뀌어 FP×2 회귀 발생. Count/Order 모두 기준선 이하.
+
+**feat/milano-confirm**: `per_class_confirm[42]=150`으로 milano 타이밍 수정 시도. 66.9s → 75.1s로 약간 지연됐으나 GT 115s까지 도달 못 함. Order F1 91.1% → 90.1% 하락.
+
+**feat/hunts-confirm**: `per_class_confirm[8]=120`으로 hunts FP×2 제거 성공 (Count 98.6%). 단 confirm 증가로 실제 hunts 이벤트 발화가 지연 → hunts return GT=50s→58s(+8s), purchase GT=118s→112s(-6s) 타이밍 오차 발생. Order F1 91.1% → 90.0% 하락. 경진대회 평가 기준(order)으로 불리.
+
+### 현재 KD 최고: feat/per-class-confirm (Order 91.1%)
+
+남은 FP 및 원인:
+- **cholula FP×1**: init_frames 중 cam3 NMS 이중검출 → initial=2 오추정 → 3.7s 구매 FP (GT 20s)
+- **hersheys_cocoa FP×1**: cam1 감지율 3% → initial=0 오추정 → 0→1 반환 FP
+- **campbells FN×1**: KD 모델 감지 불가 (모델 한계)
+- **milano 타이밍**: 반환 후 모델 미감지 → 66.9s 구매 FP (GT 115s), order F1 주요 저하 원인
+- **dove_white 타이밍**: 구매 GT=105s, Sub=78.5s (26.5s 조기 발화)
+
+### KD vs YOLOv7 비교
+
+| | KD feat/per-class-confirm | YOLOv7 Phase24 |
+|---|---|---|
+| Count F1 | 97.7% | 99.5% |
+| Order F1 | 91.1% | **98.6%** |
+| 추정 점수 | ~36.4/40 | **~39.4/40** |
+
+**YOLOv7 Phase24 (`output/submission_skip2.csv`)가 여전히 최고 제출 파일.**
+
+KD 모델의 Order F1 열세 주요 원인: milano/dove_white 등 특정 클래스 감지율이 YOLOv7보다 낮아 타이밍 오차 발생 → 모델 수준 개선 (hand occlusion 재학습) 없이는 파라미터로 해결 불가.
+
+---
+
 ## 실패한 시도 기록 (논문 기반)
 
 ### SeqNMS (2026-06-30) — `feat/seq-nms` 브랜치
