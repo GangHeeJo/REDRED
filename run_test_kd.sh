@@ -28,6 +28,8 @@ python src/run_pipeline.py \
     --device 0 \
     --use_tracker \
     --tracker_max_age 15 \
+    --init_frames 60 \
+    --per_class_confirm '{"8":60,"28":60}' \
     --debug_log output/debug_kd_frame_counts.csv \
     --timed_log output/sub_kd_events_timed.csv \
     --per_cam_log output/per_cam_kd_tuned.csv
