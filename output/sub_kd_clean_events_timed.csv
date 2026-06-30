@@ -1,5 +1,5 @@
 time_sec,class_name,action
-2.93,cholula_chipotle_hot_sauce,구매
+3.67,cholula_chipotle_hot_sauce,구매
 3.73,palmolive_orange,구매
 5.53,bulls_eye_bbq_sauce_original,구매
 7.2,spam,구매
@@ -10,10 +10,9 @@ time_sec,class_name,action
 14.2,frappuccino_coffee,구매
 15.73,hersheys_cocoa,구매
 18.93,redbull,구매
-19.47,dr_pepper,반환
 21.6,cholula_chipotle_hot_sauce,구매
 22.8,tapatio_hot_sauce,구매
-24.47,dr_pepper,구매
+25.0,dr_pepper,구매
 26.73,a1_steak_sauce,구매
 28.93,coca_cola_glass_bottle,구매
 31.67,aunt_jemima_original_syrup,구매
