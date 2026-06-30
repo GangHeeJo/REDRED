@@ -106,6 +106,9 @@ def load_model(weights: str, device: str):
       - YOLOv7: nms_fn = non_max_suppression
       - YOLO11:  nms_fn = None  (NMS는 ultralytics 내부 처리)
     """
+    if not os.path.exists(weights):
+        raise FileNotFoundError(f"Weights file not found: {weights}")
+
     try:
         ckpt = torch.load(weights, map_location="cpu")
         # ultralytics 체크포인트 구분: 'train_args' 또는 'version' 키 존재 시 YOLO11
