@@ -28,7 +28,7 @@ python src/run_pipeline.py \
     --device 0 \
     --use_tracker \
     --tracker_max_age 15 \
-    --no_tuning \
+    --quorum 2 \
     --debug_log output/debug_kd_clean_frame_counts.csv \
     --timed_log output/sub_kd_clean_events_timed.csv \
     --per_cam_log output/per_cam_kd_clean.csv

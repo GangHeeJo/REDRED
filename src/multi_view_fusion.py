@@ -1,72 +1,16 @@
 """
 Multi-view fusion: combine detections from up to 5 cameras per frame.
 
-Strategy: confidence-weighted voting per class.
-  - Each camera votes on how many items of each class are visible.
-  - Final count = weighted median of per-camera counts (robust to outlier cameras).
+Strategy:
+  1. Per-class occlusion detection: cameras that report 0 confidence for a
+     class while >=min_corroborate others report >0 are excluded (weight=0).
+  2. Global quorum vote: among remaining cameras, take the quorum-th highest
+     per-camera count. quorum=1 means any single camera suffices; quorum=2
+     means at least 2 must agree; quorum=3 ≈ old weighted-median behaviour.
 
-Alternative strategies are also provided for comparison.
-
-Per-class quorum override: weighted median requires a majority (3+/5) of
-cameras to agree simultaneously, which structurally floors the count to 0 for
-items only ever visible from a minority of camera angles -- regardless of how
-confidently those cameras detect it. bumblebee_albacore/dove_white/dove_pink
-were confirmed (2026-06-23, tools/probe_low_confidence.py) to never have 3+
-cameras agree even at production confidence (max 2/5), despite frequent
-high-confidence single/double-camera detections. These classes use a lower
-quorum (the N-th highest per-camera vote instead of the full median).
-
-bumblebee_albacore/dove_pink: quorum=1 (any single camera, i.e. max-across-
-cameras) -- clean in practice, no extra false positives observed.
-dove_white: quorum=2 (2026-06-23) -- quorum=1 alone caused 4 spurious
-duplicate events from single-camera noise blips (glare/reflection on the
-white soap reading as a brief false positive); dove_white does have genuine
-2-camera agreement (37% of frames when present), so requiring 2 keeps real
-events while filtering single-camera flicker.
-
-redbull/crystal_hot_sauce/dr_pepper: quorum=1 (2026-06-23, same probe tool,
-re-run after these 3 + campbells_chicken_noodle_soup showed up FN in
-ground_truth_v2 scoring). All three are detected continuously and cleanly
-from frame 0 up to right before their GT purchase time, but only by 1-2
-specific cameras the whole time (redbull: cam0 only; crystal_hot_sauce:
-cam3, occasionally +cam4; dr_pepper: cam4, joined by cam1 then briefly cam0
-near t=21-22s) -- never the 3/5 majority weighted-median needs, so the
-fused count was floored to 0 for the entire video and the purchase event
-(1->0) never had a baseline to drop from. No flicker observed in the
-single-camera signal for any of the three, so quorum=1 is not expected to
-introduce noise the way it did for dove_white.
-
-spam: quorum=2 (2026-06-24, probe3). Reaches max 3 simultaneous cameras at
-conf=0.05 with many 1-2 camera frames; quorum=2 recovers those windows and
-confirmed clean (no spurious events) in the follow-up run.
-
-pepperidge_farm_milano_cookies_double_chocolate: also reaches max 3 cameras,
-but quorum=2 caused 5x duplicate purchase+return events (fused count
-oscillating 1<->0 across 2-camera agreements). Reverted to default median.
-Needs a different fix (e.g. per-class CONFIRM_FRAMES or signal smoothing).
-
-haribo_gold_bears_gummi_candy/bulls_eye_bbq_sauce_original: NOT a quorum
-problem. haribo reaches 5/5 cameras simultaneously (mean_conf=0.739 at
-conf=0.05), bulls_eye reaches 5/5 cameras (max_conf=0.842). Quorum override
-would not fix them; their failures are due to event-detection timing or GPU
-non-determinism. Deliberately excluded.
-
-campbells_chicken_noodle_soup was probed at the same time and shows the
-identical low-camera-count signature pre-purchase, but cam4 keeps reporting
-it continuously for ~100s *after* its GT purchase time (11s) -- almost
-certainly confusion with the visually similar campbells_chunky_classic_-
-chicken_noodle rather than a quorum problem. Deliberately left out of the
-override here; needs a bbox-position check before touching its fusion.
-quorum=1 was tried (2026-06-26) but created 3 events (GT=1) due to an early
-false positive from init confusion + FP return when cam4 confusion ends.
-Reverted; leaving as FN until bbox filter is implemented.
-
-pepperidge_farm_milano_cookies_double_chocolate: quorum=2 previously caused
-4 events (GT=2) when tried alone (fused count oscillated 0<->1 repeatedly,
-each stable period long enough to clear CONFIRM_FRAMES=30). Added back with
-quorum=2 (2026-06-26), combined with per_class_confirm=45 in EventDetector
-(~4.5s stability required). confirm=90 fixed the count but made return fire
-49s late and purchase just outside ±3s; 45 is a middle ground.
+Tuning knobs (no class-specific overrides):
+  quorum          — cameras that must agree (default 2)
+  min_corroborate — others needed to confirm before excluding a camera (default 2)
 """
 
 from typing import List, Dict, Optional, Union
@@ -76,32 +20,6 @@ from collections import defaultdict
 
 DetectionList = List[Dict]   # [{class_id, confidence, bbox}, ...]
 
-# class_id -> minimum number of cameras that must agree for a class to be
-# fused via "N-th highest vote" instead of the full weighted median. See
-# module docstring for why each of these needs a lower quorum than the
-# camera-majority default.
-CLASS_QUORUM_OVERRIDE: Dict[int, int] = {
-    2:  2,   # bumblebee_albacore (2026-06-26: 1→2. quorum=1은 1대 오탐으로 purchase 14s 지연,
-              #   1대 선감지로 return 7.6s 조기 발화. 로컬 시뮬레이션: quorum=2로 둘 다 ±3s 내로 개선)
-    53: 1,   # dove_pink
-    54: 1,   # dove_white (2026-06-27: quorum=2→1, cam3 단독 화이트리스트로 노이즈 차단)
-    15: 1,   # redbull
-    39: 1,   # crystal_hot_sauce
-    21: 1,   # dr_pepper
-    29: 2,   # spam
-    42: 1,   # pepperidge_farm_milano (2026-06-27: cam3+cam4 화이트리스트, quorum=1)
-}
-
-# class_id -> 허용 카메라 인덱스 목록. 여기 없는 카메라의 감지는 퓨전에서 완전 제외.
-# per_cam_log 분석 결과 (2026-06-27):
-#   campbells(43): cam0=64fr, cam4=39fr — cam4가 campbells_chunky와 혼동, cam0만 사용
-#   milano(42): cam3=929fr, cam4=492fr, cam0=20fr(노이즈) — cam3+cam4만
-#   dove_white(54): cam3=614fr, cam2=311fr, cam4=184fr, cam0=1fr(노이즈) — cam3만(타이밍 개선 목적)
-CLASS_CAM_WHITELIST: Dict[int, List[int]] = {
-    43: [0],     # campbells_chicken_noodle_soup: cam4 chunky혼동 차단
-    42: [3, 4],  # pepperidge_farm_milano: 노이즈 cam0 제거
-    54: [3],     # dove_white: 가장 지배적인 cam3만 (타이밍 22.5s 오차 개선 목적)
-}
 
 def count_per_class(detections: DetectionList) -> Dict[int, float]:
     """Sum confidence scores per class as a soft count."""
@@ -121,70 +39,43 @@ def hard_count_per_class(detections: DetectionList) -> Dict[int, int]:
 def fuse_weighted_median(
     per_cam_detections: List[Optional[DetectionList]],
     cam_weights: Optional[Union[List[float], Dict[int, List[float]]]] = None,
-    class_quorum_override: Optional[Dict[int, int]] = None,
-    cam_whitelist: Optional[Dict[int, List[int]]] = None,
+    quorum: int = 2,
 ) -> Dict[int, int]:
     """
     per_cam_detections: one DetectionList per camera (None if camera offline).
-    cam_weights: importance of each camera (default: equal). Either a flat
-        list applied to every class, or a {class_id: [weight, ...]} dict for
-        per-class weights (see compute_cam_weights in run_pipeline.py --
-        a whole-frame confidence average dilutes a class-specific occlusion
-        signal when other classes in the same frame are unaffected, so
-        per-class weights target this much more precisely).
-    class_quorum_override: class_id -> minimum number of agreeing cameras,
-        fused via "quorum-th highest vote" instead of weighted median (see
-        module docstring). Defaults to CLASS_QUORUM_OVERRIDE.
+    cam_weights: cameras with weight=0 are excluded from voting. Either a flat
+        list (same for all classes) or {class_id: [w0,...]} from
+        compute_per_class_cam_weights() for automatic per-class occlusion detection.
+    quorum: take the quorum-th highest vote among active cameras.
     Returns final integer count per class.
     """
     active = [(i, d) for i, d in enumerate(per_cam_detections) if d is not None]
     if not active:
         return {}
 
-    default_weights = [1.0] * len(per_cam_detections)
+    n = len(per_cam_detections)
+    default_weights = [1.0] * n
     per_class_weights = isinstance(cam_weights, dict)
     if cam_weights is None:
         cam_weights = default_weights
-    if class_quorum_override is None:
-        class_quorum_override = CLASS_QUORUM_OVERRIDE
-    if cam_whitelist is None:
-        cam_whitelist = CLASS_CAM_WHITELIST
 
-    all_classes = set()
+    all_classes: set = set()
     for _, dets in active:
         all_classes.update(d["class_id"] for d in dets)
 
     result: Dict[int, int] = {}
     for cls_id in all_classes:
         cls_weights = cam_weights.get(cls_id, default_weights) if per_class_weights else cam_weights
-        whitelist = cam_whitelist.get(cls_id)
-        votes = []
-        weights = []
-        for cam_idx, dets in active:
-            if whitelist is not None and cam_idx not in whitelist:
-                continue
-            cnt = sum(1 for d in dets if d["class_id"] == cls_id)
-            votes.append(cnt)
-            weights.append(cls_weights[cam_idx])
-
+        votes = [
+            sum(1 for d in dets if d["class_id"] == cls_id)
+            for cam_idx, dets in active
+            if cls_weights[cam_idx] != 0.0
+        ]
         if not votes:
             continue
-
-        if cls_id in class_quorum_override:
-            quorum = class_quorum_override[cls_id]
-            sorted_desc = sorted(votes, reverse=True)
-            idx = min(quorum, len(sorted_desc)) - 1
-            result[cls_id] = sorted_desc[idx]
-            continue
-
-        # Weighted median
-        votes = np.array(votes, dtype=float)
-        weights = np.array(weights, dtype=float)
-        weights /= weights.sum()
-        sorted_idx = np.argsort(votes)
-        cumsum = np.cumsum(weights[sorted_idx])
-        median_val = votes[sorted_idx[np.searchsorted(cumsum, 0.5)]]
-        result[cls_id] = int(round(median_val))
+        sorted_desc = sorted(votes, reverse=True)
+        idx = min(quorum, len(sorted_desc)) - 1
+        result[cls_id] = sorted_desc[idx]
 
     return result
 
@@ -217,7 +108,6 @@ def fuse_majority_vote(
     result: Dict[int, int] = {}
     for cls_id in all_classes:
         counts = [sum(1 for d in dets if d["class_id"] == cls_id) for dets in active]
-        # Most common count
         result[cls_id] = max(set(counts), key=counts.count)
     return result
 

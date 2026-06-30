@@ -50,18 +50,11 @@ def load_initial_inventory_from_file(path: str) -> dict:
 
 
 def estimate_initial_inventory(caps, model, nms_fn, n_frames, conf, iou, img_size, device,
-                               cam_weight_excluded=None, no_tuning=False, fusion_kwargs=None) -> dict:
+                               quorum=2, min_corroborate=2, no_tuning=False) -> dict:
     """
     Run detection on the first n_frames, fuse per-camera counts each frame,
     then take the per-class median. Rewinds all caps to frame 0 when done.
-    cam_weight_excluded: per-class camera-weight 메커니즘에서 제외할 class_id set.
-        초기재고 추정에도 동일 occlusion-aware weight를 적용해서, 첫 ~1초에 일부
-        카메라에서 가려진 클래스가 median=0으로 잘못 추정되는 문제를 방지.
-        (미적용 시: 해당 클래스가 initial_inventory=0으로 잡혀 첫 감지 시 가짜
-         "반환(0->1)" 이벤트가 WINDOW_SIZE+CONFIRM_FRAMES 시점에 일제히 발화됨 --
-         Frame 112에서 white_rain/frappuccino/coca_cola 3개가 동시에 뜨던 원인.)
     """
-    cam_weight_excluded = cam_weight_excluded or set()
     counts_history: dict = defaultdict(list)
     for _ in range(n_frames):
         frames = read_frames(caps)
@@ -71,8 +64,8 @@ def estimate_initial_inventory(caps, model, nms_fn, n_frames, conf, iou, img_siz
         if no_tuning:
             cam_weights = None
         else:
-            cam_weights = compute_per_class_cam_weights(per_cam, exclude_class_ids=cam_weight_excluded)
-        fused = fuse(per_cam, cam_weights=cam_weights, **(fusion_kwargs or {}))
+            cam_weights = compute_per_class_cam_weights(per_cam, min_corroborate=min_corroborate)
+        fused = fuse(per_cam, cam_weights=cam_weights, quorum=quorum)
         for cls_id, cnt in fused.items():
             counts_history[cls_id].append(cnt)
 
@@ -236,10 +229,9 @@ def video_duration(video_paths):
 # 0: 왼쪽 앞  1: 오른쪽 앞  2: 위(top)  3: 오른쪽 뒤  4: 왼쪽 뒤
 
 _occlusion_stats = {"total": 0, "cams_excluded": 0}
-MIN_CORROBORATE = 2  # 카메라 제외에 필요한 corroborate 카메라 수
 
 
-def compute_cam_weights(per_cam_dets, class_id=None):
+def compute_cam_weights(per_cam_dets, class_id=None, min_corroborate=2):
     """
     class_id=None: 프레임 전체 평균 confidence로 occlusion 판단(레거시 동작).
     class_id=<int>: 그 클래스의 confidence만 사용 -- 같은 프레임의 무관한
@@ -279,7 +271,7 @@ def compute_cam_weights(per_cam_dets, class_id=None):
         if conf[i] > 0:
             continue
         others_nonzero = sum(1 for j in range(n) if j != i and conf[j] > 0)
-        if others_nonzero >= MIN_CORROBORATE:
+        if others_nonzero >= min_corroborate:
             weights[i] = 0.0
             _occlusion_stats["cams_excluded"] += 1
 
@@ -289,24 +281,17 @@ def compute_cam_weights(per_cam_dets, class_id=None):
 _DEFAULT_CAM_WEIGHTS = [1.0, 1.0, 1.5, 1.0, 1.0]
 
 
-def compute_per_class_cam_weights(per_cam_dets, exclude_class_ids=None):
+def compute_per_class_cam_weights(per_cam_dets, min_corroborate=2):
     """
-    프레임에 등장한 클래스마다 따로 occlusion weight 계산 (class_id -> weights).
-    exclude_class_ids: 이 메커니즘이 노이즈를 유발하는 것으로 확인된 클래스는
-        기본 weight를 그대로 둠(occlusion 계산 자체를 스킵). 2026-06-25,
-        pepperidge_farm_milano_cookies_double_chocolate가 그 사례 -- "정확히
-        2대만 보임"이 자주/불안정하게 나타나는 클래스라 MIN_CORROBORATE=2로
-        구제하면 median이 0<->1을 반복하며 과다발화함(GT=1 Sub=4). 신호부족으로
-        깨끗하게 미검출되는 게 노이즈성 과다발화보다 나음.
+    프레임에 등장한 클래스마다 자동으로 occlusion weight 계산 (class_id -> weights).
+    클래스 예외 없이 동일한 규칙 적용.
     """
-    exclude_class_ids = exclude_class_ids or set()
     class_ids = set()
     for dets in per_cam_dets:
         if dets:
             class_ids.update(d["class_id"] for d in dets)
     return {
-        cid: (list(_DEFAULT_CAM_WEIGHTS) if cid in exclude_class_ids
-              else compute_cam_weights(per_cam_dets, class_id=cid))
+        cid: compute_cam_weights(per_cam_dets, class_id=cid, min_corroborate=min_corroborate)
         for cid in class_ids
     }
 
@@ -348,30 +333,24 @@ def main():
                         help="트래커: 확정까지 필요한 연속 감지 횟수")
     parser.add_argument("--tracker_iou",      type=float, default=0.3,
                         help="트래커: 매칭 최소 IoU")
+    parser.add_argument("--quorum",        type=int, default=2,
+                        help="카메라 동의 쿼럼: quorum-th highest vote 적용 (1=단일카메라, 2=2대동의, 3=과반)")
+    parser.add_argument("--min_corroborate", type=int, default=2,
+                        help="occlusion weight 제외 기준: 이 수 이상의 다른 카메라가 감지해야 제외")
     parser.add_argument("--no_tuning",         action="store_true",
-                        help="Disable all YOLOv7-specific tuning: CLASS_QUORUM_OVERRIDE, "
-                             "CLASS_CAM_WHITELIST, and per-class occlusion cam weights")
+                        help="cam weights 비활성화 (uniform weights, quorum만 적용)")
     args = parser.parse_args()
 
     device = f"cuda:{args.device}" if args.device.isdigit() else args.device
 
-    _fusion_kwargs = ({"class_quorum_override": {}, "cam_whitelist": {}}
-                      if args.no_tuning else {})
     if args.no_tuning:
-        print("[no_tuning] CLASS_QUORUM_OVERRIDE, CLASS_CAM_WHITELIST, per-class cam weights disabled")
+        print(f"[no_tuning] cam weights disabled, quorum={args.quorum}")
 
     print("Loading model...")
     model, nms_fn = load_model(args.weights, device)
 
     class_names = load_names(args.names)
     prices      = load_prices(args.prices)
-
-    # pepperidge_farm_milano_cookies_double_chocolate: camera-weights 메커니즘이
-    # 노이즈성 과다발화를 유발하는 것으로 확인됨(compute_per_class_cam_weights
-    # docstring 참고) -- 기본 weight로 예외처리.
-    _milano_id = next((i for i, n in enumerate(class_names)
-                       if n == "pepperidge_farm_milano_cookies_double_chocolate"), None)
-    _cam_weight_excluded = {_milano_id} if _milano_id is not None else set()
 
     caps = open_videos(args.videos)
 
@@ -383,9 +362,9 @@ def main():
         initial_inventory = estimate_initial_inventory(
             caps, model, nms_fn, args.init_frames,
             args.conf, args.iou, args.img_size, device,
-            cam_weight_excluded=_cam_weight_excluded,
+            quorum=args.quorum,
+            min_corroborate=args.min_corroborate,
             no_tuning=args.no_tuning,
-            fusion_kwargs=_fusion_kwargs,
         )
         print(f"Initial inventory: {len(initial_inventory)} classes detected")
         print("Initial inventory detail:", {class_names[k]: v for k, v in initial_inventory.items()})
@@ -396,12 +375,7 @@ def main():
                           ensure_ascii=False, indent=2)
             print(f"Initial inventory dumped to {init_dump_path}")
 
-    _campbells_id = next((i for i, n in enumerate(class_names)
-                          if n == "campbells_chicken_noodle_soup"), None)
-    _per_class_confirm = {}
-
-    detector = EventDetector(class_names, initial_counts=initial_inventory,
-                             per_class_confirm=_per_class_confirm)
+    detector = EventDetector(class_names, initial_counts=initial_inventory)
     vid_len  = video_duration(args.videos)
 
     fps_cap = cv2.VideoCapture(args.videos[0])
@@ -476,10 +450,13 @@ def main():
                     per_cam_writer.writerow([frame_idx, cam_id, cls_id, class_names[cls_id], cnt])
 
         if args.no_tuning:
-            fused_counts = fuse(per_cam_dets, **_fusion_kwargs)
+            fused_counts = fuse(per_cam_dets, quorum=args.quorum)
         else:
-            fused_counts = fuse(per_cam_dets, cam_weights=compute_per_class_cam_weights(
-                per_cam_dets, exclude_class_ids=_cam_weight_excluded))
+            fused_counts = fuse(
+                per_cam_dets,
+                cam_weights=compute_per_class_cam_weights(per_cam_dets, args.min_corroborate),
+                quorum=args.quorum,
+            )
 
         if debug_writer is not None:
             for cls_id, cnt in fused_counts.items():
