@@ -294,17 +294,21 @@ def compute_cam_weights(per_cam_dets, class_id=None, min_corroborate=2):
 _DEFAULT_CAM_WEIGHTS = [1.0, 1.0, 1.5, 1.0, 1.0]
 
 
-def compute_per_class_cam_weights(per_cam_dets, min_corroborate=2):
+def compute_per_class_cam_weights(per_cam_dets, min_corroborate=2, exclude_class_ids=None):
     """
     프레임에 등장한 클래스마다 자동으로 occlusion weight 계산 (class_id -> weights).
-    클래스 예외 없이 동일한 규칙 적용.
+    exclude_class_ids: occlusion 메커니즘에서 제외할 class_id set (기본 균등 가중치 사용).
+    milano(42)는 제외 — cam-weight 메커니즘이 오히려 과다발화 유발 (Phase24 확인).
     """
+    exclude_class_ids = exclude_class_ids or set()
     class_ids = set()
     for dets in per_cam_dets:
         if dets:
             class_ids.update(d["class_id"] for d in dets)
+    default_weights = [1.0] * len(per_cam_dets)
     return {
-        cid: compute_cam_weights(per_cam_dets, class_id=cid, min_corroborate=min_corroborate)
+        cid: (default_weights if cid in exclude_class_ids
+              else compute_cam_weights(per_cam_dets, class_id=cid, min_corroborate=min_corroborate))
         for cid in class_ids
     }
 
@@ -376,6 +380,11 @@ def main():
 
     class_names = load_names(args.names)
     prices      = load_prices(args.prices)
+
+    # milano(42) 제외: cam-weight 메커니즘이 milano 과다발화 유발 (Phase24 확인)
+    _milano_id = next((i for i, n in enumerate(class_names)
+                       if "milano" in n.lower()), None)
+    _cam_weight_excluded = {_milano_id} if _milano_id is not None else set()
 
     caps = open_videos(args.videos)
 
@@ -489,7 +498,10 @@ def main():
         else:
             fused_counts = fuse(
                 per_cam_dets,
-                cam_weights=compute_per_class_cam_weights(per_cam_dets, args.min_corroborate),
+                cam_weights=compute_per_class_cam_weights(
+                    per_cam_dets, args.min_corroborate,
+                    exclude_class_ids=_cam_weight_excluded,
+                ),
                 quorum=args.quorum,
             )
 
