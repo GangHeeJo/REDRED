@@ -364,6 +364,10 @@ def main():
                         help="EventDetector 슬라이딩 윈도우 크기 (기본 15프레임)")
     parser.add_argument("--confirm_frames", type=int, default=30,
                         help="이벤트 확정까지 유지돼야 하는 프레임 수 (기본 30, skip=2 → 실제 60프레임≈2초)")
+    parser.add_argument("--ema",            action="store_true",
+                        help="sliding median 대신 EMA(지수이동평균)로 count 스무딩")
+    parser.add_argument("--ema_alpha",      type=float, default=0.3,
+                        help="EMA 스무딩 계수: 클수록 빠른 반응 / 작을수록 강한 스무딩 (기본 0.3)")
     args = parser.parse_args()
 
     device = f"cuda:{args.device}" if args.device.isdigit() else args.device
@@ -406,6 +410,8 @@ def main():
         initial_counts  = initial_inventory,
         window_size     = args.window_size,
         confirm_frames  = args.confirm_frames,
+        use_ema         = args.ema,
+        ema_alpha       = args.ema_alpha,
     )
     vid_len  = video_duration(args.videos)
 

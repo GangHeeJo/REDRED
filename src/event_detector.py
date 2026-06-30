@@ -81,6 +81,8 @@ class EventDetector:
         confirm_frames: int = CONFIRM_FRAMES,
         max_inventory:  int = MAX_INVENTORY,
         per_class_confirm: Optional[Dict[int, int]] = None,
+        use_ema:        bool = False,
+        ema_alpha:      float = 0.3,
     ):
         self.class_names    = class_names
         self.window_size    = window_size
@@ -88,15 +90,21 @@ class EventDetector:
         self.confirm_frames = confirm_frames
         self.max_inventory  = max_inventory
         self.per_class_confirm = per_class_confirm or {}
+        self.use_ema        = use_ema
+        self.ema_alpha      = ema_alpha
 
         self.all_events: List[Event] = []
         self._event_counter = 0
         self._frame_idx     = 0
 
-        # sliding window history per class
+        # sliding window history per class (median mode)
         self._history: Dict[int, deque] = defaultdict(
             lambda: deque(maxlen=self.window_size)
         )
+
+        # EMA values per class (ema mode)
+        self._ema_vals: Dict[int, float] = {}
+        self._ema_frames: Dict[int, int] = {}   # frames seen (warmup counter)
 
         # state machine per class: "stable" | "candidate"
         self._sm_state: Dict[int, str] = defaultdict(lambda: "stable")
@@ -112,6 +120,7 @@ class EventDetector:
             for cls_id, count in initial_counts.items():
                 self._sm_state[cls_id]  = "stable"
                 self._committed[cls_id] = count
+                self._ema_vals[cls_id]  = float(count)
 
     # -----------------------------------------------------------
     # Helpers
@@ -125,6 +134,19 @@ class EventDetector:
         if len(hist) < self.window_size:
             return None
         return round(statistics.median(hist))
+
+    def _ema(self, cls_id: int, raw_count: int) -> Optional[int]:
+        """EMA update: returns rounded EMA after min 3-frame warmup."""
+        α = self.ema_alpha
+        if cls_id not in self._ema_vals:
+            self._ema_vals[cls_id]  = float(raw_count)
+            self._ema_frames[cls_id] = 1
+            return None  # warmup
+        self._ema_vals[cls_id]   = α * raw_count + (1 - α) * self._ema_vals[cls_id]
+        self._ema_frames[cls_id] += 1
+        if self._ema_frames[cls_id] < 3:
+            return None  # warmup
+        return round(self._ema_vals[cls_id])
 
     # -----------------------------------------------------------
     # Main update
@@ -143,9 +165,13 @@ class EventDetector:
         all_classes = set(frame_counts.keys()) | set(self._committed.keys())
 
         for cls_id in all_classes:
-            self._history[cls_id].append(frame_counts.get(cls_id, 0))
+            raw = frame_counts.get(cls_id, 0)
+            self._history[cls_id].append(raw)
 
-            median = self._median(cls_id)
+            if self.use_ema:
+                median = self._ema(cls_id, raw)
+            else:
+                median = self._median(cls_id)
             if median is None:
                 continue
 
