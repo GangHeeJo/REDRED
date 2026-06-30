@@ -1,24 +1,26 @@
 """
-Event-Triggered Pipeline + ROI Crop (v2)
+Event-Triggered Pipeline + ROI Crop (v3)
 
 매 프레임 YOLO 대신:
   1. 프레임 차분으로 interaction 구간 감지 (YOLO 없이, 매우 빠름)
-  2. SETTLING 후 N_AFTER 안정 프레임에 YOLO → median count 계산
-  3. stable_counts(마지막 확인된 재고)와 비교 → 변화 있을 때만 이벤트
-  4. stable_counts 업데이트 → 다음 trigger와 비교
+  2. 구간 직전 N프레임(before_buffer) vs 직후 N프레임(after_buffer) median 비교
+  3. delta 있는 클래스만 이벤트
 
-stable_counts 기반 비교의 장점:
-  - 한 인터랙션에서 trigger가 여러 번 와도 첫 번째 이후엔 delta=0 → 중복 이벤트 없음
-  - cooldown 같은 영상 특화 파라미터 불필요
-  - N프레임 median으로 YOLO 단일 프레임 노이즈 제거
+v3 핵심 설계:
+  - trigger마다 자체 완결된 before/after 비교 (전역 상태 없음)
+  - before_buffer: IDLE 중 최근 N_BEFORE 프레임 rolling buffer
+  - after_buffer: SETTLING 중 수집된 안정 프레임
+  - 양쪽 N프레임 median → 단일 프레임 YOLO 노이즈 제거
+  - 같은 인터랙션에서 두 번째 trigger:
+      before_buffer = 직전 trigger의 after 상태 (IDLE에서 갱신됨)
+      after_buffer = 동일 상태 → delta=0 → 이벤트 없음 (자연 중복 차단)
 
 Usage:
     python src/run_event_triggered.py \
         --videos cam0.mp4 cam1.mp4 cam2.mp4 cam3.mp4 cam4.mp4 \
         --weights ~/runs/kd/yolo11m_kd_0630_0036/weights/best.pt \
-        --names   data/names.txt \
-        --prices  data/prices.csv \
-        --out     output/submission_et.csv
+        --names data/names.txt --prices data/prices.csv \
+        --out output/submission_et.csv
 """
 
 import argparse
@@ -27,6 +29,7 @@ import sys
 import os
 import cv2
 import numpy as np
+from collections import deque
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from run_pipeline import (
@@ -39,34 +42,31 @@ from csv_generator import load_prices, events_to_csv
 
 
 # ── 차분 파라미터 ─────────────────────────────────────────────────
-DIFF_PIXEL_THRESH      = 25     # absdiff 픽셀값 임계값
-DIFF_AREA_THRESH       = 0.012  # 전체 픽셀의 N% 이상 변하면 interaction
-SETTLE_FRAMES          = 25     # 조용한 프레임 수 → after 확정
-MAX_INTERACTION_FRAMES = 300    # 이 이상 지속되면 강제 리셋
+DIFF_PIXEL_THRESH      = 25
+DIFF_AREA_THRESH       = 0.012
+SETTLE_FRAMES          = 25
+MAX_INTERACTION_FRAMES = 300
 ROI_PAD                = 0.20
 ROI_MIN_AREA           = 0.02
 ROI_MAX_AREA           = 0.80
 
-N_AFTER      = 5   # after 카운트 median에 사용할 안정 프레임 수
-INIT_FRAMES  = 5   # 초기 stable_counts 추정에 사용할 프레임 수
+N_BEFORE = 5   # IDLE 중 유지할 before rolling buffer 크기
+N_AFTER  = 5   # SETTLING 중 사용할 after 프레임 수
 
 
 class MultiCamDiffMonitor:
     """
-    5카메라 차분 감시 state machine.
+    State machine: IDLE → ACTIVE → SETTLING → (trigger) → IDLE
 
-    States: IDLE → ACTIVE → SETTLING → (trigger) → IDLE
-
-    trigger 반환값: (after_frames_list, rois)
-      after_frames_list: SETTLING 중 수집한 안정 프레임 리스트 (각 원소 = 5카메라 프레임셋)
-      rois: 카메라별 ROI (변화 영역)
-
-    before 개념 없음. 호출자가 stable_counts를 유지.
+    trigger 반환값: (before_sample, after_sample, rois)
+      before_sample: IDLE 중 수집한 최근 N_BEFORE 프레임셋 리스트
+      after_sample:  SETTLING 중 수집한 안정 프레임셋 리스트 (마지막 N_AFTER개)
     """
 
     def __init__(self, n_cams,
                  diff_area_thresh=DIFF_AREA_THRESH,
-                 settle_frames=SETTLE_FRAMES):
+                 settle_frames=SETTLE_FRAMES,
+                 n_before=N_BEFORE):
         self.n_cams           = n_cams
         self.diff_area_thresh = diff_area_thresh
         self.settle_frames    = settle_frames
@@ -76,7 +76,9 @@ class MultiCamDiffMonitor:
         self.settle_count  = 0
         self.active_frames = 0
         self.accum_diff    = [None] * n_cams
-        self.after_buffer  = []   # SETTLING 중 수집한 프레임셋
+        self.after_buffer  = []
+        # rolling buffer of stable frames (updated only in IDLE)
+        self.before_buffer = deque(maxlen=n_before)
 
     def _compute_roi(self, accum, img_h, img_w):
         if accum is None:
@@ -100,8 +102,8 @@ class MultiCamDiffMonitor:
     def update(self, frames):
         """
         Returns:
-          None                        — 이벤트 없음
-          (after_frames_list, rois)   — YOLO 추론할 after 프레임셋 + ROI
+          None                              — 이벤트 없음
+          (before_sample, after_sample, rois) — YOLO 비교용 프레임셋 + ROI
         """
         grays = []
         for f in frames:
@@ -112,8 +114,7 @@ class MultiCamDiffMonitor:
                 g = cv2.GaussianBlur(g, (5, 5), 0)
                 grays.append(g)
 
-        diffs = []
-        motions = []
+        diffs, motions = [], []
         for i in range(self.n_cams):
             if grays[i] is not None and self.prev_grays[i] is not None:
                 d = cv2.absdiff(grays[i], self.prev_grays[i])
@@ -141,6 +142,8 @@ class MultiCamDiffMonitor:
                     self.accum_diff[i] = np.maximum(self.accum_diff[i], d)
 
         if self.state == "IDLE":
+            # IDLE: before_buffer 갱신
+            self.before_buffer.append([f.copy() if f is not None else None for f in frames])
             if max_motion > self.diff_area_thresh:
                 self.state = "ACTIVE"
                 self.active_frames = 1
@@ -163,7 +166,6 @@ class MultiCamDiffMonitor:
 
         elif self.state == "SETTLING":
             if max_motion > self.diff_area_thresh:
-                # 다시 움직임 → ACTIVE 복귀, after_buffer 리셋
                 self.state = "ACTIVE"
                 self.settle_count = 0
                 self.after_buffer = []
@@ -172,8 +174,8 @@ class MultiCamDiffMonitor:
                 self.settle_count += 1
                 self.after_buffer.append([f.copy() if f is not None else None for f in frames])
                 if self.settle_count >= self.settle_frames:
-                    # after_buffer 마지막 N_AFTER 프레임셋 사용 (가장 안정된 구간)
-                    after_sample = self.after_buffer[-N_AFTER:]
+                    before_sample = list(self.before_buffer)
+                    after_sample  = self.after_buffer[-N_AFTER:]
                     rois = []
                     for i, f in enumerate(frames):
                         if f is not None:
@@ -186,7 +188,8 @@ class MultiCamDiffMonitor:
                     self.active_frames = 0
                     self.accum_diff    = [None] * self.n_cams
                     self.after_buffer  = []
-                    trigger = (after_sample, rois)
+                    if before_sample:
+                        trigger = (before_sample, after_sample, rois)
 
         return trigger
 
@@ -204,7 +207,6 @@ def crop_frames(frames, rois):
 
 def fuse_frames(model, nms_fn, frames, conf, iou, img_size, device,
                 rois=None, quorum=2, min_corroborate=2):
-    """단일 프레임셋 YOLO → fusion → {cls_id: count}"""
     if rois and any(r is not None for r in rois):
         inference_frames = crop_frames(frames, rois)
     else:
@@ -216,17 +218,17 @@ def fuse_frames(model, nms_fn, frames, conf, iou, img_size, device,
 
 def fuse_frames_multi(model, nms_fn, frames_list, conf, iou, img_size, device,
                       rois=None, quorum=2, min_corroborate=2):
-    """여러 프레임셋에 YOLO 추론 후 class별 median count 반환."""
+    """여러 프레임셋 YOLO 추론 후 class별 median count 반환."""
     all_counts = []
     for frames in frames_list:
         counts, _ = fuse_frames(model, nms_fn, frames, conf, iou, img_size, device,
                                 rois, quorum, min_corroborate)
         all_counts.append(counts)
-
+    if not all_counts:
+        return {}
     all_cls = set()
     for c in all_counts:
         all_cls.update(c.keys())
-
     median_counts = {}
     for cls_id in all_cls:
         vals = sorted(c.get(cls_id, 0) for c in all_counts)
@@ -234,12 +236,11 @@ def fuse_frames_multi(model, nms_fn, frames_list, conf, iou, img_size, device,
     return median_counts
 
 
-def make_events(stable_counts, after_counts, class_names, counter, frame_idx):
-    """stable_counts vs after_counts 비교 → Event 리스트."""
+def make_events(before_counts, after_counts, class_names, counter, frame_idx):
     events = []
-    all_cls = set(stable_counts) | set(after_counts)
+    all_cls = set(before_counts) | set(after_counts)
     for cls_id in all_cls:
-        b = stable_counts.get(cls_id, 0)
+        b = before_counts.get(cls_id, 0)
         a = after_counts.get(cls_id, 0)
         delta = a - b
         if delta == 0 or not (1 <= abs(delta) <= 4):
@@ -272,8 +273,10 @@ def main():
     parser.add_argument("--device",    default="0")
     parser.add_argument("--diff_thresh",     type=float, default=DIFF_AREA_THRESH)
     parser.add_argument("--settle",          type=int,   default=SETTLE_FRAMES)
+    parser.add_argument("--n_before",        type=int,   default=N_BEFORE,
+                        help="before median 프레임 수 (기본 5)")
     parser.add_argument("--n_after",         type=int,   default=N_AFTER,
-                        help="after median에 사용할 안정 프레임 수 (기본 5)")
+                        help="after median 프레임 수 (기본 5)")
     parser.add_argument("--quorum",          type=int,   default=2)
     parser.add_argument("--min_corroborate", type=int,   default=2)
     parser.add_argument("--timed_log",       default=None)
@@ -293,31 +296,15 @@ def main():
     fps = fps_cap.get(cv2.CAP_PROP_FPS) or 30
     fps_cap.release()
 
-    # ── 초기 stable_counts 추정 ───────────────────────────────────
-    print(f"초기 재고 추정 중 (첫 {INIT_FRAMES}프레임)...")
     monitor = MultiCamDiffMonitor(n_cams,
                                   diff_area_thresh=args.diff_thresh,
-                                  settle_frames=args.settle)
-    init_buffer = []
-    while len(init_buffer) < INIT_FRAMES:
-        frames = read_frames(caps)
-        if all(f is None for f in frames):
-            break
-        init_buffer.append(frames)
-        monitor.update(frames)
+                                  settle_frames=args.settle,
+                                  n_before=args.n_before)
 
-    stable_counts = fuse_frames_multi(
-        model, nms_fn, init_buffer,
-        args.conf, args.iou, args.img_size, device,
-        quorum=args.quorum, min_corroborate=args.min_corroborate,
-    )
-    print(f"초기 재고: {len(stable_counts)}종 감지됨")
-
-    # ── 메인 루프 ─────────────────────────────────────────────────
     all_events = []
     counter    = [0]
-    frame_idx  = INIT_FRAMES
-    yolo_calls = INIT_FRAMES
+    frame_idx  = 0
+    yolo_calls = 0
     t_start    = time.time()
 
     timed_writer = None
@@ -328,7 +315,8 @@ def main():
         timed_writer = _csv.writer(timed_file)
         timed_writer.writerow(["time_sec", "class_name", "action"])
 
-    print(f"처리 시작... diff_thresh={args.diff_thresh}  settle={args.settle}fr  n_after={args.n_after}\n")
+    print(f"처리 시작... diff_thresh={args.diff_thresh}  settle={args.settle}fr  "
+          f"n_before={args.n_before}  n_after={args.n_after}\n")
 
     while True:
         frames = read_frames(caps)
@@ -338,25 +326,24 @@ def main():
         result = monitor.update(frames)
 
         if result is not None:
-            after_sample, rois = result
+            before_sample, after_sample, rois = result
             roi_used = sum(1 for r in rois if r is not None)
 
-            # N프레임 median → after_counts
-            sample = after_sample[-args.n_after:]
-            after_counts = fuse_frames_multi(
-                model, nms_fn, sample,
+            before_counts = fuse_frames_multi(
+                model, nms_fn, before_sample,
                 args.conf, args.iou, args.img_size, device,
                 rois, args.quorum, args.min_corroborate,
             )
-            yolo_calls += len(sample)
+            after_counts = fuse_frames_multi(
+                model, nms_fn, after_sample,
+                args.conf, args.iou, args.img_size, device,
+                rois, args.quorum, args.min_corroborate,
+            )
+            yolo_calls += len(before_sample) + len(after_sample)
 
-            # stable_counts와 비교 → 이벤트
-            new_events = make_events(stable_counts, after_counts,
+            new_events = make_events(before_counts, after_counts,
                                      class_names, counter, frame_idx)
             all_events.extend(new_events)
-
-            # stable_counts 업데이트 (다음 trigger의 before 역할)
-            stable_counts = dict(after_counts)
 
             for ev in new_events:
                 t_sec = round(frame_idx / fps, 2)

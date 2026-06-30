@@ -1,12 +1,15 @@
 #!/bin/bash
-# Event-Triggered 파이프라인 테스트
+# Event-Triggered 파이프라인 v3 테스트
+# v3: trigger마다 before(N장 median) vs after(N장 median) 자체 비교
+#     stable_counts 전역 상태 없음 → 오류 누적 차단
 # Usage: bash run_test_et.sh [weights_path]
 
 WEIGHTS=${1:-~/runs/kd/yolo11m_kd_0630_0036/weights/best.pt}
 
 echo "=============================="
-echo " Event-Triggered Pipeline"
+echo " Event-Triggered Pipeline v3"
 echo " weights: $WEIGHTS"
+echo " n_before=5  n_after=5"
 echo "=============================="
 
 python src/run_event_triggered.py \
@@ -22,6 +25,8 @@ python src/run_event_triggered.py \
     --conf 0.4 \
     --device 0 \
     --quorum 2 \
+    --n_before 5 \
+    --n_after 5 \
     --timed_log output/sub_et_timed.csv
 
 if [ $? -eq 0 ]; then
