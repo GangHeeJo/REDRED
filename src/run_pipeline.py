@@ -49,34 +49,6 @@ def load_initial_inventory_from_file(path: str) -> dict:
     return {int(k): int(v) for k, v in raw.items()}
 
 
-def _box_iou(a, b):
-    ax1, ay1, ax2, ay2 = a
-    bx1, by1, bx2, by2 = b
-    ix1, iy1 = max(ax1, bx1), max(ay1, by1)
-    ix2, iy2 = min(ax2, bx2), min(ay2, by2)
-    inter = max(0.0, ix2 - ix1) * max(0.0, iy2 - iy1)
-    if inter == 0.0:
-        return 0.0
-    return inter / ((ax2-ax1)*(ay2-ay1) + (bx2-bx1)*(by2-by1) - inter)
-
-
-def _dedup_cam_dets(dets, iou_thresh=0.5):
-    """같은 클래스 내 IoU가 높은 중복 bbox 제거 (confidence 높은 것 우선 유지).
-    tracker 없이 init phase에서 NMS 이중검출 억제용."""
-    if not dets:
-        return dets
-    by_class: dict = defaultdict(list)
-    for d in dets:
-        by_class[d["class_id"]].append(d)
-    result = []
-    for cls_dets in by_class.values():
-        kept = []
-        for d in sorted(cls_dets, key=lambda x: -x["confidence"]):
-            if not any(_box_iou(d["bbox"], k["bbox"]) > iou_thresh for k in kept):
-                kept.append(d)
-        result.extend(kept)
-    return result
-
 
 def estimate_initial_inventory(caps, model, nms_fn, n_frames, conf, iou, img_size, device,
                                quorum=2, min_corroborate=2, no_tuning=False,
@@ -97,7 +69,6 @@ def estimate_initial_inventory(caps, model, nms_fn, n_frames, conf, iou, img_siz
         if all(f is None for f in frames):
             break
         per_cam = infer_batch(model, nms_fn, frames, conf, iou, img_size, device)
-        per_cam = [_dedup_cam_dets(d) if d is not None else None for d in per_cam]
         if no_tuning:
             cam_weights = None
         else:
@@ -358,8 +329,6 @@ def main():
                         help="Process every Nth frame (speed vs accuracy)")
     parser.add_argument("--init_inv",   default=None,
                         help="JSON file with initial inventory {\"class_id\": count}")
-    parser.add_argument("--init_inv_override", type=str, default=None,
-                        help='자동추정 후 특정 클래스 재고 강제지정 JSON (예: \'{"43":1}\')')
     parser.add_argument("--init_frames", type=int, default=30,
                         help="Frames to sample for auto initial inventory (if --init_inv not set)")
     parser.add_argument("--init_min_detections", type=int, default=1,
@@ -437,17 +406,6 @@ def main():
         )
         print(f"Initial inventory: {len(initial_inventory)} classes detected")
         print("Initial inventory detail:", {class_names[k]: v for k, v in initial_inventory.items()})
-
-    if args.init_inv_override:
-        overrides = {int(k): int(v) for k, v in json.loads(args.init_inv_override).items()}
-        initial_inventory.update(overrides)
-        print(f"init_inv_override applied: { {class_names[k]: v for k, v in overrides.items()} }")
-        if args.debug_log:
-            init_dump_path = os.path.splitext(args.debug_log)[0] + "_initial_inventory.json"
-            with open(init_dump_path, "w", encoding="utf-8") as f:
-                json.dump({class_names[k]: v for k, v in initial_inventory.items()}, f,
-                          ensure_ascii=False, indent=2)
-            print(f"Initial inventory dumped to {init_dump_path}")
 
     per_class_confirm = {}
     if args.per_class_confirm:
