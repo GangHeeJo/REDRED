@@ -28,26 +28,34 @@ from collections import defaultdict
 # quorum=1: 1대 카메라만 감지해도 인정 (1~2대에서만 보이는 상품)
 # quorum=3: 3대 이상 동의해야 인정 (중복 발화되는 상품)
 CLASS_QUORUM_OVERRIDE: Dict[int, int] = {
-    # ── FN 방지 (1~2대에서만 보이는 상품) ──
-    5:  1,   # hersheys_cocoa
-    14: 1,   # hersheys_bar
-    15: 1,   # redbull
-    23: 1,   # bulls_eye_bbq_sauce_original
-    38: 1,   # palmolive_orange
-    39: 1,   # crystal_hot_sauce
-    43: 1,   # campbells_chicken_noodle_soup
-    # ── FP 억제 (2대 기준에서 중복 발화) ──
-    3:  3,   # cholula_chipotle_hot_sauce
-    8:  3,   # hunts_sauce
-    21: 4,   # dr_pepper  (quorum=3에서도 spurious return → 4대 동의 필요)
+    # ── 1대 전용 카메라 (whitelist 1대 → quorum=1 고정) ──
+    5:  1,   # hersheys_cocoa       → whitelist=[1]
+    14: 1,   # hersheys_bar         → whitelist=[3]
+    15: 1,   # redbull              → whitelist=[0]
+    21: 1,   # dr_pepper            → whitelist=[4]
+    23: 1,   # bulls_eye_bbq        → whitelist=[3]
+    38: 1,   # palmolive_orange     → whitelist=[3]
+    39: 1,   # crystal_hot_sauce    → whitelist=[3]
+    # ── 2대 whitelist → quorum=2 (두 카메라 모두 동의) ──
+    3:  2,   # cholula              → whitelist=[3,4]
+    8:  2,   # hunts_sauce          → whitelist=[0,3]
+    # ── 5대 모두 보임 → quorum=3 유지 ──
     28: 3,   # quaker_big_chewy_chocolate_chip
+    # campbells_chicken_noodle_soup(43): 모델이 전혀 검출 안 함 → 파이프라인 불가
 }
 
-# ── 클래스별 카메라 화이트리스트 ──────────────────────────────────────
-# 특정 클래스를 볼 수 있는 카메라 목록만 지정 (나머지 weight=0)
-# per_cam_log 분석 후 채워 넣기
+# ── 클래스별 카메라 화이트리스트 (per_cam_log 분석 기반) ─────────────
+# cam layout: 0=왼앞  1=오른앞  2=위(top)  3=오른뒤  4=왼뒤
 CLASS_CAM_WHITELIST: Dict[int, List[int]] = {
-    # 예시: 42: [0, 1, 2]  # pepperidge_farm_milano — 앞쪽 3대만 보임
+    3:  [3, 4],  # cholula       cam3(9%), cam4(8.4%)
+    5:  [1],     # hersheys_cocoa  cam1(3%)만 검출
+    8:  [0, 3],  # hunts_sauce   cam0(30%), cam3(26%)
+    14: [3],     # hersheys_bar  cam3(6.4%)만
+    15: [0],     # redbull       cam0(7.1%)만
+    21: [4],     # dr_pepper     cam4(9.9%) 주도
+    23: [3],     # bulls_eye_bbq cam3(1.1%)만
+    38: [3],     # palmolive     cam3(0.5%)만
+    39: [3],     # crystal_hot   cam3(3.6%)만
 }
 
 
