@@ -331,8 +331,12 @@ def main():
                         help="트래커: 미감지 허용 최대 프레임 수 (A/B 테스트: 15 최적)")
     parser.add_argument("--tracker_min_hits", type=int, default=3,
                         help="트래커: 확정까지 필요한 연속 감지 횟수")
-    parser.add_argument("--tracker_iou",      type=float, default=0.3,
+    parser.add_argument("--tracker_iou",       type=float, default=0.3,
                         help="트래커: 매칭 최소 IoU")
+    parser.add_argument("--tracker_type",      type=str,   default="sort",
+                        help="트래커 종류: sort | bytetrack")
+    parser.add_argument("--tracker_high_thresh", type=float, default=0.6,
+                        help="ByteSort 전용: stage 1/2 분기 confidence 기준")
     parser.add_argument("--quorum",        type=int, default=2,
                         help="카메라 동의 쿼럼: quorum-th highest vote 적용 (1=단일카메라, 2=2대동의, 3=과반)")
     parser.add_argument("--min_corroborate", type=int, default=2,
@@ -389,9 +393,13 @@ def main():
             max_age=args.tracker_max_age,
             min_hits=args.tracker_min_hits,
             iou_threshold=args.tracker_iou,
+            tracker_type=args.tracker_type,
+            high_thresh=args.tracker_high_thresh,
         )
-        print(f"SORT 트래커 활성화 (max_age={args.tracker_max_age}, "
-              f"min_hits={args.tracker_min_hits}, iou={args.tracker_iou})")
+        print(f"{args.tracker_type.upper()} 트래커 활성화 (max_age={args.tracker_max_age}, "
+              f"min_hits={args.tracker_min_hits}, iou={args.tracker_iou}"
+              + (f", high_thresh={args.tracker_high_thresh}" if args.tracker_type == "bytetrack" else "")
+              + ")")
     else:
         print("카운팅 방식 사용 (--use_tracker로 트래커 활성화 가능)")
 
