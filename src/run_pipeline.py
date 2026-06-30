@@ -367,6 +367,8 @@ def main():
     # Tracker 옵션
     parser.add_argument("--model_type", default="yolov7", choices=["yolov7", "yolo11"],
                         help="모델 종류 (yolov7|yolo11). yolo11은 ultralytics 사용")
+    parser.add_argument("--simam", action="store_true",
+                        help="YOLO11 모델에 SimAM forward hook 적용 (재학습 불필요)")
     parser.add_argument("--use_tracker",      action="store_true",
                         help="SORT 트래커 활성화 (--use_tracker 없으면 기존 카운팅 방식)")
     parser.add_argument("--tracker_max_age",  type=int, default=15,
@@ -381,8 +383,11 @@ def main():
 
     print("Loading model...")
     if args.model_type == "yolo11":
-        import patch_ultralytics  # noqa: F401 — SimAM 등 custom 모듈 등록
         model = load_model_yolo11(args.weights, device)
+        if args.simam:
+            from patch_ultralytics import apply_simam_hooks
+            apply_simam_hooks(model)
+            print("SimAM hooks applied (P3/P4/P5, parameter-free)")
         infer_fn = lambda frames: infer_batch_yolo11(
             model, frames, args.conf, args.iou, args.img_size, device)
     else:
