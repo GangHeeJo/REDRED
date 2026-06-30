@@ -4,18 +4,48 @@ Multi-view fusion: combine detections from up to 5 cameras per frame.
 Strategy:
   1. Per-class occlusion detection: cameras that report 0 confidence for a
      class while >=min_corroborate others report >0 are excluded (weight=0).
-  2. Global quorum vote: among remaining cameras, take the quorum-th highest
-     per-camera count. quorum=1 means any single camera suffices; quorum=2
-     means at least 2 must agree; quorum=3 ≈ old weighted-median behaviour.
+  2. Quorum vote: among remaining cameras, take the quorum-th highest
+     per-camera count. CLASS_QUORUM_OVERRIDE allows per-class override.
+  3. CLASS_CAM_WHITELIST: restrict which cameras vote for specific classes.
 
-Tuning knobs (no class-specific overrides):
-  quorum          — cameras that must agree (default 2)
-  min_corroborate — others needed to confirm before excluding a camera (default 2)
+Tuning knobs:
+  quorum              — global default (default 2)
+  min_corroborate     — occlusion exclusion threshold (default 2)
+  CLASS_QUORUM_OVERRIDE — {class_id: quorum} overrides global quorum per class
+  CLASS_CAM_WHITELIST   — {class_id: [cam_ids]} restricts voting cameras
+
+Camera layout:  0=왼앞  1=오른앞  2=위(top)  3=오른뒤  4=왼뒤
 """
 
 from typing import List, Dict, Optional, Union
 import numpy as np
 from collections import defaultdict
+
+
+# ── 클래스별 quorum 오버라이드 ────────────────────────────────────────
+# 기본값(global quorum=2)에서 벗어나야 하는 클래스만 등록
+#
+# quorum=1: 1대 카메라만 감지해도 인정 (1~2대에서만 보이는 상품)
+# quorum=3: 3대 이상 동의해야 인정 (중복 발화되는 상품)
+CLASS_QUORUM_OVERRIDE: Dict[int, int] = {
+    # ── FN 방지 (2대 동의 기준에서 놓침) ──
+    5:  1,   # hersheys_cocoa
+    14: 1,   # hersheys_bar
+    38: 1,   # palmolive_orange
+    39: 1,   # crystal_hot_sauce
+    # ── FP 억제 (2대 동의 기준에서 중복 발화) ──
+    3:  3,   # cholula_chipotle_hot_sauce
+    8:  3,   # hunts_sauce
+    21: 3,   # dr_pepper
+    28: 3,   # quaker_big_chewy_chocolate_chip
+}
+
+# ── 클래스별 카메라 화이트리스트 ──────────────────────────────────────
+# 특정 클래스를 볼 수 있는 카메라 목록만 지정 (나머지 weight=0)
+# per_cam_log 분석 후 채워 넣기
+CLASS_CAM_WHITELIST: Dict[int, List[int]] = {
+    # 예시: 42: [0, 1, 2]  # pepperidge_farm_milano — 앞쪽 3대만 보임
+}
 
 
 DetectionList = List[Dict]   # [{class_id, confidence, bbox}, ...]
@@ -46,7 +76,8 @@ def fuse_weighted_median(
     cam_weights: cameras with weight=0 are excluded from voting. Either a flat
         list (same for all classes) or {class_id: [w0,...]} from
         compute_per_class_cam_weights() for automatic per-class occlusion detection.
-    quorum: take the quorum-th highest vote among active cameras.
+    quorum: global default. CLASS_QUORUM_OVERRIDE takes precedence per class.
+    CLASS_CAM_WHITELIST: non-whitelisted cameras get weight=0 for that class.
     Returns final integer count per class.
     """
     active = [(i, d) for i, d in enumerate(per_cam_detections) if d is not None]
@@ -65,7 +96,17 @@ def fuse_weighted_median(
 
     result: Dict[int, int] = {}
     for cls_id in all_classes:
-        cls_weights = cam_weights.get(cls_id, default_weights) if per_class_weights else cam_weights
+        cls_quorum = CLASS_QUORUM_OVERRIDE.get(cls_id, quorum)
+        cls_weights = list(
+            cam_weights.get(cls_id, default_weights) if per_class_weights else cam_weights
+        )
+
+        # Apply cam whitelist: zero out cameras not in the whitelist
+        if cls_id in CLASS_CAM_WHITELIST:
+            whitelist = CLASS_CAM_WHITELIST[cls_id]
+            cls_weights = [w if cam_idx in whitelist else 0.0
+                           for cam_idx, w in enumerate(cls_weights)]
+
         votes = [
             sum(1 for d in dets if d["class_id"] == cls_id)
             for cam_idx, dets in active
@@ -74,7 +115,7 @@ def fuse_weighted_median(
         if not votes:
             continue
         sorted_desc = sorted(votes, reverse=True)
-        idx = min(quorum, len(sorted_desc)) - 1
+        idx = min(cls_quorum, len(sorted_desc)) - 1
         result[cls_id] = sorted_desc[idx]
 
     return result
