@@ -35,6 +35,7 @@ from event_detector import EventDetector
 from multi_view_fusion import fuse
 from csv_generator import load_prices, events_to_csv
 from tracker import MultiCameraTracker
+from ensemble_merge import ensemble_merge
 
 
 def load_names(names_path: str):
@@ -51,7 +52,9 @@ def load_initial_inventory_from_file(path: str) -> dict:
 
 def estimate_initial_inventory(caps, model, nms_fn, n_frames, conf, iou, img_size, device,
                                quorum=2, min_corroborate=2, no_tuning=False,
-                               init_min_detections=1) -> dict:
+                               init_min_detections=1,
+                               model2=None, nms_fn2=None,
+                               ensemble_iou=0.5) -> dict:
     """
     초기 재고 추정: n_frames 샘플 중 init_min_detections 회 이상 감지된 클래스만 포함.
     count 값: 감지된 프레임들의 median (0이 포함되지 않는 비율 기반 확정).
@@ -68,6 +71,9 @@ def estimate_initial_inventory(caps, model, nms_fn, n_frames, conf, iou, img_siz
         if all(f is None for f in frames):
             break
         per_cam = infer_batch(model, nms_fn, frames, conf, iou, img_size, device)
+        if model2 is not None:
+            per_cam2 = infer_batch(model2, nms_fn2, frames, conf, iou, img_size, device)
+            per_cam = ensemble_merge(per_cam, per_cam2, iou_thr=ensemble_iou)
         if no_tuning:
             cam_weights = None
         else:
@@ -313,11 +319,15 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--videos",   nargs="+", required=True)
     parser.add_argument("--weights",  required=True)
+    parser.add_argument("--weights2", default=None,
+                        help="두 번째 모델 weights (앙상블용, 예: YOLOv7 best.pt)")
     parser.add_argument("--names",    required=True)
     parser.add_argument("--prices",   required=True)
     parser.add_argument("--out",      default="output/submission.csv")
     parser.add_argument("--conf",     type=float, default=0.4)
     parser.add_argument("--iou",      type=float, default=0.45)
+    parser.add_argument("--ensemble_iou", type=float, default=0.5,
+                        help="앙상블 중복 제거 IoU threshold (기본 0.5)")
     parser.add_argument("--img_size", type=int,   default=640)
     parser.add_argument("--device",   default="0")
     parser.add_argument("--skip",       type=int,   default=2,
@@ -374,6 +384,11 @@ def main():
     print("Loading model...")
     model, nms_fn = load_model(args.weights, device)
 
+    model2, nms_fn2 = None, None
+    if args.weights2:
+        print(f"Loading ensemble model 2: {args.weights2}")
+        model2, nms_fn2 = load_model(args.weights2, device)
+
     class_names = load_names(args.names)
     prices      = load_prices(args.prices)
 
@@ -391,6 +406,8 @@ def main():
             min_corroborate=args.min_corroborate,
             no_tuning=args.no_tuning,
             init_min_detections=args.init_min_detections,
+            model2=model2, nms_fn2=nms_fn2,
+            ensemble_iou=args.ensemble_iou,
         )
         print(f"Initial inventory: {len(initial_inventory)} classes detected")
         print("Initial inventory detail:", {class_names[k]: v for k, v in initial_inventory.items()})
@@ -470,6 +487,11 @@ def main():
         frames = retrieve_frames(caps, statuses)
         per_cam_dets = infer_batch(model, nms_fn, frames,
                                    args.conf, args.iou, args.img_size, device)
+
+        if model2 is not None:
+            per_cam_dets2 = infer_batch(model2, nms_fn2, frames,
+                                        args.conf, args.iou, args.img_size, device)
+            per_cam_dets = ensemble_merge(per_cam_dets, per_cam_dets2, iou_thr=args.ensemble_iou)
 
         if cam_tracker is not None:
             per_cam_dets = cam_tracker.update(per_cam_dets)
