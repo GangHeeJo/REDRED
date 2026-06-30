@@ -28,15 +28,18 @@ from collections import defaultdict
 # quorum=1: 1대 카메라만 감지해도 인정 (1~2대에서만 보이는 상품)
 # quorum=3: 3대 이상 동의해야 인정 (중복 발화되는 상품)
 CLASS_QUORUM_OVERRIDE: Dict[int, int] = {
-    # ── FN 방지 (2대 동의 기준에서 놓침) ──
+    # ── FN 방지 (1~2대에서만 보이는 상품) ──
     5:  1,   # hersheys_cocoa
     14: 1,   # hersheys_bar
+    15: 1,   # redbull
+    23: 1,   # bulls_eye_bbq_sauce_original
     38: 1,   # palmolive_orange
     39: 1,   # crystal_hot_sauce
-    # ── FP 억제 (2대 동의 기준에서 중복 발화) ──
+    43: 1,   # campbells_chicken_noodle_soup
+    # ── FP 억제 (2대 기준에서 중복 발화) ──
     3:  3,   # cholula_chipotle_hot_sauce
     8:  3,   # hunts_sauce
-    21: 3,   # dr_pepper
+    21: 4,   # dr_pepper  (quorum=3에서도 spurious return → 4대 동의 필요)
     28: 3,   # quaker_big_chewy_chocolate_chip
 }
 
