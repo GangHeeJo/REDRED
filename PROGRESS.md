@@ -760,6 +760,41 @@ python tools/analyze_inventory.py \
 
 ---
 
+### 2026-06-30 | Phase 27 — YOLO11 전 브랜치 지원 완료 + 선행연구 분석 (강희조+Claude)
+
+#### test/event-triggered YOLO11 지원 완료
+
+이전 세션에서 import/fuse_frames 시그니처까지만 바꾸고 `main()` 미완료 상태였던 것을 마무리.
+
+- `argparse`에 `--model_type yolov7|yolo11`, `--simam` 인수 추가
+- `main()` 내 모델 로딩을 `infer_fn` 클로저 패턴으로 통일
+- `fuse_frames(model, nms_fn, ...)` → `fuse_frames(infer_fn, frames, rois)` 호출 교체
+- `test/event-triggered` 브랜치 push 완료
+
+이제 모든 실험 브랜치(main / feat/simam / test/bytetrack / test/event-triggered)가 `--model_type yolo11 --simam` 플래그로 YOLO11 + SimAM 사용 가능.
+
+#### 선행연구 분석 — 이태호 외 (SNU CAPP)
+
+오늘 다운로드된 CAPP 연구실 논문 3편 분석:
+
+| 논문 | 연도 | 핵심 기술 | 결과 |
+|------|------|-----------|------|
+| 손안의 상품 인식 (강신우·이태호 외) | 2020 | Hand Occlusion 증강 — 배경제거 상품 + 손 모양 직사각형 합성으로 학습 데이터 자동 생성 | mAP 26%→65% (+39%p) |
+| 변동 재고 추적 (위두랑가·이태호 외) | 2021 | **ROI crop** — 이벤트 전/후 차영상으로 ROI 추출 후 ROI 안에서만 YOLO 추론 | mAP 83.21%→88.43% (+5.22%p) |
+| Noise/FP 감소 파이프라인 (위두랑가·이태호 외) | 2023 | USF (Ultrafast Shapelet) Transformation + smoothing으로 FP 이벤트 감소 | TP=103, FP=49→2 |
+
+**Hand Occlusion 증강 논문** → 우리 `feat/hand-occlusion-aug` 브랜치의 직접적 선행연구. `tools/cut_paste_aug.py`의 손 가림 증강 아이디어 근거. **브랜치 미병합 상태 — 서버 재학습 결과 확인 후 채택 여부 결정 예정.**
+
+**ROI crop 논문** → 우리 `test/event-triggered`의 직접적 선행연구. 단, 이태호 논문에서는 성능 향상(+5.22%)이었는데 우리 파이프라인에서는 오히려 악화됨. 원인 분석:
+
+1. **트리거 신뢰성**: 이태호 = 냉장고 문 개폐(binary, 명확) / 우리 = 프레임 차분 임계값(연속적, 노이즈 많음)
+2. **ROI 의미 차이**: 이태호 = "새로 놓인 상품 위치"(작고 명확, 그 안에서 뭐가 있나만 감지) / 우리 = "사람이 움직인 전체 영역"(크고 사람 포함, ROI 밖 상품이 잘려 before/after 카운트 비교가 오히려 부정확해짐)
+3. **멀티카메라**: 이태호 = 단일 카메라 / 우리 = 5카메라마다 ROI 다름, 일부 카메라 ROI 없음
+
+**결론**: ROI crop은 "어떤 상품이 들어왔나"를 감지하는 용도에는 유효하나, "전체 재고가 얼마나 바뀌었나"를 before/after 비교로 감지하는 우리 구조에는 맞지 않음.
+
+---
+
 ## KD_clean 파이프라인 클래스별 제어 현황 (2026-06-30 핸드오프)
 
 > **작성 배경:** KD 학습 완료(`yolo11m_kd_0630_0036/weights/best.pt`) 후 YOLO11 파이프라인을

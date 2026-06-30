@@ -30,6 +30,7 @@ python src/run_pipeline.py \
     --tracker_max_age 15 \
     --quorum 2 \
     --init_min_detections 1 \
+    --per_class_confirm '{"8":60,"28":60}' \
     --debug_log output/debug_kd_clean_frame_counts.csv \
     --timed_log output/sub_kd_clean_events_timed.csv \
     --per_cam_log output/per_cam_kd_clean.csv
