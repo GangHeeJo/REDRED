@@ -218,28 +218,42 @@ def fuse_frames(model, nms_fn, frames, conf, iou, img_size, device,
 
 def fuse_frames_multi(model, nms_fn, frames_list, conf, iou, img_size, device,
                       rois=None, quorum=2, min_corroborate=2):
-    """여러 프레임셋 YOLO 추론 후 class별 median count 반환."""
+    """여러 프레임셋 YOLO 추론 후 class별 median count + consistency 반환.
+
+    Returns:
+        counts     : {cls_id: median_count}
+        consistent : {cls_id: True if ≥(N-1) frames agree on the median}
+    """
     all_counts = []
     for frames in frames_list:
         counts, _ = fuse_frames(model, nms_fn, frames, conf, iou, img_size, device,
                                 rois, quorum, min_corroborate)
         all_counts.append(counts)
     if not all_counts:
-        return {}
+        return {}, {}
     all_cls = set()
     for c in all_counts:
         all_cls.update(c.keys())
     median_counts = {}
+    consistent    = {}
+    n = len(all_counts)
     for cls_id in all_cls:
-        vals = sorted(c.get(cls_id, 0) for c in all_counts)
-        median_counts[cls_id] = vals[len(vals) // 2]
-    return median_counts
+        vals   = [c.get(cls_id, 0) for c in all_counts]
+        median = sorted(vals)[n // 2]
+        median_counts[cls_id] = median
+        # consistent if at most 1 frame disagrees with median
+        consistent[cls_id] = vals.count(median) >= n - 1
+    return median_counts, consistent
 
 
-def make_events(before_counts, after_counts, class_names, counter, frame_idx):
+def make_events(before_counts, before_conf, after_counts, after_conf,
+                class_names, counter, frame_idx):
     events = []
     all_cls = set(before_counts) | set(after_counts)
     for cls_id in all_cls:
+        # Skip if either side's count is unreliable (YOLO flickering)
+        if not before_conf.get(cls_id, True) or not after_conf.get(cls_id, True):
+            continue
         b = before_counts.get(cls_id, 0)
         a = after_counts.get(cls_id, 0)
         delta = a - b
@@ -329,19 +343,20 @@ def main():
             before_sample, after_sample, rois = result
             roi_used = sum(1 for r in rois if r is not None)
 
-            before_counts = fuse_frames_multi(
+            before_counts, before_conf = fuse_frames_multi(
                 model, nms_fn, before_sample,
                 args.conf, args.iou, args.img_size, device,
                 rois, args.quorum, args.min_corroborate,
             )
-            after_counts = fuse_frames_multi(
+            after_counts, after_conf = fuse_frames_multi(
                 model, nms_fn, after_sample,
                 args.conf, args.iou, args.img_size, device,
                 rois, args.quorum, args.min_corroborate,
             )
             yolo_calls += len(before_sample) + len(after_sample)
 
-            new_events = make_events(before_counts, after_counts,
+            new_events = make_events(before_counts, before_conf,
+                                     after_counts, after_conf,
                                      class_names, counter, frame_idx)
             all_events.extend(new_events)
 
