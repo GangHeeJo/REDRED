@@ -823,6 +823,43 @@ output/debug_kd_clean_frame_counts.csv  ← 퓨전 후 프레임별 count (blip 
 
 ---
 
+## 실패한 시도 기록 (논문 기반)
+
+### SeqNMS (2026-06-30) — `feat/seq-nms` 브랜치
+
+**아이디어:** 프레임 간 bbox를 IoU로 연결, 연속 2프레임 이상 나타나지 않으면 confidence 0으로 억제 → FP blip 제거.  
+논문: Han et al., "Seq-NMS for Video Object Detection" (2016) — https://arxiv.org/abs/1602.08465  
+구현: `src/seq_nms.py` + `run_pipeline.py --seq_nms`. 파라미터: `seq_len=5, min_seq=2, penalty=0.0`
+
+**결과 (YOLO11m KD 기준선 대비):**
+
+| 지표 | YOLO11m 기준선 | SeqNMS |
+|------|--------------|--------|
+| Count F1 | 97.7% | 94.8% ▼ |
+| Order F1 | 91.1% | 91.0% ▼ |
+
+**실패 원인:** YOLO11m이 일부 클래스(dove_white, chewy_dips)를 카메라 1~2대에서 sparse하게 감지 → 연속 2프레임 조건이 정상 감지까지 억제해 FN 증가. FP 억제 효과보다 FN 부작용이 더 컸음.
+
+---
+
+### EMA Smoothing (2026-06-30) — `feat/ema-smoothing` 브랜치
+
+**아이디어:** EventDetector의 sliding median(15프레임)을 EMA(지수이동평균, α=0.3)로 교체 → blip에 덜 반응하고 변화에 더 빠르게 반응.  
+구현: `src/event_detector.py use_ema/ema_alpha` + `run_pipeline.py --ema --ema_alpha`
+
+**결과 (YOLO11m KD 기준선 대비):**
+
+| 지표 | YOLO11m 기준선 | EMA α=0.3 |
+|------|--------------|-----------|
+| Count F1 | 97.7% | 96.7% ▼ |
+| Order F1 | 91.1% | 91.0% ▼ |
+
+**실패 원인:** EMA가 이벤트 발생 후 내부값을 reset하지 않아 chewy_dips 두 번째 이벤트를 억제(FN). SeqNMS와 동일한 구조적 문제 — 스무딩 계열 방법은 YOLO11m의 sparse하지만 실제인 감지와 충돌.
+
+**결론:** 시간 축 스무딩 계열(SeqNMS, EMA) 전부 이 파이프라인에 맞지 않음. 기존 sliding median이 이 구조에 최적화돼 있음. 다음 시도: Feature-level KD 재학습 (저녁 예정).
+
+---
+
 ## 앞으로 할 일
 
 - [ ] 발표 자료 준비
