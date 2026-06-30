@@ -50,7 +50,7 @@ def load_initial_inventory_from_file(path: str) -> dict:
 
 
 def estimate_initial_inventory(caps, model, nms_fn, n_frames, conf, iou, img_size, device,
-                               cam_weight_excluded=None) -> dict:
+                               cam_weight_excluded=None, no_tuning=False, fusion_kwargs=None) -> dict:
     """
     Run detection on the first n_frames, fuse per-camera counts each frame,
     then take the per-class median. Rewinds all caps to frame 0 when done.
@@ -68,8 +68,11 @@ def estimate_initial_inventory(caps, model, nms_fn, n_frames, conf, iou, img_siz
         if all(f is None for f in frames):
             break
         per_cam = infer_batch(model, nms_fn, frames, conf, iou, img_size, device)
-        cam_weights = compute_per_class_cam_weights(per_cam, exclude_class_ids=cam_weight_excluded)
-        fused = fuse(per_cam, cam_weights=cam_weights)
+        if no_tuning:
+            cam_weights = None
+        else:
+            cam_weights = compute_per_class_cam_weights(per_cam, exclude_class_ids=cam_weight_excluded)
+        fused = fuse(per_cam, cam_weights=cam_weights, **(fusion_kwargs or {}))
         for cls_id, cnt in fused.items():
             counts_history[cls_id].append(cnt)
 
@@ -345,9 +348,17 @@ def main():
                         help="트래커: 확정까지 필요한 연속 감지 횟수")
     parser.add_argument("--tracker_iou",      type=float, default=0.3,
                         help="트래커: 매칭 최소 IoU")
+    parser.add_argument("--no_tuning",         action="store_true",
+                        help="Disable all YOLOv7-specific tuning: CLASS_QUORUM_OVERRIDE, "
+                             "CLASS_CAM_WHITELIST, and per-class occlusion cam weights")
     args = parser.parse_args()
 
     device = f"cuda:{args.device}" if args.device.isdigit() else args.device
+
+    _fusion_kwargs = ({"class_quorum_override": {}, "cam_whitelist": {}}
+                      if args.no_tuning else {})
+    if args.no_tuning:
+        print("[no_tuning] CLASS_QUORUM_OVERRIDE, CLASS_CAM_WHITELIST, per-class cam weights disabled")
 
     print("Loading model...")
     model, nms_fn = load_model(args.weights, device)
@@ -373,6 +384,8 @@ def main():
             caps, model, nms_fn, args.init_frames,
             args.conf, args.iou, args.img_size, device,
             cam_weight_excluded=_cam_weight_excluded,
+            no_tuning=args.no_tuning,
+            fusion_kwargs=_fusion_kwargs,
         )
         print(f"Initial inventory: {len(initial_inventory)} classes detected")
         print("Initial inventory detail:", {class_names[k]: v for k, v in initial_inventory.items()})
@@ -462,8 +475,11 @@ def main():
                 for cls_id, cnt in counts.items():
                     per_cam_writer.writerow([frame_idx, cam_id, cls_id, class_names[cls_id], cnt])
 
-        fused_counts = fuse(per_cam_dets, cam_weights=compute_per_class_cam_weights(
-            per_cam_dets, exclude_class_ids=_cam_weight_excluded))
+        if args.no_tuning:
+            fused_counts = fuse(per_cam_dets, **_fusion_kwargs)
+        else:
+            fused_counts = fuse(per_cam_dets, cam_weights=compute_per_class_cam_weights(
+                per_cam_dets, exclude_class_ids=_cam_weight_excluded))
 
         if debug_writer is not None:
             for cls_id, cnt in fused_counts.items():

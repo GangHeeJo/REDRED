@@ -122,6 +122,7 @@ def fuse_weighted_median(
     per_cam_detections: List[Optional[DetectionList]],
     cam_weights: Optional[Union[List[float], Dict[int, List[float]]]] = None,
     class_quorum_override: Optional[Dict[int, int]] = None,
+    cam_whitelist: Optional[Dict[int, List[int]]] = None,
 ) -> Dict[int, int]:
     """
     per_cam_detections: one DetectionList per camera (None if camera offline).
@@ -146,6 +147,8 @@ def fuse_weighted_median(
         cam_weights = default_weights
     if class_quorum_override is None:
         class_quorum_override = CLASS_QUORUM_OVERRIDE
+    if cam_whitelist is None:
+        cam_whitelist = CLASS_CAM_WHITELIST
 
     all_classes = set()
     for _, dets in active:
@@ -154,7 +157,7 @@ def fuse_weighted_median(
     result: Dict[int, int] = {}
     for cls_id in all_classes:
         cls_weights = cam_weights.get(cls_id, default_weights) if per_class_weights else cam_weights
-        whitelist = CLASS_CAM_WHITELIST.get(cls_id)
+        whitelist = cam_whitelist.get(cls_id)
         votes = []
         weights = []
         for cam_idx, dets in active:
