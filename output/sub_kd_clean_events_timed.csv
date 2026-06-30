@@ -23,7 +23,7 @@ time_sec,class_name,action
 43.6,jif_creamy_peanut_butter,반환
 46.0,pop_tararts_strawberry,반환
 49.47,pepperidge_farm_milk_chocolate_macadamia_cookies,반환
-52.13,hunts_sauce,반환
+54.13,hunts_sauce,반환
 56.07,pepperidge_farm_milano_cookies_double_chocolate,반환
 58.27,mom_to_mom_butternut_squash_pear,반환
 66.93,pepperidge_farm_milano_cookies_double_chocolate,구매
@@ -48,15 +48,15 @@ time_sec,class_name,action
 101.13,toblerone_milk_chocolate,구매
 103.13,martinellis_apple_juice,구매
 104.47,bumblebee_albacore,구매
-106.47,hunts_sauce,구매
 108.4,dove_pink,구매
+108.47,hunts_sauce,구매
 110.2,crayola_24_crayons,구매
 111.87,kitkat_king_size,구매
 113.4,mom_to_mom_butternut_squash_pear,구매
-114.8,hunts_sauce,반환
 114.87,band_aid_clear_strips,구매
+116.8,hunts_sauce,반환
 118.73,mom_to_mom_sweet_potato_corn_apple,구매
-120.47,hunts_sauce,구매
+122.47,hunts_sauce,구매
 122.8,jif_creamy_peanut_butter,구매
 125.07,coffee_mate_french_vanilla,구매
 126.0,pepperidge_farm_milk_chocolate_macadamia_cookies,구매
@@ -66,7 +66,7 @@ time_sec,class_name,action
 141.27,nature_vally_fruit_and_nut,반환
 141.93,lindt_excellence_cocoa_dark_chocolate,반환
 143.87,chewy_dips_chocolate_chip,반환
-145.07,quaker_big_chewy_chocolate_chip,반환
+147.07,quaker_big_chewy_chocolate_chip,반환
 148.8,chewy_dips_peanut_butter,반환
 151.87,nature_valley_crunchy_oats_n_honey,반환
 155.27,clif_z_bar_chocolate_chip,반환
@@ -80,8 +80,8 @@ time_sec,class_name,action
 167.53,hersheys_symphony,구매
 169.93,nature_valley_crunchy_oats_n_honey,구매
 171.6,clif_z_bar_chocolate_chip,구매
-174.53,quaker_big_chewy_chocolate_chip,구매
 175.47,chewy_dips_chocolate_chip,구매
+176.53,quaker_big_chewy_chocolate_chip,구매
 177.27,nature_vally_fruit_and_nut,구매
 180.53,david_sunflower_seeds,반환
 182.93,mahatma_rice,반환
@@ -100,10 +100,8 @@ time_sec,class_name,action
 219.07,honey_bunches_of_oats_with_almonds,반환
 223.07,ritz_crackers,반환
 224.93,nature_vally_fruit_and_nut,반환
-226.33,quaker_big_chewy_chocolate_chip,반환
 226.6,chewy_dips_chocolate_chip,반환
 228.33,ritz_crackers,구매
-229.33,quaker_big_chewy_chocolate_chip,구매
 229.6,chewy_dips_chocolate_chip,구매
 231.0,nature_vally_fruit_and_nut,구매
 232.8,cinnamon_toast_crunch,구매
