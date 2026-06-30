@@ -21,6 +21,7 @@ PYTHONPATH=$YOLOV7 python src/run_pipeline.py \
     --conf 0.4 \
     --device 0 \
     --use_tracker \
+    --tracker_type sort \
     --tracker_max_age 15 \
     --debug_log output/debug_frame_counts.csv \
     --timed_log output/sub_events_timed.csv \
