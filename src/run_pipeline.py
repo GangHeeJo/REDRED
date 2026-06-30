@@ -364,6 +364,8 @@ def main():
                         help="EventDetector 슬라이딩 윈도우 크기 (기본 15프레임)")
     parser.add_argument("--confirm_frames", type=int, default=30,
                         help="이벤트 확정까지 유지돼야 하는 프레임 수 (기본 30, skip=2 → 실제 60프레임≈2초)")
+    parser.add_argument("--per_class_confirm", default=None,
+                        help='클래스별 confirm_frames 오버라이드 JSON (예: \'{"8":60,"28":60}\')')
     args = parser.parse_args()
 
     device = f"cuda:{args.device}" if args.device.isdigit() else args.device
@@ -401,11 +403,16 @@ def main():
                           ensure_ascii=False, indent=2)
             print(f"Initial inventory dumped to {init_dump_path}")
 
+    per_class_confirm = {}
+    if args.per_class_confirm:
+        per_class_confirm = {int(k): int(v) for k, v in json.loads(args.per_class_confirm).items()}
+
     detector = EventDetector(
         class_names,
-        initial_counts  = initial_inventory,
-        window_size     = args.window_size,
-        confirm_frames  = args.confirm_frames,
+        initial_counts     = initial_inventory,
+        window_size        = args.window_size,
+        confirm_frames     = args.confirm_frames,
+        per_class_confirm  = per_class_confirm,
     )
     vid_len  = video_duration(args.videos)
 
