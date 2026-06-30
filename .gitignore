@@ -18,6 +18,9 @@ output/*
 !output/.gitkeep
 !output/leaderboard.csv
 !output/leaderboard.html
+!output/per_cam_*.csv
+!output/submission_*.csv
+!output/sub_*_timed.csv
 submission_draft.csv
 *.pt
 *.mp4

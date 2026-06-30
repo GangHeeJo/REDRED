@@ -62,6 +62,12 @@ if [ $? -eq 0 ]; then
         --timed output/sub_events_timed.csv 2>/dev/null || echo "  (Phase24 결과 없음)"
 
     echo ""
+    echo "=== Per-camera 분석 ==="
+    python tools/analyze_per_cam.py \
+        --per_cam output/per_cam_kd_clean.csv \
+        --names data/names.txt
+
+    echo ""
     echo "=== GitHub 업로드 ==="
     git add output/submission_kd_clean_skip${SKIP}.csv \
             output/sub_kd_clean_events_timed.csv \
