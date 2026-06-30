@@ -93,7 +93,11 @@ def load_model(weights: str, device: str):
     """
     try:
         ckpt = torch.load(weights, map_location="cpu")
-        if isinstance(ckpt, dict) and ("model" in ckpt or "ema" in ckpt):
+        # ultralytics 체크포인트 구분: 'train_args' 또는 'version' 키 존재 시 YOLO11
+        is_ultralytics = isinstance(ckpt, dict) and (
+            "train_args" in ckpt or "version" in ckpt
+        )
+        if not is_ultralytics and isinstance(ckpt, dict) and ("model" in ckpt or "ema" in ckpt):
             # YOLOv7 checkpoint
             yolov7_root = str(Path.home() / "yolov7")
             if yolov7_root not in sys.path:
