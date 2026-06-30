@@ -23,7 +23,8 @@ PYTHONPATH=$YOLOV7 python src/run_pipeline.py \
     --use_tracker \
     --tracker_max_age 15 \
     --debug_log output/debug_frame_counts.csv \
-    --timed_log output/sub_events_timed.csv
+    --timed_log output/sub_events_timed.csv \
+    --per_class_confirm '{"11":90}'
 
 # 파이프라인 성공 시 자동 채점 + 리더보드 갱신 + GitHub push
 if [ $? -eq 0 ] && [ -f output/run_stats.json ]; then
