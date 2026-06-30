@@ -50,12 +50,19 @@ def load_initial_inventory_from_file(path: str) -> dict:
 
 
 def estimate_initial_inventory(caps, model, nms_fn, n_frames, conf, iou, img_size, device,
-                               quorum=2, min_corroborate=2, no_tuning=False) -> dict:
+                               quorum=2, min_corroborate=2, no_tuning=False,
+                               init_min_detections=1) -> dict:
     """
-    Run detection on the first n_frames, fuse per-camera counts each frame,
-    then take the per-class median. Rewinds all caps to frame 0 when done.
+    초기 재고 추정: n_frames 샘플 중 init_min_detections 회 이상 감지된 클래스만 포함.
+    count 값: 감지된 프레임들의 median (0이 포함되지 않는 비율 기반 확정).
+
+    기존 방식(median of all): 감지율 50% 미만 상품은 median=0 → 초기 재고 누락.
+    새 방식(감지율 임계값): N프레임 중 K회 이상 감지 → 포함, count는 감지 프레임 median.
     """
-    counts_history: dict = defaultdict(list)
+    detect_count: dict = defaultdict(int)   # 감지된 프레임 수
+    count_values: dict = defaultdict(list)  # 감지된 프레임의 count 값
+
+    sampled = 0
     for _ in range(n_frames):
         frames = read_frames(caps)
         if all(f is None for f in frames):
@@ -67,17 +74,23 @@ def estimate_initial_inventory(caps, model, nms_fn, n_frames, conf, iou, img_siz
             cam_weights = compute_per_class_cam_weights(per_cam, min_corroborate=min_corroborate)
         fused = fuse(per_cam, cam_weights=cam_weights, quorum=quorum)
         for cls_id, cnt in fused.items():
-            counts_history[cls_id].append(cnt)
+            if cnt > 0:
+                detect_count[cls_id] += 1
+                count_values[cls_id].append(cnt)
+        sampled += 1
 
     for cap in caps:
         if cap is not None:
             cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
-    return {
-        cls_id: int(np.median(vals))
-        for cls_id, vals in counts_history.items()
-        if int(np.median(vals)) > 0
-    }
+    result = {}
+    for cls_id, n_detected in detect_count.items():
+        if n_detected < init_min_detections:
+            continue
+        median_cnt = int(np.median(count_values[cls_id]))
+        if median_cnt > 0:
+            result[cls_id] = median_cnt
+    return result
 
 
 def load_model(weights: str, device: str):
@@ -313,6 +326,9 @@ def main():
                         help="JSON file with initial inventory {\"class_id\": count}")
     parser.add_argument("--init_frames", type=int, default=30,
                         help="Frames to sample for auto initial inventory (if --init_inv not set)")
+    parser.add_argument("--init_min_detections", type=int, default=1,
+                        help="초기재고 포함 최소 감지 횟수: N프레임 중 이 값 이상 감지돼야 재고로 인정 "
+                             "(기본=1: 1회만 감지돼도 포함, 이전 방식 median과 달리 희귀 상품도 잡음)")
     parser.add_argument("--debug_log", default=None,
                         help="CSV path: dump per-frame fused counts (frame_idx,class_id,class_name,count) "
                              "before EventDetector smoothing, for diagnosing missed events")
@@ -343,6 +359,11 @@ def main():
                         help="occlusion weight 제외 기준: 이 수 이상의 다른 카메라가 감지해야 제외")
     parser.add_argument("--no_tuning",         action="store_true",
                         help="cam weights 비활성화 (uniform weights, quorum만 적용)")
+    # EventDetector 파라미터
+    parser.add_argument("--window_size",    type=int, default=15,
+                        help="EventDetector 슬라이딩 윈도우 크기 (기본 15프레임)")
+    parser.add_argument("--confirm_frames", type=int, default=30,
+                        help="이벤트 확정까지 유지돼야 하는 프레임 수 (기본 30, skip=2 → 실제 60프레임≈2초)")
     args = parser.parse_args()
 
     device = f"cuda:{args.device}" if args.device.isdigit() else args.device
@@ -369,6 +390,7 @@ def main():
             quorum=args.quorum,
             min_corroborate=args.min_corroborate,
             no_tuning=args.no_tuning,
+            init_min_detections=args.init_min_detections,
         )
         print(f"Initial inventory: {len(initial_inventory)} classes detected")
         print("Initial inventory detail:", {class_names[k]: v for k, v in initial_inventory.items()})
@@ -379,7 +401,12 @@ def main():
                           ensure_ascii=False, indent=2)
             print(f"Initial inventory dumped to {init_dump_path}")
 
-    detector = EventDetector(class_names, initial_counts=initial_inventory)
+    detector = EventDetector(
+        class_names,
+        initial_counts  = initial_inventory,
+        window_size     = args.window_size,
+        confirm_frames  = args.confirm_frames,
+    )
     vid_len  = video_duration(args.videos)
 
     fps_cap = cv2.VideoCapture(args.videos[0])
