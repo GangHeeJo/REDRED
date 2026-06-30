@@ -860,6 +860,26 @@ output/debug_kd_clean_frame_counts.csv  ← 퓨전 후 프레임별 count (blip 
 
 ---
 
+### Ghost Detector (2026-06-30) — `feat/ghost-detector` 브랜치
+
+**아이디어:** "Objects Do Not Disappear" (ICCV 2023, arxiv:2308.04770) 기반. 모델이 일시적으로 감지 실패 시 마지막 bbox 위치에 ghost 감지 삽입 → dove_white(54)/milano(42) 타이밍 오차 해결 시도.  
+구현: `src/ghost_detector.py` + `run_pipeline.py --ghost --ghost_per_class`. 파라미터: `{"42":700,"54":450}` (각각 47s, 30s ghost)
+
+**결과 (YOLO11m KD 기준선 대비):**
+
+| 지표 | YOLO11m 기준선 | Ghost Detector |
+|------|--------------|----------------|
+| Count F1 | 97.7% | 91.6% ▼▼ |
+| Order F1 | 91.1% | 86.3% ▼▼ |
+
+**실패 원인:** ghost가 "일시적 미감지"와 "실제 이벤트 발생"을 구분하지 못함. 고객이 실제로 물건을 집을 때(115s) YOLO11m이 잠깐 재감지 → ghost timer reset → ghost가 추가 700프레임 더 유지 → 이벤트가 오히려 더 늦게(163s) 발화. mom_to_mom 등 예상치 못한 클래스에도 ghost 중복 발화 발생(FP +6개).
+
+논문 원본의 핵심 기여(학습 기반 위치 예측)를 재학습 없이 구현하면 이 한계가 구조적으로 발생함.
+
+**결론:** 재학습 없이는 적용 불가. Feature KD 재학습 + occlusion augmentation이 근본 해결책.
+
+---
+
 ## 앞으로 할 일
 
 - [ ] 발표 자료 준비
