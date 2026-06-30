@@ -120,7 +120,8 @@ class EventDetector:
             for cls_id, count in initial_counts.items():
                 self._sm_state[cls_id]  = "stable"
                 self._committed[cls_id] = count
-                self._ema_vals[cls_id]  = float(count)
+                self._ema_vals[cls_id]   = float(count)
+                self._ema_frames[cls_id] = 3  # already warmed up
 
     # -----------------------------------------------------------
     # Helpers
