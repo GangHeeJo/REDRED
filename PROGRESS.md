@@ -880,6 +880,45 @@ output/debug_kd_clean_frame_counts.csv  ← 퓨전 후 프레임별 count (blip 
 
 ---
 
+### --init_frames 60 / --per_class_confirm (2026-06-30) — `feat/fp-fix` 브랜치
+
+**아이디어:** 
+- `--init_frames 60`: hersheys_cocoa(cam1 3% 검출률) 초기재고 오추정 수정
+- `--per_class_confirm '{"8":60}'` / `'{"8":120}'`: hunts_sauce 106-114s blip 억제
+
+**결과:**
+
+| 시도 | Count F1 | Order F1 | 결과 |
+|------|---------|---------|------|
+| 기준선 (main) | 97.7% | 91.1% | 기준 |
+| init_frames=60 + confirm[8]=60 | 96.7% ▼ | 91.2% | quaker FP×2 신규 발생 |
+| confirm[8]=120 (init_frames=30) | 97.7% | 90.1% ▼ | hunts FP 제거됐으나 quaker FP×2 + order 악화 |
+
+**실패 원인:**
+- `init_frames=60`은 quaker_big_chewy(class 28) 초기재고 추정을 변경시켜 FP×2 회귀 발생
+- `per_class_confirm={"8":120}`은 hunts FP는 제거했으나 quaker FP×2 발생 (이유 불명확) + order F1 -1%
+- hersheys_cocoa(cam1 3%)는 init_frames=60(기댓값 1.8회)으로도 초기 추정 실패 → FP 잔존
+
+**결론:** 파이프라인 파라미터 조정만으로 FP 3건(cholula, hersheys, hunts)을 동시에 제거 불가. 모델 수준 개선 필요.
+
+---
+
+### WBF Ensemble — YOLOv7 + YOLO11m 앙상블 (2026-06-30) — `feat/wbf-ensemble` 브랜치
+
+**아이디어:** YOLO11m KD가 occlusion으로 놓치는 프레임을 YOLOv7(retrain_aug)이 보완 → dove_white/milano 타이밍 오차 해결 기대.  
+구현: `src/ensemble_merge.py` — 카메라별 두 모델 검출결과 NMS-style 병합 + `--weights2` CLI 추가.
+
+**실패 원인:** 
+- `retrain_aug/last.pt`의 confidence calibration이 YOLO11m KD와 달라 conf=0.4 기준이 두 모델에 다르게 작용
+- 실행 직후 0→2 이벤트가 대거 발생 → FP 폭발
+- 두 모델이 비슷한 수준으로 최적화돼 있어야 앙상블 효과가 있는데, `retrain_aug`는 파이프라인 튜닝이 안 된 모델
+
+**기술 이슈:** YOLOv7 weights 로드 시 `sys.path`에 yolov7 경로를 `torch.load` 이전에 추가해야 모델 클래스 역직렬화 가능 (이미 feat/wbf-ensemble에 수정됨).
+
+**결론:** 의미 있는 앙상블이 되려면 동일 데이터/파이프라인으로 튜닝된 두 모델이 필요. 브랜치 보존, main merge 안 함.
+
+---
+
 ## 앞으로 할 일
 
 - [ ] 발표 자료 준비
