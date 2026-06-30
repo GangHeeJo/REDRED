@@ -35,6 +35,7 @@ from event_detector import EventDetector
 from multi_view_fusion import fuse
 from csv_generator import load_prices, events_to_csv
 from tracker import MultiCameraTracker
+from seq_nms import OnlineSeqNMS
 
 
 def load_names(names_path: str):
@@ -353,6 +354,17 @@ def main():
                         help="트래커 종류: sort | bytetrack")
     parser.add_argument("--tracker_high_thresh", type=float, default=0.6,
                         help="ByteSort 전용: stage 1/2 분기 confidence 기준")
+    # SeqNMS 옵션
+    parser.add_argument("--seq_nms",          action="store_true",
+                        help="SeqNMS 활성화: 단일프레임 FP blip을 시간 연속성으로 억제")
+    parser.add_argument("--seq_nms_len",      type=int,   default=5,
+                        help="SeqNMS 룩백 윈도우 (처리된 프레임 수, 기본 5)")
+    parser.add_argument("--seq_nms_iou",      type=float, default=0.4,
+                        help="SeqNMS bbox 연결 IoU 임계값 (기본 0.4)")
+    parser.add_argument("--seq_nms_min_seq",  type=int,   default=2,
+                        help="체인 길이 최소값: 이보다 짧으면 penalty 적용 (기본 2)")
+    parser.add_argument("--seq_nms_penalty",  type=float, default=0.0,
+                        help="짧은 체인 confidence 배율: 0=완전억제, 0.5=절반 (기본 0.0)")
     parser.add_argument("--quorum",        type=int, default=2,
                         help="카메라 동의 쿼럼: quorum-th highest vote 적용 (1=단일카메라, 2=2대동의, 3=과반)")
     parser.add_argument("--min_corroborate", type=int, default=2,
@@ -413,6 +425,20 @@ def main():
     fps = fps_cap.get(cv2.CAP_PROP_FPS) or 30
     fps_cap.release()
 
+    seq_nms_filters = None
+    if args.seq_nms:
+        seq_nms_filters = [
+            OnlineSeqNMS(
+                seq_len=args.seq_nms_len,
+                iou_thresh=args.seq_nms_iou,
+                min_seq=args.seq_nms_min_seq,
+                penalty=args.seq_nms_penalty,
+            )
+            for _ in range(len(caps))
+        ]
+        print(f"SeqNMS 활성화 (len={args.seq_nms_len}, iou={args.seq_nms_iou}, "
+              f"min_seq={args.seq_nms_min_seq}, penalty={args.seq_nms_penalty})")
+
     cam_tracker = None
     if args.use_tracker:
         cam_tracker = MultiCameraTracker(
@@ -470,6 +496,11 @@ def main():
         frames = retrieve_frames(caps, statuses)
         per_cam_dets = infer_batch(model, nms_fn, frames,
                                    args.conf, args.iou, args.img_size, device)
+
+        if seq_nms_filters is not None:
+            per_cam_dets = [
+                f.update(dets) for f, dets in zip(seq_nms_filters, per_cam_dets)
+            ]
 
         if cam_tracker is not None:
             per_cam_dets = cam_tracker.update(per_cam_dets)
