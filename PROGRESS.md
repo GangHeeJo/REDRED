@@ -760,6 +760,69 @@ python tools/analyze_inventory.py \
 
 ---
 
+## KD_clean 파이프라인 클래스별 제어 현황 (2026-06-30 핸드오프)
+
+> **작성 배경:** KD 학습 완료(`yolo11m_kd_0630_0036/weights/best.pt`) 후 YOLO11 파이프라인을
+> 재보정하면서 YOLOv7용 파라미터를 교체했음. 실행 스크립트: `run_test_kd_clean.sh`.
+> 현재 count F1 **96.7%** (TP=104, FP=6, FN=1).
+
+### 제어 레이어 3단계
+
+파이프라인에 클래스별로 개입할 수 있는 포인트가 3곳 있다.
+
+| 레이어 | 파일 | 무엇을 제어 |
+|--------|------|------------|
+| **L1 CLASS_CAM_WHITELIST** | `src/multi_view_fusion.py` | 클래스별로 어떤 카메라의 투표를 허용할지 |
+| **L2 CLASS_QUORUM_OVERRIDE** | `src/multi_view_fusion.py` | whitelist 내 카메라 중 몇 대가 동의해야 count=1로 올릴지 |
+| **L3 per_class_confirm** | `src/event_detector.py` | 이벤트 확정까지 대기 프레임을 클래스별로 다르게 설정 |
+
+### 현재 클래스별 설정 (KD_clean 기준, per_cam_log 분석으로 YOLO11 재보정됨)
+
+`output/per_cam_kd_clean.csv` — 각 클래스별 카메라 감지율이 여기 있음.
+
+| class_id | 클래스명 | WHITELIST | QUORUM | 설정 이유 |
+|----------|----------|-----------|--------|----------|
+| 3  | cholula_hot_sauce | [3, 4] | 2 | cam3(9%), cam4(8.4%) 주도. cam0~2 노이즈 제거 |
+| 5  | hersheys_cocoa | [1] | 1 | cam1(3%)만 감지. 1대뿐이라 quorum=1 |
+| 8  | hunts_sauce | [0, 3] | 2 | cam0(30%), cam3(26%). 둘 다 동의해야 인정 |
+| 14 | hersheys_bar | [3] | 1 | cam3(6.4%)만 감지 |
+| 15 | redbull | [0] | 1 | cam0(7.1%)만 감지 |
+| 21 | dr_pepper | [4] | 1 | cam4(9.9%) 주도 |
+| 23 | bulls_eye_bbq_sauce_original | [3] | 1 | cam3(1.1%)만 감지 |
+| 28 | quaker_big_chewy_chocolate_chip | *(없음, 전체)* | 3 | 5대 다 보이지만 중복발화가 있음 → 3대 동의 필요 |
+| 38 | palmolive_orange | [3] | 1 | cam3(0.5%)만 감지 |
+| 39 | crystal_hot_sauce | [3] | 1 | cam3(3.6%)만 감지 |
+
+**설정 안 된 나머지 클래스:** 전역 기본값 (quorum=2, whitelist 없음, confirm=30프레임).
+
+### 남은 FP 6개 — 원인 분석 및 다음 시도
+
+| 클래스 | FP 유형 | 원인 | 다음 시도 후보 |
+|--------|---------|------|--------------|
+| **cholula** (id=3) | purchase FP ×1 | cam3가 NMS 이전 단계에서 count=2 이중감지. WHITELIST=[3,4]/quorum=2를 뚫고 fused=2로 올라옴 → initial=2 오추정 | YOLO11 `--iou-thres` 조정 or cam3 단독 whitelist로 교체 후 cam4 fallback 포기. 파이프라인 레벨 근본 해결 어려움 |
+| **hersheys_cocoa** (id=5) | return FP ×1 | cam1 감지율 3% → init_frames=30 window(~30프레임)에서 ~40% 확률로 미감지 → initial=0 오추정 → 이후 cam1이 잡을 때 0→1=return FP | **`--n_frames 60` 시도** (서버 CLI 파라미터만 변경, 코드 수정 없음). 감지율 3%이면 60프레임에서 기댓값 1.8회 → 누락 확률 대폭 감소 |
+| **hunts_sauce** (id=8) | events FP ×2 | 106~114s 구간에서 짧은 blip 재감지 → 전역 CONFIRM_FRAMES=30이 부족해서 추가 return+purchase 확정됨 | **`per_class_confirm={8: 60}` 추가** (`src/event_detector.py`의 `per_class_confirm` 인프라 기활성화 상태) |
+| **quaker_big_chewy** (id=28) | events FP ×2 | hunts_sauce와 동일 blip 패턴. quorum=3으로 올려도 5대 다 보이는 구간이라 blip이 통과됨 | **`per_class_confirm={28: 60}` 추가** |
+| **campbells_chicken_noodle_soup** (id=43) | FN ×1 | YOLO11 모델이 전혀 감지 못함 (mAP 기준 보면 있는데 이 영상에서 zero-detection). 파이프라인 개입 불가 | 포기. 모델 재학습 외 방법 없음 |
+
+### 핵심 작업 파일
+
+```
+src/multi_view_fusion.py     ← L1(WHITELIST) + L2(QUORUM) 수정
+src/event_detector.py        ← L3(per_class_confirm) 수정
+run_test_kd_clean.sh         ← KD_clean 실행 + 자동채점 + git push
+output/per_cam_kd_clean.csv  ← 카메라별 감지율 (whitelist 재보정 근거)
+output/debug_kd_clean_frame_counts.csv  ← 퓨전 후 프레임별 count (blip 확인용)
+```
+
+### 다음 작업 순서 (추천)
+
+1. **hersheys_cocoa** — `run_test_kd_clean.sh`에서 `--n_frames` 파라미터를 30→60으로 변경 후 서버 실행 (가장 간단, 코드 수정 없음)
+2. **hunts_sauce + quaker** — `src/event_detector.py`의 `EventDetector.__init__` 내 `per_class_confirm` 기본값에 `{8: 60, 28: 60}` 추가, 또는 `run_pipeline.py`에서 CLI로 넘기도록 확장
+3. **cholula** — 시도할 수 있지만 NMS 레벨 문제라 파이프라인 수정으로 해결하기 어려울 가능성 높음
+
+---
+
 ## 앞으로 할 일
 
 - [ ] 발표 자료 준비
