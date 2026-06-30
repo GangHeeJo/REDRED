@@ -111,7 +111,7 @@ class EventDetector:
         if initial_counts:
             for cls_id, count in initial_counts.items():
                 self._sm_state[cls_id]  = "stable"
-                self._committed[cls_id] = min(count, self.max_inventory)
+                self._committed[cls_id] = count
 
     # -----------------------------------------------------------
     # Helpers
