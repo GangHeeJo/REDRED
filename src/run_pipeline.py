@@ -109,6 +109,11 @@ def load_model(weights: str, device: str):
     if not os.path.exists(weights):
         raise FileNotFoundError(f"Weights file not found: {weights}")
 
+    # yolov7 경로를 torch.load 전에 추가 (모델 클래스 역직렬화에 필요)
+    yolov7_root = str(Path.home() / "yolov7")
+    if yolov7_root not in sys.path:
+        sys.path.insert(0, yolov7_root)
+
     try:
         ckpt = torch.load(weights, map_location="cpu")
         # ultralytics 체크포인트 구분: 'train_args' 또는 'version' 키 존재 시 YOLO11
@@ -116,10 +121,6 @@ def load_model(weights: str, device: str):
             "train_args" in ckpt or "version" in ckpt
         )
         if not is_ultralytics and isinstance(ckpt, dict) and ("model" in ckpt or "ema" in ckpt):
-            # YOLOv7 checkpoint
-            yolov7_root = str(Path.home() / "yolov7")
-            if yolov7_root not in sys.path:
-                sys.path.insert(0, yolov7_root)
             from utils.general import non_max_suppression
             import torch.nn as nn
             model = (ckpt.get("ema") or ckpt["model"]).float().fuse().eval().to(device)
@@ -128,8 +129,8 @@ def load_model(weights: str, device: str):
                     m.recompute_scale_factor = None
             print("Loaded YOLOv7 model")
             return model, non_max_suppression
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[load_model] YOLOv7 load attempt failed ({e}), trying ultralytics...")
 
     # YOLO11 (ultralytics)
     from ultralytics import YOLO
