@@ -29,8 +29,7 @@ python src/run_pipeline.py \
     --use_tracker \
     --tracker_max_age 15 \
     --debug_log output/debug_kd_frame_counts.csv \
-    --timed_log output/sub_kd_events_timed.csv \
-    --per_cam_log output/per_cam_kd_tuned.csv
+    --timed_log output/sub_kd_events_timed.csv
 
 if [ $? -eq 0 ] && [ -f output/run_stats.json ]; then
     RTF=$(python -c "import json; print(json.load(open('output/run_stats.json'))['rtf'])")
@@ -53,8 +52,7 @@ if [ $? -eq 0 ] && [ -f output/run_stats.json ]; then
     echo "=== GitHub 업로드 ==="
     git add output/submission_kd_skip${SKIP}.csv \
             output/sub_kd_events_timed.csv \
-            output/debug_kd_frame_counts.csv \
-            output/per_cam_kd_tuned.csv 2>/dev/null || true
+            output/debug_kd_frame_counts.csv 2>/dev/null || true
     git commit -m "result: KD skip=${SKIP} RTF=${RTF} $(date '+%m-%d %H:%M')"
     git push
 fi
