@@ -35,6 +35,7 @@ from event_detector import EventDetector
 from multi_view_fusion import fuse
 from csv_generator import load_prices, events_to_csv
 from tracker import MultiCameraTracker
+from ghost_detector import GhostDetector
 
 
 def load_names(names_path: str):
@@ -340,6 +341,18 @@ def main():
                         help="CSV path: dump per-camera raw counts (frame_idx,cam_id,class_id,class_name,count) "
                              "BEFORE fusion, for camera whitelist analysis.")
 
+    # Ghost Detector 옵션 (Objects Do Not Disappear, ICCV 2023)
+    parser.add_argument("--ghost",           action="store_true",
+                        help="Ghost Detector 활성화: 일시적 미검출 시 마지막 위치에 ghost bbox 삽입")
+    parser.add_argument("--ghost_max_frames", type=int,   default=30,
+                        help="ghost 유지 최대 프레임 수 (기본 30 ≈ 2s at skip=2)")
+    parser.add_argument("--ghost_decay",      type=float, default=1.0,
+                        help="ghost confidence 감쇠율 (기본 1.0=감쇠 없음, 0.95=5%씩 감소)")
+    parser.add_argument("--ghost_min_conf",   type=float, default=0.3,
+                        help="ghost 최소 confidence (이 아래로 떨어지면 만료)")
+    parser.add_argument("--ghost_per_class",  default=None,
+                        help='클래스별 ghost_max_frames JSON (예: \'{"42":700,"54":450}\')')
+
     # Tracker 옵션
     parser.add_argument("--use_tracker",      action="store_true",
                         help="SORT 트래커 활성화 (--use_tracker 없으면 기존 카운팅 방식)")
@@ -413,6 +426,20 @@ def main():
     fps = fps_cap.get(cv2.CAP_PROP_FPS) or 30
     fps_cap.release()
 
+    ghost_det = None
+    if args.ghost:
+        per_class_mf = {}
+        if args.ghost_per_class:
+            per_class_mf = {int(k): int(v) for k, v in json.loads(args.ghost_per_class).items()}
+        ghost_det = GhostDetector(
+            max_frames=args.ghost_max_frames,
+            conf_decay=args.ghost_decay,
+            min_conf=args.ghost_min_conf,
+            per_class_max_frames=per_class_mf,
+        )
+        print(f"Ghost Detector 활성화 (max_frames={args.ghost_max_frames}, "
+              f"decay={args.ghost_decay}, per_class={per_class_mf})")
+
     cam_tracker = None
     if args.use_tracker:
         cam_tracker = MultiCameraTracker(
@@ -470,6 +497,9 @@ def main():
         frames = retrieve_frames(caps, statuses)
         per_cam_dets = infer_batch(model, nms_fn, frames,
                                    args.conf, args.iou, args.img_size, device)
+
+        if ghost_det is not None:
+            per_cam_dets = ghost_det.update(per_cam_dets)
 
         if cam_tracker is not None:
             per_cam_dets = cam_tracker.update(per_cam_dets)
