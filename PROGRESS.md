@@ -823,6 +823,27 @@ output/debug_kd_clean_frame_counts.csv  ← 퓨전 후 프레임별 count (blip 
 
 ---
 
+## 실패한 시도 기록
+
+### SeqNMS (2026-06-30) — feat/seq-nms 브랜치
+
+**아이디어:** 프레임 간 bbox를 IoU로 연결해 1~2프레임짜리 FP blip을 억제 (Han et al. 2016, arxiv:1602.08465).  
+`src/seq_nms.py` 구현, `run_pipeline.py --seq_nms` 옵션 추가. 파라미터: `seq_len=5, min_seq=2, penalty=0.0`.
+
+**결과 (KD YOLO11m 기준선 대비):**
+
+| 지표 | 기준선 | SeqNMS 후 |
+|------|--------|-----------|
+| Count F1 | 97.7% | 94.8% ▼ |
+| Order F1 | 91.1% | 91.0% ▼ |
+| Time F1 | 89.2% | 89.1% ▼ |
+
+**실패 원인:** YOLO11m이 일부 클래스(dove_white, chewy_dips 등)를 카메라 1~2대에서 sparse하게만 감지함 → 연속 2프레임 조건이 정상 감지까지 억제해서 FN 증가. FP blip 억제 효과보다 FN 부작용이 더 컸음.
+
+**결론:** 이 파이프라인 구조(희귀 클래스 단일 카메라 감지)와 SeqNMS는 근본적으로 맞지 않음. 포기.
+
+---
+
 ## 앞으로 할 일
 
 - [ ] 발표 자료 준비
