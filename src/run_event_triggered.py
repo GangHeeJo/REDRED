@@ -16,12 +16,19 @@ ROI Crop (논문 아이디어):
   - 정적 장면의 YOLO 노이즈 FP 원천 차단
   - 손이 선반에 없을 때는 아예 이벤트를 만들지 않음
 
-Usage:
+Usage (YOLOv7):
     python src/run_event_triggered.py \
         --videos cam0.mp4 cam1.mp4 cam2.mp4 cam3.mp4 cam4.mp4 \
         --weights ~/yolov7/runs/train/exp/weights/best.pt \
-        --names   data/names.txt \
-        --prices  data/prices.csv \
+        --names   data/names.txt --prices data/prices.csv \
+        --out     output/submission_et.csv
+
+Usage (YOLO11):
+    python src/run_event_triggered.py \
+        --model_type yolo11 [--simam] \
+        --videos cam0.mp4 cam1.mp4 cam2.mp4 cam3.mp4 cam4.mp4 \
+        --weights runs/train/exp/weights/best.pt \
+        --names   data/names.txt --prices data/prices.csv \
         --out     output/submission_et.csv
 """
 
@@ -34,7 +41,9 @@ import numpy as np
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from run_pipeline import (
-    load_model, infer_batch, open_videos, read_frames,
+    load_model_yolov7, load_model_yolo11,
+    infer_batch_yolov7, infer_batch_yolo11,
+    open_videos, read_frames,
     video_duration, load_names, compute_per_class_cam_weights,
 )
 from multi_view_fusion import fuse
@@ -208,14 +217,13 @@ def crop_frames(frames, rois):
     return cropped
 
 
-def fuse_frames(model, nms_fn, frames, conf, iou, img_size, device, rois=None):
+def fuse_frames(infer_fn, frames, rois=None):
     """프레임 배치 YOLO → 5카메라 fusion → {cls_id: count}"""
-    # rois가 전부 None이면 풀 프레임 그대로 사용
     if rois and any(r is not None for r in rois):
         inference_frames = crop_frames(frames, rois)
     else:
         inference_frames = frames
-    per_cam = infer_batch(model, nms_fn, inference_frames, conf, iou, img_size, device)
+    per_cam = infer_fn(inference_frames)
     cam_w   = compute_per_class_cam_weights(per_cam)
     return fuse(per_cam, cam_weights=cam_w), per_cam
 
@@ -262,6 +270,10 @@ def main():
                         help="프레임 차분 임계값 (기본 0.012)")
     parser.add_argument("--settle",    type=int,   default=SETTLE_FRAMES,
                         help="안정화 필요 프레임 수 (기본 25)")
+    parser.add_argument("--model_type", default="yolov7", choices=["yolov7", "yolo11"],
+                        help="모델 종류 (yolov7|yolo11)")
+    parser.add_argument("--simam", action="store_true",
+                        help="YOLO11 모델에 SimAM forward hook 적용 (재학습 불필요)")
     args = parser.parse_args()
 
     device = f"cuda:{args.device}" if args.device.isdigit() else args.device
@@ -269,7 +281,18 @@ def main():
     prices      = load_prices(args.prices, class_names)
 
     print("모델 로드 중...")
-    model, nms_fn = load_model(args.weights, device)
+    if args.model_type == "yolo11":
+        model = load_model_yolo11(args.weights, device)
+        if args.simam:
+            from patch_ultralytics import apply_simam_hooks
+            apply_simam_hooks(model)
+            print("SimAM hooks applied (P3/P4/P5, parameter-free)")
+        infer_fn = lambda frames: infer_batch_yolo11(
+            model, frames, args.conf, args.iou, args.img_size, device)
+    else:
+        model, nms_fn = load_model_yolov7(args.weights, device)
+        infer_fn = lambda frames: infer_batch_yolov7(
+            model, nms_fn, frames, args.conf, args.iou, args.img_size, device)
 
     caps = open_videos(args.videos)
     n_cams = len(caps)
@@ -304,10 +327,8 @@ def main():
             yolo_calls += 2
             roi_used = sum(1 for r in rois if r is not None)
 
-            b_counts, _ = fuse_frames(model, nms_fn, before_frames,
-                                      args.conf, args.iou, args.img_size, device, rois)
-            a_counts, _ = fuse_frames(model, nms_fn, after_frames,
-                                      args.conf, args.iou, args.img_size, device, rois)
+            b_counts, _ = fuse_frames(infer_fn, before_frames, rois)
+            a_counts, _ = fuse_frames(infer_fn, after_frames, rois)
 
             new_events = make_events(b_counts, a_counts, class_names,
                                      counter, frame_idx)
