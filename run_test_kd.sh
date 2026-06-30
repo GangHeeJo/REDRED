@@ -47,4 +47,12 @@ if [ $? -eq 0 ] && [ -f output/run_stats.json ]; then
         --gt data/ground_truth_v2.csv \
         --sub output/submission_skip2.csv \
         --timed output/sub_events_timed.csv 2>/dev/null || echo "  (Phase 24 결과 없음)"
+
+    echo ""
+    echo "=== GitHub 업로드 ==="
+    git add output/submission_kd_skip${SKIP}.csv \
+            output/sub_kd_events_timed.csv \
+            output/debug_kd_frame_counts.csv 2>/dev/null || true
+    git commit -m "result: KD skip=${SKIP} RTF=${RTF} $(date '+%m-%d %H:%M')"
+    git push
 fi

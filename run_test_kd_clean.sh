@@ -60,4 +60,13 @@ if [ $? -eq 0 ]; then
         --gt data/ground_truth_v2.csv \
         --sub output/submission_skip2.csv \
         --timed output/sub_events_timed.csv 2>/dev/null || echo "  (Phase24 결과 없음)"
+
+    echo ""
+    echo "=== GitHub 업로드 ==="
+    git add output/submission_kd_clean_skip${SKIP}.csv \
+            output/sub_kd_clean_events_timed.csv \
+            output/per_cam_kd_clean.csv \
+            output/debug_kd_clean_frame_counts.csv 2>/dev/null || true
+    git commit -m "result: KD_clean skip=${SKIP} $(date '+%m-%d %H:%M')"
+    git push
 fi

@@ -50,4 +50,11 @@ if [ $? -eq 0 ]; then
         --gt data/ground_truth_v2.csv \
         --sub output/submission_skip2.csv \
         --timed output/sub_events_timed.csv 2>/dev/null || echo "  (결과 없음)"
+
+    echo ""
+    echo "=== GitHub 업로드 ==="
+    git add output/submission_et.csv \
+            output/sub_et_timed.csv 2>/dev/null || true
+    git commit -m "result: ET v3 $(date '+%m-%d %H:%M')"
+    git push
 fi
