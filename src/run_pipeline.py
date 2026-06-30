@@ -1,7 +1,7 @@
 """
 Main pipeline: video → detection → fusion → events → CSV
 
-Usage:
+Usage (YOLOv7):
     python src/run_pipeline.py \
         --videos cam0.mp4 cam1.mp4 cam2.mp4 cam3.mp4 cam4.mp4 \
         --weights ~/yolov7/runs/train/exp/weights/best.pt \
@@ -9,6 +9,16 @@ Usage:
         --prices  data/prices.csv \
         --out     output/submission.csv \
         --conf    0.4 \
+        --device  0
+
+Usage (YOLO11):
+    python src/run_pipeline.py \
+        --model_type yolo11 \
+        --videos cam0.mp4 cam1.mp4 cam2.mp4 cam3.mp4 cam4.mp4 \
+        --weights runs/simam/exp/weights/best.pt \
+        --names   data/names.txt \
+        --prices  data/prices.csv \
+        --out     output/submission.csv \
         --device  0
 
 Initial inventory options (pick one):
@@ -49,11 +59,12 @@ def load_initial_inventory_from_file(path: str) -> dict:
     return {int(k): int(v) for k, v in raw.items()}
 
 
-def estimate_initial_inventory(caps, model, nms_fn, n_frames, conf, iou, img_size, device,
+def estimate_initial_inventory(caps, infer_fn, n_frames,
                                cam_weight_excluded=None) -> dict:
     """
     Run detection on the first n_frames, fuse per-camera counts each frame,
     then take the per-class median. Rewinds all caps to frame 0 when done.
+    infer_fn: (frames) -> per_cam_dets — YOLOv7/YOLO11 공통 인터페이스.
     cam_weight_excluded: per-class camera-weight 메커니즘에서 제외할 class_id set.
         초기재고 추정에도 동일 occlusion-aware weight를 적용해서, 첫 ~1초에 일부
         카메라에서 가려진 클래스가 median=0으로 잘못 추정되는 문제를 방지.
@@ -67,7 +78,7 @@ def estimate_initial_inventory(caps, model, nms_fn, n_frames, conf, iou, img_siz
         frames = read_frames(caps)
         if all(f is None for f in frames):
             break
-        per_cam = infer_batch(model, nms_fn, frames, conf, iou, img_size, device)
+        per_cam = infer_fn(frames)
         cam_weights = compute_per_class_cam_weights(per_cam, exclude_class_ids=cam_weight_excluded)
         fused = fuse(per_cam, cam_weights=cam_weights)
         for cls_id, cnt in fused.items():
@@ -84,8 +95,12 @@ def estimate_initial_inventory(caps, model, nms_fn, n_frames, conf, iou, img_siz
     }
 
 
-def load_model(weights: str, device: str):
-    """Load YOLOv7 directly via torch.load (bypasses attempt_download 버그)."""
+# ---------------------------------------------------------------
+# Model loaders
+# ---------------------------------------------------------------
+
+def load_model_yolov7(weights: str, device: str):
+    """YOLOv7 전용 로더."""
     yolov7_root = str(Path.home() / "yolov7")
     if yolov7_root not in sys.path:
         sys.path.insert(0, yolov7_root)
@@ -98,8 +113,20 @@ def load_model(weights: str, device: str):
     for m in model.modules():
         if isinstance(m, nn.Upsample):
             m.recompute_scale_factor = None
+    model = model.to(device)
     return model, non_max_suppression
 
+
+def load_model_yolo11(weights: str, device: str):
+    """YOLO11 (ultralytics) 로더. SimAM yaml 사용 시 patch_ultralytics를 먼저 import할 것."""
+    from ultralytics import YOLO
+    model = YOLO(weights)
+    return model
+
+
+# ---------------------------------------------------------------
+# Inference functions
+# ---------------------------------------------------------------
 
 def _preprocess_single(frame, img_size=640):
     img = cv2.resize(frame, (img_size, img_size))
@@ -108,9 +135,9 @@ def _preprocess_single(frame, img_size=640):
     return torch.from_numpy(img).float() / 255.0
 
 
-def infer_batch(model, nms_fn, frames, conf_thres=0.4, iou_thres=0.45,
-                img_size=640, device="cpu"):
-    """5개 카메라 프레임을 GPU 한 번에 배치 추론."""
+def infer_batch_yolov7(model, nms_fn, frames, conf_thres=0.4, iou_thres=0.45,
+                       img_size=640, device="cpu"):
+    """YOLOv7: 5개 카메라 프레임을 GPU 한 번에 배치 추론."""
     valid_idx = [i for i, f in enumerate(frames) if f is not None]
     if not valid_idx:
         return [None] * len(frames)
@@ -135,6 +162,48 @@ def infer_batch(model, nms_fn, frames, conf_thres=0.4, iou_thres=0.45,
                 })
         per_cam[cam_i] = dets
     return per_cam
+
+
+def infer_batch_yolo11(model, frames, conf_thres=0.4, iou_thres=0.45,
+                       img_size=640, device="cpu"):
+    """YOLO11 (ultralytics): BGR numpy array를 그대로 배치 추론."""
+    valid_idx = [i for i, f in enumerate(frames) if f is not None]
+    if not valid_idx:
+        return [None] * len(frames)
+
+    valid_frames = [frames[i] for i in valid_idx]
+    results = model.predict(
+        source=valid_frames,
+        conf=conf_thres,
+        iou=iou_thres,
+        imgsz=img_size,
+        device=device,
+        verbose=False,
+    )
+
+    per_cam = [None] * len(frames)
+    for out_i, cam_i in enumerate(valid_idx):
+        boxes = results[out_i].boxes
+        dets = []
+        if boxes is not None and len(boxes):
+            for xyxy, conf, cls in zip(
+                boxes.xyxy.cpu().numpy(),
+                boxes.conf.cpu().numpy(),
+                boxes.cls.cpu().numpy(),
+            ):
+                dets.append({
+                    "class_id":   int(cls),
+                    "confidence": float(conf),
+                    "bbox":       [float(v) for v in xyxy],
+                })
+        per_cam[cam_i] = dets
+    return per_cam
+
+
+# 하위호환: 기존 코드에서 infer_batch(model, nms_fn, ...) 방식으로 호출하는 곳을 위해 유지
+def infer_batch(model, nms_fn, frames, conf_thres=0.4, iou_thres=0.45,
+                img_size=640, device="cpu"):
+    return infer_batch_yolov7(model, nms_fn, frames, conf_thres, iou_thres, img_size, device)
 
 
 def open_videos(video_paths):
@@ -296,6 +365,8 @@ def main():
                              "BEFORE fusion, for camera whitelist analysis.")
 
     # Tracker 옵션
+    parser.add_argument("--model_type", default="yolov7", choices=["yolov7", "yolo11"],
+                        help="모델 종류 (yolov7|yolo11). yolo11은 ultralytics 사용")
     parser.add_argument("--use_tracker",      action="store_true",
                         help="트래커 활성화 (--use_tracker 없으면 기존 카운팅 방식)")
     parser.add_argument("--tracker_type",     type=str, default="sort",
@@ -314,7 +385,15 @@ def main():
     device = f"cuda:{args.device}" if args.device.isdigit() else args.device
 
     print("Loading model...")
-    model, nms_fn = load_model(args.weights, device)
+    if args.model_type == "yolo11":
+        import patch_ultralytics  # noqa: F401 — SimAM 등 custom 모듈 등록
+        model = load_model_yolo11(args.weights, device)
+        infer_fn = lambda frames: infer_batch_yolo11(
+            model, frames, args.conf, args.iou, args.img_size, device)
+    else:
+        model, nms_fn = load_model_yolov7(args.weights, device)
+        infer_fn = lambda frames: infer_batch_yolov7(
+            model, nms_fn, frames, args.conf, args.iou, args.img_size, device)
 
     class_names = load_names(args.names)
     prices      = load_prices(args.prices)
@@ -334,8 +413,7 @@ def main():
     else:
         print(f"Estimating initial inventory from first {args.init_frames} frames...")
         initial_inventory = estimate_initial_inventory(
-            caps, model, nms_fn, args.init_frames,
-            args.conf, args.iou, args.img_size, device,
+            caps, infer_fn, args.init_frames,
             cam_weight_excluded=_cam_weight_excluded,
         )
         print(f"Initial inventory: {len(initial_inventory)} classes detected")
@@ -414,8 +492,7 @@ def main():
             continue
 
         frames = retrieve_frames(caps, statuses)
-        per_cam_dets = infer_batch(model, nms_fn, frames,
-                                   args.conf, args.iou, args.img_size, device)
+        per_cam_dets = infer_fn(frames)
 
         if cam_tracker is not None:
             per_cam_dets = cam_tracker.update(per_cam_dets)
