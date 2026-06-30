@@ -333,7 +333,7 @@ def main():
                         help="트래커: 확정까지 필요한 연속 감지 횟수")
     parser.add_argument("--tracker_iou",       type=float, default=0.3,
                         help="트래커: 매칭 최소 IoU")
-    parser.add_argument("--tracker_type",      type=str,   default="sort",
+    parser.add_argument("--tracker_type",      type=str,   default="bytetrack",
                         help="트래커 종류: sort | bytetrack")
     parser.add_argument("--tracker_high_thresh", type=float, default=0.6,
                         help="ByteSort 전용: stage 1/2 분기 confidence 기준")
