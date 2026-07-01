@@ -21,8 +21,8 @@ else
 fi
 pip install torch torchvision --index-url $TORCH_IDX
 
-# RF-DETR (Roboflow)
-pip install rfdetr
+# RF-DETR (Roboflow) — train,loggers 포함
+pip install "rfdetr[train,loggers]"
 
 # SAM2 (Meta)
 pip install git+https://github.com/facebookresearch/sam2.git
