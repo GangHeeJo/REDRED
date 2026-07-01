@@ -7,7 +7,7 @@ source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate rfdetr
 
 SKIP=${1:-2}
-WEIGHTS="runs/rfdetr/checkpoint_best.pth"
+WEIGHTS="runs/rfdetr/checkpoint_best_total.pth"
 CAM_DIR=~/Dataset/4.TestVideo_Sample
 OUT="output/submission_rfdetr_skip${SKIP}.csv"
 
