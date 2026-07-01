@@ -54,7 +54,7 @@ def load_yolov7(weights, device):
         sys.path.insert(0, yolov7_root)
     from utils.general import non_max_suppression
     import torch.nn as nn
-    ckpt = torch.load(weights, map_location="cpu")
+    ckpt = torch.load(weights, map_location="cpu", weights_only=False)
     model = (ckpt.get("ema") or ckpt["model"]).float().fuse().eval().to(device)
     for m in model.modules():
         if isinstance(m, nn.Upsample):
