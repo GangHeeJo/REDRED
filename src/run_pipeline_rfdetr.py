@@ -57,7 +57,7 @@ def main():
 
     device = f"cuda:{args.device}" if args.device.isdigit() else args.device
     names  = load_names(args.names)
-    prices = load_prices(args.prices, names)
+    prices = load_prices(args.prices)
 
     print("Loading RF-DETR...")
     model = load_rfdetr(args.weights, num_classes=len(names), device=device)
