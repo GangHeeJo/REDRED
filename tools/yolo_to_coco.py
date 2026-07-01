@@ -74,12 +74,10 @@ def yolo_to_coco(image_paths, names, split, out_dir, symlink=False):
 
         images.append({
             "id": img_id,
-            "file_name": str(img_out.name / img_path.name).replace("\\", "/"),
+            "file_name": f"{split}/{img_path.name}",
             "width": W,
             "height": H,
         })
-        # file_name을 split/filename 형태로
-        images[-1]["file_name"] = f"{split}/{img_path.name}"
 
         with open(lp) as f:
             for line in f:
