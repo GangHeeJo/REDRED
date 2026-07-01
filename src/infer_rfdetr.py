@@ -1,25 +1,20 @@
 """
 RF-DETR 추론 모듈 — infer_batch와 동일한 인터페이스 제공
-
-반환: per_cam = List[List[{"class_id", "confidence", "bbox"}]]
 """
 
-import torch
-import numpy as np
 import cv2
+import numpy as np
+import PIL.Image
 
 
 def load_rfdetr(weights: str, num_classes: int, device: str):
-    """
-    RF-DETR 모델 로드.
-    weights: fine-tuned .pth 경로 or None (COCO pretrained)
-    """
     from rfdetr import RFDETRBase
-    model = RFDETRBase(pretrain_weights=weights if weights else None,
-                       num_classes=num_classes,
-                       resolution=640)
-    model.model.to(device)
-    model.model.eval()
+    # device는 내부적으로 자동 처리됨 (CUDA 사용 가능 시 자동)
+    model = RFDETRBase(
+        pretrain_weights=weights if weights else None,
+        num_classes=num_classes,
+        resolution=640,
+    )
     return model
 
 
@@ -32,15 +27,14 @@ def infer_rfdetr(model, frames, conf_thres=0.4, device="cuda:0"):
     for i, frame in enumerate(frames):
         if frame is None:
             continue
-        # RF-DETR는 PIL RGB or numpy RGB 입력
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        pil_img = __import__("PIL.Image", fromlist=["Image"]).Image.fromarray(rgb)
 
-        with torch.no_grad():
-            result = model.predict(pil_img, threshold=conf_thres)
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        pil_img = PIL.Image.fromarray(rgb)
+
+        result = model.predict(pil_img, threshold=conf_thres)
 
         dets = []
-        if result and hasattr(result, "class_id"):
+        if result is not None and len(result.class_id) > 0:
             for cls_id, conf, box in zip(result.class_id,
                                           result.confidence,
                                           result.xyxy):
