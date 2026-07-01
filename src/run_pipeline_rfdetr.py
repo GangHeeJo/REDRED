@@ -5,7 +5,7 @@ Usage:
     conda activate rfdetr
     python src/run_pipeline_rfdetr.py \
         --videos cam0.mp4 ... cam4.mp4 \
-        --weights runs/rfdetr/checkpoint_best.pth \
+        --weights runs/rfdetr/checkpoint_best_total.pth \
         --names   data/names.txt \
         --prices  data/prices.csv \
         --out     output/submission_rfdetr.csv \
@@ -17,7 +17,6 @@ import time
 import sys
 import os
 import cv2
-import torch
 import numpy as np
 from pathlib import Path
 from collections import defaultdict
@@ -28,7 +27,6 @@ from multi_view_fusion import fuse
 from csv_generator import load_prices, events_to_csv
 from tracker import MultiCameraTracker
 from infer_rfdetr import load_rfdetr, infer_rfdetr
-# cam-weight 유틸은 기존 파이프라인에서 가져옴
 from run_pipeline import (
     load_names, open_videos, grab_frames, retrieve_frames,
     read_frames, video_duration,
@@ -65,7 +63,7 @@ def main():
     caps = open_videos(args.videos)
     duration = video_duration(args.videos)
 
-    # 초기 재고 추정 (RF-DETR 추론으로)
+    # 초기 재고 추정
     print("Estimating initial inventory...")
     init_inv = {}
     detect_count = defaultdict(int)
@@ -89,24 +87,19 @@ def main():
             if med > 0:
                 init_inv[cls_id] = med
 
-    detector = EventDetector(init_inventory=init_inv, names=names)
+    detector = EventDetector(class_names=names, initial_counts=init_inv)
     tracker  = MultiCameraTracker(max_age=args.tracker_max_age) if args.use_tracker else None
 
-    # debug / log 파일
     debug_f   = open(args.debug_log,   "w") if args.debug_log   else None
     timed_f   = open(args.timed_log,   "w") if args.timed_log   else None
     per_cam_f = open(args.per_cam_log, "w") if args.per_cam_log else None
-    if debug_f:
-        debug_f.write("frame_idx,class_id,class_name,count\n")
-    if timed_f:
-        timed_f.write("time_sec,class_name,action\n")
-    if per_cam_f:
-        per_cam_f.write("frame_idx,cam_id,class_id,class_name,count\n")
+    if debug_f:   debug_f.write("frame_idx,class_id,class_name,count\n")
+    if timed_f:   timed_f.write("time_sec,class_name,action\n")
+    if per_cam_f: per_cam_f.write("frame_idx,cam_id,class_id,class_name,count\n")
 
-    all_events = []
-    frame_idx  = 0
-    fps        = 30.0
-    t_start    = time.time()
+    frame_idx = 0
+    fps       = 30.0
+    t_start   = time.time()
 
     print("Running RF-DETR pipeline...")
     while True:
@@ -139,14 +132,21 @@ def main():
 
         if debug_f:
             for cls_id, cnt in fused.items():
-                debug_f.write(f"{frame_idx},{cls_id},{names[cls_id]},{cnt}\n")
+                if cnt > 0:
+                    debug_f.write(f"{frame_idx},{cls_id},{names[cls_id]},{cnt}\n")
+
+        # fused dict → flat detection list (EventDetector API)
+        flat_dets = [
+            {"class_id": cls_id, "confidence": 1.0, "bbox": []}
+            for cls_id, cnt in fused.items()
+            for _ in range(cnt)
+        ]
 
         t_sec = frame_idx / fps
-        events = detector.update(fused, frame_idx)
-        for ev in events:
+        new_events = detector.update(flat_dets)
+        for ev in new_events:
             if timed_f:
-                timed_f.write(f"{t_sec:.2f},{ev['class_name']},{ev['action']}\n")
-            all_events.append(ev)
+                timed_f.write(f"{t_sec:.2f},{ev.class_name},{ev.action}\n")
 
         frame_idx += 1
 
@@ -160,9 +160,16 @@ def main():
         if cap: cap.release()
 
     os.makedirs(Path(args.out).parent, exist_ok=True)
-    final_inv = detector.get_inventory()
-    events_to_csv(all_events, final_inv, names, prices, args.out)
-    print(f"Submission: {args.out}  ({len(all_events)} events)")
+    events_to_csv(
+        events=detector.all_events,
+        prices=prices,
+        out_path=args.out,
+        initial_inventory=init_inv,
+        include_action=True,
+        total_mode="inventory",
+        encoding="utf-8-sig",
+    )
+    print(f"Submission: {args.out}  ({len(detector.all_events)} events)")
 
 
 if __name__ == "__main__":
