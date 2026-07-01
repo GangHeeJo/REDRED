@@ -13,7 +13,7 @@ def load_rfdetr(weights: str, num_classes: int, device: str):
     model = RFDETRBase(
         pretrain_weights=weights if weights else None,
         num_classes=num_classes,
-        resolution=640,
+        resolution=672,  # 56(=patch14*win4) 배수 필요; 640은 불가
     )
     return model
 
