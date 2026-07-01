@@ -13,7 +13,7 @@ BATCH=${2:-8}
 OUT_DIR="runs/rfdetr"
 
 # Step 1: 기존 학습 데이터 COCO 변환 (이미 있으면 스킵)
-if [ ! -f "${DATASET_DIR}/annotations/instances_train.json" ]; then
+if [ ! -f "${DATASET_DIR}/train/_annotations.coco.json" ]; then
     echo "=== YOLO → COCO 변환 ==="
     python tools/yolo_to_coco.py \
         --train_txt ~/yolov7/data/train.txt \

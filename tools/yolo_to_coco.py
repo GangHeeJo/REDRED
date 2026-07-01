@@ -1,22 +1,27 @@
 """
-기존 YOLOv7 학습 데이터(YOLO format) → COCO JSON 변환
+기존 YOLOv7 학습 데이터(YOLO format) → RF-DETR COCO 포맷 변환
+
+RF-DETR 기대 구조:
+    data/coco_rfdetr/
+        train/
+            _annotations.coco.json
+            img1.jpg ...
+        valid/
+            _annotations.coco.json
+            img1.jpg ...
 
 Usage:
     python tools/yolo_to_coco.py \
         --train_txt ~/yolov7/data/train.txt \
         --names     data/names.txt \
-        --out_dir   data/coco_rfdetr/
-
-출력:
-    data/coco_rfdetr/
-        annotations/instances_train.json
-        images/          (symlink or copy)
+        --out_dir   data/coco_rfdetr
 """
 
 import argparse
 import json
 import os
 import shutil
+import random
 from pathlib import Path
 from PIL import Image
 from tqdm import tqdm
@@ -28,7 +33,7 @@ def parse_args():
     p.add_argument("--names",     default="data/names.txt")
     p.add_argument("--out_dir",   default="data/coco_rfdetr")
     p.add_argument("--val_ratio", type=float, default=0.05)
-    p.add_argument("--symlink",   action="store_true", help="심볼릭 링크(복사 대신)")
+    p.add_argument("--symlink",   action="store_true")
     return p.parse_args()
 
 
@@ -38,11 +43,8 @@ def load_names(path):
 
 
 def yolo_to_coco(image_paths, names, split, out_dir, symlink=False):
-    out_dir = Path(out_dir)
-    ann_dir = out_dir / "annotations"
-    img_out = out_dir / "images" / split
-    ann_dir.mkdir(parents=True, exist_ok=True)
-    img_out.mkdir(parents=True, exist_ok=True)
+    split_dir = Path(out_dir) / split
+    split_dir.mkdir(parents=True, exist_ok=True)
 
     categories = [{"id": i, "name": n, "supercategory": "product"}
                   for i, n in enumerate(names)]
@@ -53,7 +55,6 @@ def yolo_to_coco(image_paths, names, split, out_dir, symlink=False):
         img_path = Path(img_path)
         label_path = img_path.with_suffix(".txt")
         label_path_alt = Path(str(img_path).replace("/images/", "/labels/")).with_suffix(".txt")
-
         lp = label_path if label_path.exists() else label_path_alt
         if not lp.exists():
             continue
@@ -64,47 +65,37 @@ def yolo_to_coco(image_paths, names, split, out_dir, symlink=False):
         except Exception:
             continue
 
-        img_id = len(images) + 1
-        dst = img_out / img_path.name
+        dst = split_dir / img_path.name
         if not dst.exists():
             if symlink:
                 dst.symlink_to(img_path.resolve())
             else:
                 shutil.copy2(img_path, dst)
 
-        images.append({
-            "id": img_id,
-            "file_name": f"{split}/{img_path.name}",
-            "width": W,
-            "height": H,
-        })
+        img_id = len(images) + 1
+        images.append({"id": img_id, "file_name": img_path.name, "width": W, "height": H})
 
         with open(lp) as f:
             for line in f:
                 parts = line.strip().split()
                 if len(parts) < 5:
                     continue
-                cls_id, cx, cy, bw, bh = int(parts[0]), *map(float, parts[1:5])
+                cls_id = int(parts[0])
+                cx, cy, bw, bh = map(float, parts[1:5])
                 x = (cx - bw / 2) * W
                 y = (cy - bh / 2) * H
-                w = bw * W
-                h = bh * H
+                w, h = bw * W, bh * H
                 annotations.append({
-                    "id": ann_id,
-                    "image_id": img_id,
-                    "category_id": cls_id,
-                    "bbox": [round(x, 2), round(y, 2), round(w, 2), round(h, 2)],
-                    "area": round(w * h, 2),
-                    "iscrowd": 0,
+                    "id": ann_id, "image_id": img_id, "category_id": cls_id,
+                    "bbox": [round(x,2), round(y,2), round(w,2), round(h,2)],
+                    "area": round(w * h, 2), "iscrowd": 0,
                 })
                 ann_id += 1
 
-    coco = {"images": images, "annotations": annotations, "categories": categories}
-    out_json = ann_dir / f"instances_{split}.json"
+    out_json = split_dir / "_annotations.coco.json"
     with open(out_json, "w") as f:
-        json.dump(coco, f)
+        json.dump({"images": images, "annotations": annotations, "categories": categories}, f)
     print(f"[{split}] {len(images)} images, {len(annotations)} annotations → {out_json}")
-    return out_json
 
 
 def main():
@@ -114,14 +105,13 @@ def main():
     with open(args.train_txt) as f:
         all_paths = [l.strip() for l in f if l.strip()]
 
-    import random
     random.shuffle(all_paths)
     n_val = max(1, int(len(all_paths) * args.val_ratio))
     val_paths   = all_paths[:n_val]
     train_paths = all_paths[n_val:]
 
     yolo_to_coco(train_paths, names, "train", args.out_dir, args.symlink)
-    yolo_to_coco(val_paths,   names, "val",   args.out_dir, args.symlink)
+    yolo_to_coco(val_paths,   names, "valid", args.out_dir, args.symlink)  # rfdetr는 'valid'
     print(f"\nDone. Dataset: {args.out_dir}")
 
 
