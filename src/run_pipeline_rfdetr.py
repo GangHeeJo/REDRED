@@ -97,9 +97,10 @@ def main():
     if timed_f:   timed_f.write("time_sec,class_name,action\n")
     if per_cam_f: per_cam_f.write("frame_idx,cam_id,class_id,class_name,count\n")
 
-    frame_idx = 0
-    fps       = 30.0
-    t_start   = time.time()
+    frame_idx  = 0
+    fps        = 30.0
+    t_start    = time.time()
+    total_frames = int(cv2.VideoCapture(args.videos[0]).get(cv2.CAP_PROP_FRAME_COUNT))
 
     print("Running RF-DETR pipeline...")
     while True:
@@ -147,6 +148,14 @@ def main():
         for ev in new_events:
             if timed_f:
                 timed_f.write(f"{t_sec:.2f},{ev.class_name},{ev.action}\n")
+            print(f"  [{t_sec:6.1f}s] {ev.class_name}: {ev.action} ({ev.before}→{ev.after})")
+
+        if frame_idx % 300 == 0:
+            elapsed = time.time() - t_start
+            pct = frame_idx / total_frames * 100 if total_frames > 0 else 0
+            eta = elapsed / frame_idx * (total_frames - frame_idx) if frame_idx > 0 else 0
+            print(f"[{pct:5.1f}%] frame {frame_idx}/{total_frames}  "
+                  f"elapsed {elapsed:.0f}s  ETA {eta:.0f}s  events {len(detector.all_events)}")
 
         frame_idx += 1
 
