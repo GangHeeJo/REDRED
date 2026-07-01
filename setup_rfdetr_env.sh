@@ -34,6 +34,6 @@ if [ ! -f "sam2.1_hiera_large.pt" ]; then
     wget -q https://dl.fbaipublicfiles.com/segment_anything_2/092824/sam2.1_hiera_large.pt
 fi
 
-pip install opencv-python-headless numpy pillow tqdm pycocotools
+pip install opencv-python-headless numpy pillow tqdm pycocotools pandas
 
 echo "Done. conda activate $ENV_NAME"
