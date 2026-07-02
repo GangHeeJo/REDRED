@@ -51,9 +51,22 @@ CLASS_QUORUM_OVERRIDE: Dict[int, int] = {
     # 42: pepperidge_farm_milano — cam-weight exclusion으로 해결됨, quorum 불필요
 }
 
-# 42(milano)/54(dove_white)/43(campbells) whitelist는 YOLOv7 전용이라 비워둔 채
-# tools/analyze_per_cam.py로 RF-DETR 전용 값 재산출 예정.
-CLASS_CAM_WHITELIST: Dict[int, List[int]] = {}
+# RF-DETR 전용 값 (2026-07-02, output/per_cam_rfdetr.csv + tools/analyze_per_cam.py
+# --focus로 산출, 검출률 >=5% 카메라만 채택).
+# milano(42)는 cam-weight exclusion만으로 이미 해결돼서 추가 안 함(회귀 방지).
+# campbells(43)/chewy_dips_peanut_butter(46)는 스크립트가 "whitelist 불필요"로
+# 판정 — campbells는 전카메라 4.3% 이하 구조적 미탐지(YOLOv7과 동일 결론),
+# chewy_dips는 5대 골고루 보여서 카메라 문제가 아니라 순수 confidence flicker
+# (quorum/whitelist로 해결 안 됨, per_class_confirm 대상).
+CLASS_CAM_WHITELIST: Dict[int, List[int]] = {
+    0:  [0, 2],     # aunt_jemima_original_syrup
+    4:  [0, 1, 3],  # crayola_24_crayons
+    17: [0, 3, 4],  # a1_steak_sauce
+    31: [0, 2],     # pepperidge_farm_milk_chocolate_macadamia_cookies
+    36: [1, 2, 3],  # nature_valley_crunchy_oats_n_honey
+    41: [2],        # nabisco_nilla_wafers
+    54: [3],        # dove_white
+}
 
 
 DetectionList = List[Dict]   # [{class_id, confidence, bbox}, ...]
