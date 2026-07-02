@@ -38,6 +38,17 @@ WEAK_CLASS_IDS = {0, 8, 43, 45, 48}  # aunt_jemima, hunts_sauce, campbells,
 WEAK_CLASS_CONF = 0.1  # 2026-07-02: 0.15->0.1, 효과가 애매하면 강도를 높이자는
                        # 결정 -- 확실한 개선이 우선이라 노이즈 리스크 감수
 
+# 2026-07-02 추가: 타이밍 오차 큰 클래스(미탐지 아님, mAP도 이미 높음 --
+# score_methods.py Method 3 기준 5초 이상 어긋남). 얘네는 일반 mAP는 멀쩡해도
+# "이 대회 영상 특유의 조건"에서만 흔들리는 것일 수 있어서, SAM2로 실제 대회
+# 영상에서 도메인 데이터를 뽑아주는 게 오버샘플링(기존 학습셋 복제)보다
+# 직접적일 걸로 판단해서 추가. 단 WEAK_CLASS_IDS만큼 약하진 않으니(mAP 0.87~0.93)
+# 문턱을 그렇게까지 낮추면 노이즈만 늘 위험 -- 중간 단계(0.2)로 절충.
+TIMING_CLASS_IDS = {2, 22, 42, 46, 50}  # bumblebee_albacore, haribo_gold_bears_gummi_candy,
+    # pepperidge_farm_milano_cookies_double_chocolate, chewy_dips_peanut_butter,
+    # lindt_excellence_cocoa_dark_chocolate
+TIMING_CLASS_CONF = 0.2
+
 
 def parse_args():
     p = argparse.ArgumentParser()
@@ -122,15 +133,20 @@ def main():
                 continue
 
             # RF-DETR 추론 (단일 프레임을 리스트로 전달)
-            # capture_conf로 낮게 잡고, 클래스별 실효 문턱을 다시 적용
-            # (WEAK_CLASS_IDS만 낮은 문턱 유지, 나머지는 기존 --conf로 복원)
-            capture_conf = min(args.conf, WEAK_CLASS_CONF)
+            # capture_conf로 가장 낮게 잡고, 클래스별 실효 문턱을 3단계로 재적용
+            # (WEAK_CLASS_IDS=0.1, TIMING_CLASS_IDS=0.2, 나머지는 기존 --conf)
+            capture_conf = min(args.conf, WEAK_CLASS_CONF, TIMING_CLASS_CONF)
             per_cam = infer_rfdetr(rfdetr, [frame], conf_thres=capture_conf, device=device)
             raw_dets = per_cam[0] or []
-            dets = [
-                d for d in raw_dets
-                if d["confidence"] >= (WEAK_CLASS_CONF if d["class_id"] in WEAK_CLASS_IDS else args.conf)
-            ]
+
+            def _effective_conf(cls_id):
+                if cls_id in WEAK_CLASS_IDS:
+                    return WEAK_CLASS_CONF
+                if cls_id in TIMING_CLASS_IDS:
+                    return TIMING_CLASS_CONF
+                return args.conf
+
+            dets = [d for d in raw_dets if d["confidence"] >= _effective_conf(d["class_id"])]
             if not dets:
                 frame_idx += 1
                 continue

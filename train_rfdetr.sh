@@ -1,7 +1,11 @@
 #!/bin/bash
 # RF-DETR fine-tuning
 # 실행 전: conda activate rfdetr && cd ~/REDRED
-# Usage: bash train_rfdetr.sh [epochs=50] [batch=8] [--with_sam2] [--rebuild]
+# Usage: bash train_rfdetr.sh [epochs=30] [batch=8] [--with_sam2] [--rebuild]
+# 2026-07-02: epoch1/50 만에 이미 mAP 0.887(지난 50에폭 최종치 0.898에 근접) --
+# 수렴이 빨라서 기본 에폭을 50->30으로 낮춤. 필요하면 checkpoint_best_regular.pth
+# 를 pretrain_weights로 넣고 추가로 더 돌릴 수 있음(진짜 resume은 아니고 이어서
+# fine-tune하는 방식).
 #
 # 2026-07-02: --rebuild 추가 -- 미탐지 클래스(WEAK_CLASS_IDS)+타이밍 오차 큰
 # 클래스(TIMING_ISSUE_CLASS_IDS, 둘 다 tools/yolo_to_coco.py 참고) 보강을 위해
@@ -15,7 +19,7 @@ conda activate rfdetr
 
 DATASET_DIR="data/coco_rfdetr"
 NUM_CLASSES=60
-EPOCHS=${1:-50}
+EPOCHS=${1:-30}
 BATCH=${2:-8}
 OUT_DIR="runs/rfdetr"
 
