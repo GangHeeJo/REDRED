@@ -27,22 +27,31 @@ from collections import defaultdict
 #
 # quorum=1: 1대 카메라만 감지해도 인정 (1~2대에서만 보이는 상품)
 # quorum=3: 3대 이상 동의해야 인정 (중복 발화되는 상품)
-CLASS_QUORUM_OVERRIDE: Dict[int, int] = {
-    2:  2,   # bumblebee_albacore
-    53: 1,   # dove_pink
-    54: 1,   # dove_white
-    15: 1,   # redbull
-    39: 1,   # crystal_hot_sauce
-    21: 1,   # dr_pepper
-    29: 2,   # spam
-    42: 1,   # pepperidge_farm_milano
-}
+#
+# 2026-07-02: RF-DETR 진단 위해 임시로 비움. 아래 값들은 YOLOv7(main)용으로
+# 튜닝된 값이라 RF-DETR 감지 패턴과 안 맞을 수 있음 (예: 42/54는 YOLOv7이
+# 거의 못 잡아서 quorum=1로 낮춘 건데, RF-DETR은 반대로 이 클래스들을
+# 노이즈 섞어서 잡아서 quorum=1이 과다발화를 유발하는 것으로 의심됨).
+# RF-DETR 전용 값은 tools/analyze_per_cam.py로 다시 산출할 것.
+#
+# CLASS_QUORUM_OVERRIDE: Dict[int, int] = {
+#     2:  2,   # bumblebee_albacore
+#     53: 1,   # dove_pink
+#     54: 1,   # dove_white
+#     15: 1,   # redbull
+#     39: 1,   # crystal_hot_sauce
+#     21: 1,   # dr_pepper
+#     29: 2,   # spam
+#     42: 1,   # pepperidge_farm_milano
+# }
+CLASS_QUORUM_OVERRIDE: Dict[int, int] = {}
 
-CLASS_CAM_WHITELIST: Dict[int, List[int]] = {
-    43: [0],     # campbells_chicken_noodle_soup: cam4 chunky 혼동 차단
-    42: [3, 4],  # pepperidge_farm_milano: 노이즈 cam0 제거
-    54: [3],     # dove_white: cam3만
-}
+# CLASS_CAM_WHITELIST: Dict[int, List[int]] = {
+#     43: [0],     # campbells_chicken_noodle_soup: cam4 chunky 혼동 차단
+#     42: [3, 4],  # pepperidge_farm_milano: 노이즈 cam0 제거
+#     54: [3],     # dove_white: cam3만
+# }
+CLASS_CAM_WHITELIST: Dict[int, List[int]] = {}
 
 
 DetectionList = List[Dict]   # [{class_id, confidence, bbox}, ...]
