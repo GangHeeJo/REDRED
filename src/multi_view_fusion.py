@@ -46,7 +46,13 @@ CLASS_QUORUM_OVERRIDE: Dict[int, int] = {
     15: 1,   # redbull
     39: 1,   # crystal_hot_sauce
     21: 1,   # dr_pepper
-    29: 2,   # spam
+    29: 1,   # spam -- 2026-07-02: skip=3/conf=0.5에서 cam4만 2.0%로 신호가 더
+             # 약해짐(구 quorum=2는 애초에 두번째 카메라가 항상 0이라 미탐지
+             # 유발) -- 1로 낮춤
+    48: 1,   # cheerios -- 2026-07-02 신규: 전카메라 1.3~1.5%로 균일하게 약함
+             # (특정 카메라 문제 아님), quorum=2가 너무 빡빡해서 미탐지
+    0:  1,   # aunt_jemima_original_syrup -- 2026-07-02 신규: whitelist=[0,2]는
+             # 맞는데 quorum=2(둘 다 동의)가 너무 빡빡해서 미탐지로 넘어감
     # 54: dove_white — RF-DETR 전용 값 재산출 전까지 비워둠
     # 42: pepperidge_farm_milano — cam-weight exclusion으로 해결됨, quorum 불필요
 }
@@ -54,17 +60,20 @@ CLASS_QUORUM_OVERRIDE: Dict[int, int] = {
 # RF-DETR 전용 값 (2026-07-02, output/per_cam_rfdetr.csv + tools/analyze_per_cam.py
 # --focus로 산출, 검출률 >=5% 카메라만 채택).
 # milano(42)는 cam-weight exclusion만으로 이미 해결돼서 추가 안 함(회귀 방지).
-# campbells(43)/chewy_dips_peanut_butter(46)는 스크립트가 "whitelist 불필요"로
-# 판정 — campbells는 전카메라 4.3% 이하 구조적 미탐지(YOLOv7과 동일 결론),
-# chewy_dips는 5대 골고루 보여서 카메라 문제가 아니라 순수 confidence flicker
-# (quorum/whitelist로 해결 안 됨, per_class_confirm 대상).
+# campbells(43)/spam(29)/cheerios(48)는 스크립트가 "whitelist 불필요"로 판정
+# (spam은 유일하게 신호 있는 cam4도 5% 미만이라 whitelist 없이 quorum=1로만 처리,
+# cheerios는 5대 골고루 다 약함) — 둘 다 카메라 선택이 아니라 quorum 문제.
+# 31(macadamia)은 skip=2/conf=0.4 산출값 [0,2]에서 skip=3/conf=0.5 기준
+# [0]으로 좁힘(cam2가 0.6%로 떨어져서 더 이상 유효한 신호 아님).
 CLASS_CAM_WHITELIST: Dict[int, List[int]] = {
     0:  [0, 2],     # aunt_jemima_original_syrup
     4:  [0, 1, 3],  # crayola_24_crayons
+    8:  [0],        # hunts_sauce -- 2026-07-02 신규: cam0 74.9% 압도적
     17: [0, 3, 4],  # a1_steak_sauce
-    31: [0, 2],     # pepperidge_farm_milk_chocolate_macadamia_cookies
+    31: [0],        # pepperidge_farm_milk_chocolate_macadamia_cookies (재산출)
     36: [1, 2, 3],  # nature_valley_crunchy_oats_n_honey
     41: [2],        # nabisco_nilla_wafers
+    45: [2, 3],     # chewy_dips_chocolate_chip -- 2026-07-02 신규
     54: [3],        # dove_white
 }
 
