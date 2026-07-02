@@ -13,6 +13,10 @@ OUT="output/submission_rfdetr_skip${SKIP}.csv"
 DEBUG_LOG="output/debug_frame_counts_rfdetr.csv"
 PER_CAM_LOG="output/per_cam_rfdetr.csv"
 
+# 2026-07-02: whitelist만으로 안 잡힌 confidence-flicker 클래스들 confirm_frames 2배로
+# (0=aunt_jemima, 17=a1_steak_sauce, 31=macadamia, 36=nature_valley, 46=chewy_dips_peanut_butter, 54=dove_white)
+PER_CLASS_CONFIRM='{"0":60,"17":60,"31":60,"36":60,"46":60,"54":60}'
+
 python src/run_pipeline_rfdetr.py \
     --videos  ${CAM_DIR}/cam0/Sample_1.mp4 \
               ${CAM_DIR}/cam1/Sample_1.mp4 \
@@ -27,7 +31,8 @@ python src/run_pipeline_rfdetr.py \
     --conf    0.4 \
     --device  0 \
     --debug_log ${DEBUG_LOG} \
-    --per_cam_log ${PER_CAM_LOG}
+    --per_cam_log ${PER_CAM_LOG} \
+    --per_class_confirm "${PER_CLASS_CONFIRM}"
 
 echo "=== 채점 ==="
 python tools/score.py \

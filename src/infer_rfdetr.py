@@ -43,6 +43,9 @@ def _parse_detections(result) -> list:
     return dets
 
 
+_mode_logged = {"done": False}
+
+
 def infer_rfdetr(model, frames, conf_thres=0.4, device="cuda:0"):
     """
     frames: List[np.ndarray | None] — 5개 카메라 BGR 프레임
@@ -65,17 +68,25 @@ def infer_rfdetr(model, frames, conf_thres=0.4, device="cuda:0"):
         results = model.predict(pil_images, threshold=conf_thres)
         # 결과가 리스트면 배치 성공
         if isinstance(results, list):
+            if not _mode_logged["done"]:
+                print(f"[infer_rfdetr] batch predict OK ({len(pil_images)} images/call)")
+                _mode_logged["done"] = True
             for idx, result in zip(valid_idx, results):
                 per_cam[idx] = _parse_detections(result)
             return per_cam
         # 단일 Detections 반환 → 배치 미지원, fallback
+        if not _mode_logged["done"]:
+            print("[infer_rfdetr] batch predict returned non-list -- falling back to per-image calls")
+            _mode_logged["done"] = True
         per_cam[valid_idx[0]] = _parse_detections(results)
         for i in valid_idx[1:]:
             r = model.predict(pil_images[valid_idx.index(i)], threshold=conf_thres)
             per_cam[i] = _parse_detections(r)
         return per_cam
-    except Exception:
-        pass
+    except Exception as e:
+        if not _mode_logged["done"]:
+            print(f"[infer_rfdetr] batch predict raised {type(e).__name__}: {e} -- falling back to sequential per-image calls")
+            _mode_logged["done"] = True
 
     # 순차 fallback
     for i, pil_img in zip(valid_idx, pil_images):

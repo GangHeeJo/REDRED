@@ -13,6 +13,7 @@ Usage:
 """
 
 import argparse
+import json
 import time
 import sys
 import os
@@ -51,6 +52,8 @@ def main():
     p.add_argument("--timed_log",   default=None)
     p.add_argument("--use_tracker", action="store_true")
     p.add_argument("--tracker_max_age", type=int, default=15)
+    p.add_argument("--per_class_confirm", type=str, default=None,
+                    help='클래스별 confirm_frames JSON (예: \'{"54":60,"46":60}\')')
     args = p.parse_args()
 
     device = f"cuda:{args.device}" if args.device.isdigit() else args.device
@@ -93,7 +96,13 @@ def main():
             if med > 0:
                 init_inv[cls_id] = med
 
-    detector = EventDetector(class_names=names, initial_counts=init_inv)
+    per_class_confirm = {}
+    if args.per_class_confirm:
+        per_class_confirm = {int(k): int(v) for k, v in json.loads(args.per_class_confirm).items()}
+        print(f"per_class_confirm overrides: {per_class_confirm}")
+
+    detector = EventDetector(class_names=names, initial_counts=init_inv,
+                              per_class_confirm=per_class_confirm)
     tracker  = MultiCameraTracker(max_age=args.tracker_max_age) if args.use_tracker else None
 
     debug_f   = open(args.debug_log,   "w") if args.debug_log   else None
