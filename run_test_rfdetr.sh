@@ -1,15 +1,20 @@
 #!/bin/bash
 # RF-DETR 파이프라인 테스트 (YOLOv7 드롭인 교체)
-# Usage: bash run_test_rfdetr.sh [skip=2]
+# Usage: bash run_test_rfdetr.sh [skip=3] [conf=0.5]
+#
+# 2026-07-02: skip=2/conf=0.4는 RTF=1.26로 기준(<=1) 초과 -- score.py 기준
+# RTF>1은 "상대평가, 공식 미공개"라 몇 점 깎이는지 알 수 없어 리스크가 큼.
+# skip=3/conf=0.5(RTF=0.86, order F1 83.6%, 33.4/40)를 새 기본값으로 확정.
 
 set -e
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate rfdetr
 
-SKIP=${1:-2}
+SKIP=${1:-3}
+CONF=${2:-0.5}
 WEIGHTS="runs/rfdetr/checkpoint_best_total.pth"
 CAM_DIR=~/Dataset/4.TestVideo_Sample
-OUT="output/submission_rfdetr_skip${SKIP}.csv"
+OUT="output/submission_rfdetr_skip${SKIP}_conf${CONF}.csv"
 DEBUG_LOG="output/debug_frame_counts_rfdetr.csv"
 PER_CAM_LOG="output/per_cam_rfdetr.csv"
 
@@ -32,7 +37,7 @@ python src/run_pipeline_rfdetr.py \
     --prices  data/prices.csv \
     --out     ${OUT} \
     --skip    ${SKIP} \
-    --conf    0.4 \
+    --conf    ${CONF} \
     --device  0 \
     --debug_log ${DEBUG_LOG} \
     --per_cam_log ${PER_CAM_LOG} \
