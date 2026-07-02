@@ -17,6 +17,7 @@ CAM_DIR=~/Dataset/4.TestVideo_Sample
 OUT="output/submission_rfdetr_skip${SKIP}_conf${CONF}.csv"
 DEBUG_LOG="output/debug_frame_counts_rfdetr.csv"
 PER_CAM_LOG="output/per_cam_rfdetr.csv"
+TIMED_LOG="output/timed_rfdetr.csv"
 
 # 2026-07-02: 31(macadamia)은 이제 whitelist=[0] 단일카메라로 처리해서 제거
 # (confirm=60까지 겹치면 이미 약해진 신호를 더 필터링할 위험). 36/46은 skip=3/
@@ -43,9 +44,16 @@ python src/run_pipeline_rfdetr.py \
     --device  0 \
     --debug_log ${DEBUG_LOG} \
     --per_cam_log ${PER_CAM_LOG} \
+    --timed_log ${TIMED_LOG} \
     --per_class_confirm "${PER_CLASS_CONFIRM}"
 
 echo "=== 채점 ==="
 python tools/score.py \
     --sub ${OUT} \
     --gt  data/ground_truth_v2.csv
+
+echo "=== 3종 채점 (count/order/time) ==="
+python tools/score_methods.py \
+    --sub ${OUT} \
+    --gt  data/ground_truth_v2.csv \
+    --timed ${TIMED_LOG}
