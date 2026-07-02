@@ -28,29 +28,31 @@ from collections import defaultdict
 # quorum=1: 1대 카메라만 감지해도 인정 (1~2대에서만 보이는 상품)
 # quorum=3: 3대 이상 동의해야 인정 (중복 발화되는 상품)
 #
-# 2026-07-02: RF-DETR 진단 위해 임시로 비움. 아래 값들은 YOLOv7(main)용으로
-# 튜닝된 값이라 RF-DETR 감지 패턴과 안 맞을 수 있음 (예: 42/54는 YOLOv7이
-# 거의 못 잡아서 quorum=1로 낮춘 건데, RF-DETR은 반대로 이 클래스들을
-# 노이즈 섞어서 잡아서 quorum=1이 과다발화를 유발하는 것으로 의심됨).
-# RF-DETR 전용 값은 tools/analyze_per_cam.py로 다시 산출할 것.
-#
-# CLASS_QUORUM_OVERRIDE: Dict[int, int] = {
-#     2:  2,   # bumblebee_albacore
-#     53: 1,   # dove_pink
-#     54: 1,   # dove_white
-#     15: 1,   # redbull
-#     39: 1,   # crystal_hot_sauce
-#     21: 1,   # dr_pepper
-#     29: 2,   # spam
-#     42: 1,   # pepperidge_farm_milano
-# }
-CLASS_QUORUM_OVERRIDE: Dict[int, int] = {}
+# 2026-07-02: RF-DETR 진단 중 전부 비웠다가(과다발화 milano는 고쳐졌지만
+# crystal_hot_sauce가 새로 미탐지로 회귀함) 원인 분리함 -- 이 표엔 성격이 다른
+# 두 종류가 섞여 있었음:
+#   (a) "카메라 1~2대에서만 물리적으로 보이는" 구조적 케이스(bumblebee/dove_pink/
+#       redbull/crystal_hot_sauce/dr_pepper/spam) — 카메라 배치 문제라 모델과
+#       무관하게 여전히 필요. 복원함.
+#   (b) "YOLOv7이 잘 못 잡아서 문턱을 낮춘" 모델별 케이스(milano/dove_white) —
+#       RF-DETR은 반대로 노이즈 섞어 잡아서 quorum=1이 과다발화 유발. 계속 비워두고
+#       RF-DETR 전용 값은 tools/analyze_per_cam.py(output/per_cam_rfdetr.csv)로
+#       따로 산출할 것. milano는 cam-weight exclusion만으로 이미 해결됨
+#       (run_pipeline_rfdetr.py 참고). dove_white는 quorum=2+whitelist없음 조합이
+#       완전 미탐지로 회귀했으니 재산출 필요.
+CLASS_QUORUM_OVERRIDE: Dict[int, int] = {
+    2:  2,   # bumblebee_albacore
+    53: 1,   # dove_pink
+    15: 1,   # redbull
+    39: 1,   # crystal_hot_sauce
+    21: 1,   # dr_pepper
+    29: 2,   # spam
+    # 54: dove_white — RF-DETR 전용 값 재산출 전까지 비워둠
+    # 42: pepperidge_farm_milano — cam-weight exclusion으로 해결됨, quorum 불필요
+}
 
-# CLASS_CAM_WHITELIST: Dict[int, List[int]] = {
-#     43: [0],     # campbells_chicken_noodle_soup: cam4 chunky 혼동 차단
-#     42: [3, 4],  # pepperidge_farm_milano: 노이즈 cam0 제거
-#     54: [3],     # dove_white: cam3만
-# }
+# 42(milano)/54(dove_white)/43(campbells) whitelist는 YOLOv7 전용이라 비워둔 채
+# tools/analyze_per_cam.py로 RF-DETR 전용 값 재산출 예정.
 CLASS_CAM_WHITELIST: Dict[int, List[int]] = {}
 
 
