@@ -102,6 +102,9 @@ CLASS_CONF_OVERRIDE: Dict[int, float] = {
     43: 0.35,  # campbells_chicken_noodle_soup
     48: 0.35,  # cheerios
     8:  0.35,  # hunts_sauce
+    0:  0.35,  # aunt_jemima_original_syrup -- 2026-07-02: sam2_video_label.py의
+               # WEAK_CLASS_IDS엔 있었는데 여기 빠뜨렸던 걸 뒤늦게 발견, 추가
+    45: 0.35,  # chewy_dips_chocolate_chip -- 위와 동일
 }
 
 
