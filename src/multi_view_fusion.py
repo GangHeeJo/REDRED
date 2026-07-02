@@ -84,6 +84,14 @@ CLASS_CAM_WHITELIST: Dict[int, List[int]] = {
     54: [3],        # dove_white
 }
 
+# 2026-07-02: dove_white(54)가 0->2로 바로 뛰는 반환 이벤트 발생 확인
+# (cam3가 물리적으로 1개인 물체를 박스 2개로 중복검출하는 것으로 추정 --
+# KD_clean 때 cholula 이중감지와 같은 패턴, NMS 레벨 문제라 quorum/whitelist/
+# confirm으로는 못 잡음, 값 자체를 clamp해야 함).
+CLASS_MAX_COUNT_OVERRIDE: Dict[int, int] = {
+    54: 1,  # dove_white
+}
+
 
 DetectionList = List[Dict]   # [{class_id, confidence, bbox}, ...]
 
@@ -153,7 +161,10 @@ def fuse_weighted_median(
             continue
         sorted_desc = sorted(votes, reverse=True)
         idx = min(cls_quorum, len(sorted_desc)) - 1
-        result[cls_id] = sorted_desc[idx]
+        count = sorted_desc[idx]
+        if cls_id in CLASS_MAX_COUNT_OVERRIDE:
+            count = min(count, CLASS_MAX_COUNT_OVERRIDE[cls_id])
+        result[cls_id] = count
 
     return result
 
