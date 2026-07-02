@@ -35,6 +35,16 @@ from run_pipeline import (
     estimate_initial_inventory,
 )
 
+# 2026-07-02: a1_steak_sauce(17) 초기 30프레임 raw fused count가 [1,2,2,2,2,2,2,
+# 1,2,...] (28/30이 2)라 median=2로 추정되는데, 8.0s에 바로 2->1로 "정정"되고
+# 이후 31.0s에 진짜 GT 구매(1->0)가 또 발화 -- 초기값이 실제보다 높게 잡혀서
+# 유령 구매 이벤트 하나가 시작하자마자 생기는 것으로 의심됨. YOLOv7에서 campbells
+# 에 이 방식(CLASS_INIT_INVENTORY_OVERRIDE)을 시도했다가 부작용으로 롤백한 전례가
+# 있어 리스크 있음 -- 실험적으로 적용, 효과 없거나 역효과면 되돌릴 것.
+CLASS_INIT_INVENTORY_OVERRIDE: dict = {
+    17: 1,  # a1_steak_sauce
+}
+
 
 def main():
     p = argparse.ArgumentParser()
@@ -95,6 +105,11 @@ def main():
             med = int(np.median(count_values[cls_id]))
             if med > 0:
                 init_inv[cls_id] = med
+    if CLASS_INIT_INVENTORY_OVERRIDE:
+        for cls_id, val in CLASS_INIT_INVENTORY_OVERRIDE.items():
+            init_inv[cls_id] = val
+        overrides_by_name = {names[k]: v for k, v in CLASS_INIT_INVENTORY_OVERRIDE.items()}
+        print(f"Initial inventory overrides applied: {overrides_by_name}")
     print(f"Initial inventory: {len(init_inv)} classes detected")
     print("Initial inventory detail:", {names[k]: v for k, v in init_inv.items()})
     print("Initial inventory raw counts (per-frame fused values during init window):",

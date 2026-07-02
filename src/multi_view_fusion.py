@@ -71,7 +71,11 @@ CLASS_QUORUM_OVERRIDE: Dict[int, int] = {
 CLASS_CAM_WHITELIST: Dict[int, List[int]] = {
     0:  [0, 2],     # aunt_jemima_original_syrup
     4:  [0, 1, 3],  # crayola_24_crayons
-    8:  [0],        # hunts_sauce -- 2026-07-02 신규: cam0 74.9% 압도적
+    # 8: hunts_sauce -- 2026-07-02: whitelist=[0](cam0 74.9%)로 좁혔더니 다중
+    # 카메라 합의로 걸러지던 cam0 자체의 flicker가 그대로 이벤트화(5번 발화,
+    # GT=2). per_class_confirm=60도 효과 없었음(꺼짐 구간이 그보다 김). 순손실
+    # 확인돼서 되돌림 -- 원래(whitelist 없음, quorum=2 기본값)이 더 나음(깔끔한
+    # 미탐지 2건 < 반복오발화로 인한 LCS 정렬 붕괴).
     17: [0, 3, 4],  # a1_steak_sauce
     31: [0],        # pepperidge_farm_milk_chocolate_macadamia_cookies (재산출)
     36: [1, 2, 3],  # nature_valley_crunchy_oats_n_honey
