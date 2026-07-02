@@ -13,9 +13,13 @@ OUT="output/submission_rfdetr_skip${SKIP}.csv"
 DEBUG_LOG="output/debug_frame_counts_rfdetr.csv"
 PER_CAM_LOG="output/per_cam_rfdetr.csv"
 
-# 2026-07-02: whitelist만으로 안 잡힌 confidence-flicker 클래스들 confirm_frames 2배로
-# (0=aunt_jemima, 17=a1_steak_sauce, 31=macadamia, 36=nature_valley, 46=chewy_dips_peanut_butter, 54=dove_white)
-PER_CLASS_CONFIRM='{"0":60,"17":60,"31":60,"36":60,"46":60,"54":60}'
+# 2026-07-02: 6개 전부 적용했을 때 milano(42)/lindt(50)처럼 이 딕셔너리에 없는
+# 클래스까지 깨지는 원인불명 부작용 발견(event_detector.py는 클래스별 완전
+# 독립이라 코드상 이유를 못 찾음). 확실히 개선 확인된 3개만 남김
+# (31=macadamia, 36=nature_valley, 46=chewy_dips_peanut_butter).
+# a1_steak_sauce(17)/aunt_jemima(0)/dove_white(54)는 효과 없었거나 형태만
+# 바뀌어서 제외.
+PER_CLASS_CONFIRM='{"31":60,"36":60,"46":60}'
 
 python src/run_pipeline_rfdetr.py \
     --videos  ${CAM_DIR}/cam0/Sample_1.mp4 \
