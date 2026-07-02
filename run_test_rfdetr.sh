@@ -10,6 +10,7 @@ SKIP=${1:-2}
 WEIGHTS="runs/rfdetr/checkpoint_best_total.pth"
 CAM_DIR=~/Dataset/4.TestVideo_Sample
 OUT="output/submission_rfdetr_skip${SKIP}.csv"
+DEBUG_LOG="output/debug_frame_counts_rfdetr.csv"
 
 python src/run_pipeline_rfdetr.py \
     --videos  ${CAM_DIR}/cam0/Sample_1.mp4 \
@@ -23,7 +24,8 @@ python src/run_pipeline_rfdetr.py \
     --out     ${OUT} \
     --skip    ${SKIP} \
     --conf    0.4 \
-    --device  0
+    --device  0 \
+    --debug_log ${DEBUG_LOG}
 
 echo "=== 채점 ==="
 python tools/score.py \

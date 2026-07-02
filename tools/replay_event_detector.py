@@ -16,7 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from event_detector import EventDetector, WINDOW_SIZE, MAX_DELTA, CONFIRM_FRAMES, MAX_INVENTORY
 
-DEBUG_LOG = "output/debug_frame_counts.csv"
+DEBUG_LOG_DEFAULT = "output/debug_frame_counts.csv"
 NAMES_PATH = "data/names.txt"
 
 
@@ -37,6 +37,14 @@ def load_debug_log(path):
 def main():
     full_replay = "--full" in sys.argv
     args = [a for a in sys.argv[1:] if a != "--full"]
+    debug_log = DEBUG_LOG_DEFAULT
+    remaining = []
+    for a in args:
+        if a.startswith("--debug_log="):
+            debug_log = a.split("=", 1)[1]
+        else:
+            remaining.append(a)
+    args = remaining
     target_names = args or ["coffee_mate_french_vanilla", "jif_creamy_peanut_butter",
                              "pop_tararts_strawberry", "hunts_sauce"]
 
@@ -47,7 +55,8 @@ def main():
         if n not in name_to_id:
             print(f"WARNING: class '{n}' not found in names.txt")
 
-    per_frame = load_debug_log(DEBUG_LOG)
+    print(f"Using debug log: {debug_log}")
+    per_frame = load_debug_log(debug_log)
 
     import cv2
     cap = cv2.VideoCapture(str(Path(__file__).parent.parent / "cam0_Sample1.mp4"))
