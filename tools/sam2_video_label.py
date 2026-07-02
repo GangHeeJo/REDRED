@@ -35,7 +35,8 @@ from infer_rfdetr import load_rfdetr, infer_rfdetr
 # 기존 --conf 그대로 -- 이미 잘 잡히는 클래스에 저품질 라벨을 섞고 싶지 않음.
 WEAK_CLASS_IDS = {0, 8, 43, 45, 48}  # aunt_jemima, hunts_sauce, campbells,
                                      # chewy_dips_chocolate_chip, cheerios
-WEAK_CLASS_CONF = 0.15
+WEAK_CLASS_CONF = 0.1  # 2026-07-02: 0.15->0.1, 효과가 애매하면 강도를 높이자는
+                       # 결정 -- 확실한 개선이 우선이라 노이즈 리스크 감수
 
 
 def parse_args():

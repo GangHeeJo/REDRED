@@ -49,6 +49,16 @@ def load_names(path):
 WEAK_CLASS_IDS = {0, 8, 43, 45, 48}  # aunt_jemima, hunts_sauce, campbells,
                                      # chewy_dips_chocolate_chip, cheerios
 
+# 2026-07-02 추가: 미탐지는 아니지만(정상 검출됨) 타이밍 오차가 큰 클래스
+# (score_methods.py Method 3, ±3초 초과 중 5초 이상). 이미 잘 잡히니 SAM2
+# 캡처 문턱은 안 낮춤(sam2_video_label.py는 안 건드림) -- 오버샘플링만으로
+# confidence를 더 뾰족하게(빨리 안정되게) 만들 수 있는지 시도.
+TIMING_ISSUE_CLASS_IDS = {2, 22, 42, 46, 50}  # bumblebee_albacore,
+    # haribo_gold_bears_gummi_candy, pepperidge_farm_milano_cookies_double_chocolate,
+    # chewy_dips_peanut_butter, lindt_excellence_cocoa_dark_chocolate
+
+REINFORCE_CLASS_IDS = WEAK_CLASS_IDS | TIMING_ISSUE_CLASS_IDS
+
 
 def label_path_for(img_path):
     img_path = Path(img_path)
@@ -57,14 +67,14 @@ def label_path_for(img_path):
     return p1 if p1.exists() else p2
 
 
-def contains_weak_class(img_path):
+def contains_reinforce_class(img_path):
     lp = label_path_for(img_path)
     if not lp.exists():
         return False
     with open(lp) as f:
         for line in f:
             parts = line.strip().split()
-            if parts and int(parts[0]) in WEAK_CLASS_IDS:
+            if parts and int(parts[0]) in REINFORCE_CLASS_IDS:
                 return True
     return False
 
@@ -138,12 +148,12 @@ def main():
     train_paths = all_paths[n_val:]
 
     if args.oversample_weak > 0:
-        weak_paths = [p for p in tqdm(train_paths, desc="scanning for weak classes")
-                      if contains_weak_class(p)]
+        weak_paths = [p for p in tqdm(train_paths, desc="scanning for reinforce classes")
+                      if contains_reinforce_class(p)]
         extra = weak_paths * (args.oversample_weak - 1)
         train_paths = train_paths + extra
         random.shuffle(train_paths)
-        print(f"Oversampled {len(weak_paths)} weak-class images x{args.oversample_weak} "
+        print(f"Oversampled {len(weak_paths)} reinforce-class images x{args.oversample_weak} "
               f"(+{len(extra)} duplicated entries, train now {len(train_paths)} total)")
 
     yolo_to_coco(train_paths, names, "train", args.out_dir, args.symlink)
