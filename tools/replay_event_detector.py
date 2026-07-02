@@ -58,11 +58,13 @@ def main():
     print(f"Using debug log: {debug_log}")
     per_frame = load_debug_log(debug_log)
 
-    import cv2
-    cap = cv2.VideoCapture(str(Path(__file__).parent.parent / "cam0_Sample1.mp4"))
-    n_raw_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    cap.release()
-    skip = 2
+    # Derive the processed-frame range/skip directly from the debug log instead of
+    # re-opening the source video -- the video files are gitignored (*.mp4) so this
+    # path only ever resolved on a machine that still had a local copy of the sample.
+    logged_frames = sorted(per_frame.keys())
+    diffs = sorted({b - a for a, b in zip(logged_frames, logged_frames[1:]) if b - a > 0})
+    skip = diffs[0] if diffs else 2
+    n_raw_frames = logged_frames[-1] + skip if logged_frames else 0
     all_frame_idx = list(range(0, n_raw_frames, skip))
     print(f"Replaying ALL {len(all_frame_idx)} processed frames (0..{n_raw_frames-1} step {skip}), "
           f"{len(per_frame)} of which have >=1 nonzero detection in the debug log\n")
