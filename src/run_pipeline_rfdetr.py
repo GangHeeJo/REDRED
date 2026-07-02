@@ -57,6 +57,12 @@ def main():
     names  = load_names(args.names)
     prices = load_prices(args.prices)
 
+    # milano 제외: cam-weight occlusion 메커니즘 자체가 milano 과다발화를 유발함이
+    # YOLOv7 Phase 24에서 확인됨 (run_pipeline.py 참고). RF-DETR로 이식할 때 누락돼
+    # 있었음 -- 2026-07-02에 다시 연결.
+    _milano_id = next((i for i, n in enumerate(names) if "milano" in n.lower()), None)
+    _cam_weight_excluded = {_milano_id} if _milano_id is not None else set()
+
     print("Loading RF-DETR...")
     model = load_rfdetr(args.weights, num_classes=len(names), device=device)
 
@@ -73,7 +79,7 @@ def main():
         if all(f is None for f in frames):
             break
         per_cam = infer_rfdetr(model, frames, args.conf, device)
-        cam_w   = compute_per_class_cam_weights(per_cam)
+        cam_w   = compute_per_class_cam_weights(per_cam, exclude_class_ids=_cam_weight_excluded)
         fused   = fuse(per_cam, cam_weights=cam_w)
         for cls_id, cnt in fused.items():
             if cnt > 0:
@@ -128,7 +134,7 @@ def main():
                 for cls_id, cnt in cnt_map.items():
                     per_cam_f.write(f"{frame_idx},{cam_i},{cls_id},{names[cls_id]},{cnt}\n")
 
-        cam_weights = compute_per_class_cam_weights(per_cam)
+        cam_weights = compute_per_class_cam_weights(per_cam, exclude_class_ids=_cam_weight_excluded)
         fused = fuse(per_cam, cam_weights=cam_weights)
 
         if debug_f:
