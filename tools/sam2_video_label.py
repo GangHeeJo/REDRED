@@ -29,6 +29,14 @@ from tqdm import tqdm
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from infer_rfdetr import load_rfdetr, infer_rfdetr
 
+# 2026-07-02: 파이프라인 튜닝만으로 못 잡은 미탐지 클래스들 -- raw 감지율
+# 자체가 낮아서(conf=0.3에서도 도메인 데이터 14~250개뿐) 재학습으로 보강 시도.
+# 이 클래스들만 라벨링 캡처 문턱을 낮춰서(--conf보다) 더 많이 뽑음. 나머지는
+# 기존 --conf 그대로 -- 이미 잘 잡히는 클래스에 저품질 라벨을 섞고 싶지 않음.
+WEAK_CLASS_IDS = {0, 8, 43, 45, 48}  # aunt_jemima, hunts_sauce, campbells,
+                                     # chewy_dips_chocolate_chip, cheerios
+WEAK_CLASS_CONF = 0.15
+
 
 def parse_args():
     p = argparse.ArgumentParser()
@@ -113,8 +121,15 @@ def main():
                 continue
 
             # RF-DETR 추론 (단일 프레임을 리스트로 전달)
-            per_cam = infer_rfdetr(rfdetr, [frame], conf_thres=args.conf, device=device)
-            dets = per_cam[0] or []
+            # capture_conf로 낮게 잡고, 클래스별 실효 문턱을 다시 적용
+            # (WEAK_CLASS_IDS만 낮은 문턱 유지, 나머지는 기존 --conf로 복원)
+            capture_conf = min(args.conf, WEAK_CLASS_CONF)
+            per_cam = infer_rfdetr(rfdetr, [frame], conf_thres=capture_conf, device=device)
+            raw_dets = per_cam[0] or []
+            dets = [
+                d for d in raw_dets
+                if d["confidence"] >= (WEAK_CLASS_CONF if d["class_id"] in WEAK_CLASS_IDS else args.conf)
+            ]
             if not dets:
                 frame_idx += 1
                 continue

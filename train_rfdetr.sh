@@ -1,6 +1,11 @@
 #!/bin/bash
 # RF-DETR fine-tuning
 # 실행 전: conda activate rfdetr && cd ~/REDRED
+# Usage: bash train_rfdetr.sh [epochs=50] [batch=8] [--with_sam2] [--rebuild]
+#
+# 2026-07-02: --rebuild 추가 -- 미탐지 클래스(WEAK_CLASS_IDS, tools/yolo_to_coco.py
+# 참고) 보강을 위해 COCO 변환을 --oversample_weak 3으로 다시 만듦. 기존 방식은
+# train/_annotations.coco.json이 있으면 그냥 스킵해서 이 보강이 반영 안 됨.
 
 set -e
 source "$(conda info --base)/etc/profile.d/conda.sh"
@@ -12,13 +17,14 @@ EPOCHS=${1:-50}
 BATCH=${2:-8}
 OUT_DIR="runs/rfdetr"
 
-# Step 1: 기존 학습 데이터 COCO 변환 (이미 있으면 스킵)
-if [ ! -f "${DATASET_DIR}/train/_annotations.coco.json" ]; then
-    echo "=== YOLO → COCO 변환 ==="
+# Step 1: 기존 학습 데이터 COCO 변환 (이미 있으면 스킵, --rebuild면 강제 재생성)
+if [ "$4" = "--rebuild" ] || [ ! -f "${DATASET_DIR}/train/_annotations.coco.json" ]; then
+    echo "=== YOLO → COCO 변환 (약한 클래스 3배 오버샘플링) ==="
     python tools/yolo_to_coco.py \
         --train_txt ~/yolov7/data/train.txt \
         --names     data/names.txt \
         --out_dir   ${DATASET_DIR} \
+        --oversample_weak 3 \
         --symlink
 fi
 

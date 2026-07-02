@@ -34,12 +34,39 @@ def parse_args():
     p.add_argument("--out_dir",   default="data/coco_rfdetr")
     p.add_argument("--val_ratio", type=float, default=0.05)
     p.add_argument("--symlink",   action="store_true")
+    p.add_argument("--oversample_weak", type=int, default=0,
+                    help="WEAK_CLASS_IDS 포함 이미지를 이 배수만큼 train에 복제 (0=비활성)")
     return p.parse_args()
 
 
 def load_names(path):
     with open(path) as f:
         return [l.strip() for l in f if l.strip()]
+
+
+# tools/sam2_video_label.py의 WEAK_CLASS_IDS와 동일 (2026-07-02: 파이프라인
+# 튜닝으로 못 잡은 미탐지 클래스 -- 학습 노출 빈도를 인위적으로 높여서 보강 시도)
+WEAK_CLASS_IDS = {0, 8, 43, 45, 48}  # aunt_jemima, hunts_sauce, campbells,
+                                     # chewy_dips_chocolate_chip, cheerios
+
+
+def label_path_for(img_path):
+    img_path = Path(img_path)
+    p1 = img_path.with_suffix(".txt")
+    p2 = Path(str(img_path).replace("/images/", "/labels/")).with_suffix(".txt")
+    return p1 if p1.exists() else p2
+
+
+def contains_weak_class(img_path):
+    lp = label_path_for(img_path)
+    if not lp.exists():
+        return False
+    with open(lp) as f:
+        for line in f:
+            parts = line.strip().split()
+            if parts and int(parts[0]) in WEAK_CLASS_IDS:
+                return True
+    return False
 
 
 def yolo_to_coco(image_paths, names, split, out_dir, symlink=False):
@@ -109,6 +136,15 @@ def main():
     n_val = max(1, int(len(all_paths) * args.val_ratio))
     val_paths   = all_paths[:n_val]
     train_paths = all_paths[n_val:]
+
+    if args.oversample_weak > 0:
+        weak_paths = [p for p in tqdm(train_paths, desc="scanning for weak classes")
+                      if contains_weak_class(p)]
+        extra = weak_paths * (args.oversample_weak - 1)
+        train_paths = train_paths + extra
+        random.shuffle(train_paths)
+        print(f"Oversampled {len(weak_paths)} weak-class images x{args.oversample_weak} "
+              f"(+{len(extra)} duplicated entries, train now {len(train_paths)} total)")
 
     yolo_to_coco(train_paths, names, "train", args.out_dir, args.symlink)
     yolo_to_coco(val_paths,   names, "valid", args.out_dir, args.symlink)  # rfdetr는 'valid'
