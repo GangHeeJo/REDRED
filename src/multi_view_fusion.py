@@ -92,6 +92,32 @@ CLASS_MAX_COUNT_OVERRIDE: Dict[int, int] = {
     54: 1,  # dove_white
 }
 
+# 2026-07-02: conf=0.5(전역)가 과다발화 클래스는 안정화시켰지만, 원래 신호가
+# 약한 클래스(cheerios/campbells/hunts_sauce raw 감지율 1~5%대)는 그 문턱을
+# 못 넘어서 완전 미탐지가 됨. 모델 자체는 더 낮은 문턱(--conf, 예: 0.35)으로
+# 느슨하게 감지하고, 여기서 클래스별로 실효 문턱을 다시 적용 -- 대부분
+# DEFAULT_EFFECTIVE_CONF(=0.5, 기존과 동일)를 쓰고 약한 클래스만 낮춤.
+DEFAULT_EFFECTIVE_CONF = 0.5
+CLASS_CONF_OVERRIDE: Dict[int, float] = {
+    43: 0.35,  # campbells_chicken_noodle_soup
+    48: 0.35,  # cheerios
+    8:  0.35,  # hunts_sauce
+}
+
+
+def filter_per_cam_by_conf(per_cam_detections):
+    """클래스별 실효 confidence 문턱 재적용 (모델 자체 threshold보다 나중 단계)."""
+    filtered = []
+    for dets in per_cam_detections:
+        if dets is None:
+            filtered.append(None)
+            continue
+        filtered.append([
+            d for d in dets
+            if d["confidence"] >= CLASS_CONF_OVERRIDE.get(d["class_id"], DEFAULT_EFFECTIVE_CONF)
+        ])
+    return filtered
+
 
 DetectionList = List[Dict]   # [{class_id, confidence, bbox}, ...]
 

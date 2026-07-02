@@ -24,7 +24,7 @@ from collections import defaultdict
 
 sys.path.insert(0, str(Path(__file__).parent))
 from event_detector import EventDetector
-from multi_view_fusion import fuse
+from multi_view_fusion import fuse, filter_per_cam_by_conf
 from csv_generator import load_prices, events_to_csv
 from tracker import MultiCameraTracker
 from infer_rfdetr import load_rfdetr, infer_rfdetr
@@ -92,6 +92,7 @@ def main():
         if all(f is None for f in frames):
             break
         per_cam = infer_rfdetr(model, frames, args.conf, device)
+        per_cam = filter_per_cam_by_conf(per_cam)
         cam_w   = compute_per_class_cam_weights(per_cam, exclude_class_ids=_cam_weight_excluded)
         fused   = fuse(per_cam, cam_weights=cam_w)
         for cls_id, cnt in fused.items():
@@ -150,9 +151,11 @@ def main():
 
         if tracker:
             per_cam_raw = infer_rfdetr(model, frames, args.conf, device)
+            per_cam_raw = filter_per_cam_by_conf(per_cam_raw)
             per_cam     = [tracker.update(i, dets or []) for i, dets in enumerate(per_cam_raw)]
         else:
             per_cam = infer_rfdetr(model, frames, args.conf, device)
+            per_cam = filter_per_cam_by_conf(per_cam)
 
         if per_cam_f:
             for cam_i, dets in enumerate(per_cam):

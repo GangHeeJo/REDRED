@@ -1,20 +1,26 @@
 #!/bin/bash
 # RF-DETR 파이프라인 테스트 (YOLOv7 드롭인 교체)
-# Usage: bash run_test_rfdetr.sh [skip=3] [conf=0.5]
+# Usage: bash run_test_rfdetr.sh [skip=3] [capture_conf=0.35]
 #
 # 2026-07-02: skip=2/conf=0.4는 RTF=1.26로 기준(<=1) 초과 -- score.py 기준
 # RTF>1은 "상대평가, 공식 미공개"라 몇 점 깎이는지 알 수 없어 리스크가 큼.
 # skip=3/conf=0.5(RTF=0.86, order F1 83.6%, 33.4/40)를 새 기본값으로 확정.
+#
+# 2026-07-02 추가: --conf는 이제 "모델 캡처 하한선"(느슨하게, 0.35)이고,
+# 실제 효과적인 문턱은 multi_view_fusion.py의 CLASS_CONF_OVERRIDE/
+# DEFAULT_EFFECTIVE_CONF(기본 0.5, cheerios/campbells/hunts_sauce만 0.35)가
+# fusion 직전에 클래스별로 재적용함 -- 약한 신호는 살리고 노이즈 심한 클래스는
+# 그대로 0.5 유지.
 
 set -e
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate rfdetr
 
 SKIP=${1:-3}
-CONF=${2:-0.5}
+CONF=${2:-0.35}
 WEIGHTS="runs/rfdetr/checkpoint_best_total.pth"
 CAM_DIR=~/Dataset/4.TestVideo_Sample
-OUT="output/submission_rfdetr_skip${SKIP}_conf${CONF}.csv"
+OUT="output/submission_rfdetr_skip${SKIP}_capconf${CONF}.csv"
 DEBUG_LOG="output/debug_frame_counts_rfdetr.csv"
 PER_CAM_LOG="output/per_cam_rfdetr.csv"
 TIMED_LOG="output/timed_rfdetr.csv"
