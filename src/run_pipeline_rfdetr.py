@@ -95,6 +95,10 @@ def main():
             med = int(np.median(count_values[cls_id]))
             if med > 0:
                 init_inv[cls_id] = med
+    print(f"Initial inventory: {len(init_inv)} classes detected")
+    print("Initial inventory detail:", {names[k]: v for k, v in init_inv.items()})
+    print("Initial inventory raw counts (per-frame fused values during init window):",
+          {names[k]: v for k, v in count_values.items() if k in init_inv})
 
     per_class_confirm = {}
     if args.per_class_confirm:

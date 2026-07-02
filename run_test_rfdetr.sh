@@ -23,7 +23,10 @@ PER_CAM_LOG="output/per_cam_rfdetr.csv"
 # conf=0.5에서도 계속 유효(과다발화 없음) 확인돼서 유지. 17(a1_steak_sauce)/
 # 54(dove_white)는 whitelist를 다 맞게 좁혀도 여전히 과다발화 -- 순수
 # confidence flicker로 판단해 confirm 신규 적용.
-PER_CLASS_CONFIRM='{"17":60,"36":60,"46":60,"54":60}'
+# 8(hunts_sauce) 신규: whitelist=[0] 단일카메라로 좁히니 다중카메라 합의로
+# 걸러지던 노이즈가 그대로 이벤트화(35.7/46.9/54.0/186.4/206.2s 총 5번 발화,
+# GT는 2번뿐) -- 단일카메라 flicker를 confirm으로 필터링 시도.
+PER_CLASS_CONFIRM='{"8":60,"17":60,"36":60,"46":60,"54":60}'
 
 python src/run_pipeline_rfdetr.py \
     --videos  ${CAM_DIR}/cam0/Sample_1.mp4 \

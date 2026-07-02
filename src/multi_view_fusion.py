@@ -49,10 +49,13 @@ CLASS_QUORUM_OVERRIDE: Dict[int, int] = {
     29: 1,   # spam -- 2026-07-02: skip=3/conf=0.5에서 cam4만 2.0%로 신호가 더
              # 약해짐(구 quorum=2는 애초에 두번째 카메라가 항상 0이라 미탐지
              # 유발) -- 1로 낮춤
-    48: 1,   # cheerios -- 2026-07-02 신규: 전카메라 1.3~1.5%로 균일하게 약함
-             # (특정 카메라 문제 아님), quorum=2가 너무 빡빡해서 미탐지
-    0:  1,   # aunt_jemima_original_syrup -- 2026-07-02 신규: whitelist=[0,2]는
-             # 맞는데 quorum=2(둘 다 동의)가 너무 빡빡해서 미탐지로 넘어감
+    48: 1,   # cheerios -- 2026-07-02: quorum=1로 낮췄지만 결과 무변화(여전히
+             # 완전 미탐지) -- conf=0.5에서 raw 감지 자체가 거의 안 남는 것으로
+             # 보임. campbells와 같은 구조적 한계로 잠정 결론, quorum은 무해하니
+             # 유지.
+    # 0: aunt_jemima_original_syrup -- 2026-07-02: quorum=1 시도했다가 순손실
+    # 확인(FN 1건 -> purchase Sub=3 + 신규 FP return Sub=2, 총 4건 초과오류로
+    # 더 나빠짐). whitelist=[0,2]+quorum=2(기본값)가 나음 -- 되돌림.
     # 54: dove_white — RF-DETR 전용 값 재산출 전까지 비워둠
     # 42: pepperidge_farm_milano — cam-weight exclusion으로 해결됨, quorum 불필요
 }
