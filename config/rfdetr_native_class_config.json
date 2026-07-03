@@ -38,8 +38,10 @@
   },
   "refractory_frames": {},
   "presence_threshold": {
+    "4": 0.8,
     "6": 0.75,
     "8": 0.85,
+    "9": 0.8,
     "43": 0.4,
     "45": 0.6,
     "47": 0.8,
@@ -47,6 +49,8 @@
     "51": 0.99
   },
   "_notes": {
+    "4_crayola_24_crayons": "cam0 16.2%/cam1 14.6%/cam3 14.5% 3캠 고르게 중간세기, 단일우세캠 없음 -- nature_vally와 동일 패턴, threshold 0.8로 동일 처방",
+    "9_listerine_green": "5캠 전부 10.9~15.1%로 고르게 중간세기, 단일우세캠 없음 -- 동일 패턴, threshold 0.8",
     "8_hunts_sauce": "cam0 72.4% 압도적 단일소스, 나머지 노이즈 수준 -- whitelist=[0]+threshold 0.85+confirm 90프레임(3s)으로 flicker 억제 (YOLOv7에서도 단일카메라 whitelist는 flicker 그대로 이벤트화된 전례 있어 threshold/confirm 강화로 보완)",
     "47_nature_vally_fruit_and_nut": "5캠 전부 12~18%로 고르게 약함, 단일 우세캠 없음 -- threshold만 0.8로 높여서 우연한 동시발화 억제",
     "0_aunt_jemima": "cam0 11.9%/cam2 11.3% 균등 (기존 whitelist 유지) -- confirm_frames 60으로 늘려서 flicker로 인한 추가 사이클 억제",
