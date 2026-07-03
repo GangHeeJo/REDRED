@@ -25,13 +25,18 @@ import torchvision.transforms.functional as TF
 
 
 def _preprocess(pil_images, model_wrapper):
-    """RFDETRBase.predict()와 동일한 전처리: to_tensor -> resize -> normalize."""
-    tensors = [TF.to_tensor(img) for img in pil_images]
+    """RFDETRBase.predict()와 정확히 동일한 순서: to_tensor -> device로 이동 -> resize -> normalize.
+    (2026-07-04: 원래 CPU에서 resize하고 나중에 device로 옮겼었는데, predict()
+    소스 확인 결과 device 이동이 resize보다 먼저였음 -- CPU/GPU bilinear resize
+    커널의 부동소수점 오차가 다를 수 있어 순서를 정확히 맞춤. validate_margin_infer.py
+    에서 confidence가 최대 0.08까지 벌어졌던 원인으로 의심됨.)
+    """
+    tensors = [TF.to_tensor(img).to(model_wrapper.model.device) for img in pil_images]
     resolution = model_wrapper.model.resolution
     resize_to = [resolution, resolution]
     batch = torch.stack([TF.resize(t, resize_to) for t in tensors])
     batch = TF.normalize(batch, model_wrapper.means, model_wrapper.stds)
-    return batch.to(model_wrapper.model.device)
+    return batch
 
 
 def _raw_forward(model_wrapper, batch_tensor):
