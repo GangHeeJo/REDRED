@@ -5,6 +5,13 @@
 # 원본 50에폭 체크포인트를 덮어써서, 원본 백업(checkpoint_49_original_backup.ckpt)
 # 으로 재채점해서 비교할 때 씀.
 #
+# 2026-07-03: --use_tracker --tracker_max_age 15 추가. YOLOv7 main에서 이미
+# --use_tracker가 켜져 있는데(run_test.sh) RF-DETR 쪽은 run_pipeline_rfdetr.py에
+# 트래커 지원 코드가 있었음에도 이 스크립트에서 빠져있었음. nature_valley/
+# honey_bunches/haribo 등 GT=1인데 Sub=2~3으로 중복발화하는 패턴이 YOLOv7 Phase 11
+# "이벤트직후 유령반전"과 동일 증상 -- 트래커가 그때 이 문제를 해결한 전례가 있어
+# 우선 적용.
+#
 # 2026-07-02: skip=2/conf=0.4는 RTF=1.26로 기준(<=1) 초과 -- score.py 기준
 # RTF>1은 "상대평가, 공식 미공개"라 몇 점 깎이는지 알 수 없어 리스크가 큼.
 # skip=3/conf=0.5(RTF=0.86, order F1 83.6%, 33.4/40)를 새 기본값으로 확정.
@@ -55,7 +62,9 @@ python src/run_pipeline_rfdetr.py \
     --debug_log ${DEBUG_LOG} \
     --per_cam_log ${PER_CAM_LOG} \
     --timed_log ${TIMED_LOG} \
-    --per_class_confirm "${PER_CLASS_CONFIRM}"
+    --per_class_confirm "${PER_CLASS_CONFIRM}" \
+    --use_tracker \
+    --tracker_max_age 15
 
 echo "=== 채점 ==="
 python tools/score.py \
