@@ -273,8 +273,13 @@ def _per_cam_effective_conf(per_cam_dets, class_cfg: "ClassConfig") -> List[Opti
             # 클래스와 헷갈리고 있다는 뜻이라 confidence를 그만큼 깎음.
             if "margin" in best:
                 eff *= max(0.0, best["margin"])
-            if len(ds) > 1:
-                eff *= 0.5  # 동일클래스 중복 박스 페널티
+            # (2026-07-04: 동일클래스 중복 박스 0.5배 페널티 제거함 -- probe_ghost_margin.py
+            # 실측 결과 dove_white(cam3)/pepperidge_farm_milano(cam0) 둘 다 "가끔"이
+            # 아니라 거의 매 프레임 박스 2~5개씩 항상 중복 검출되는 걸로 확인됨(진짜
+            # 신뢰도 0.9대인데 페널티로 매번 ~0.47로 깎여서 threshold를 못 넘어 각각
+            # 36초/11초씩 늦게 확정됨). "가끔 중복되면 불확실"이라는 가정이 이 모델
+            # 에선 안 맞음 -- 이 checkpoint는 진짜 물체 하나에도 습관적으로 박스를
+            # 여러 개 내는 경향이 있어서, 중복 자체가 신뢰도 신호가 아니라 노이즈.)
             confs[cls_id] = eff
         conf_by_cam.append(confs)
     return conf_by_cam
