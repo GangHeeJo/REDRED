@@ -148,7 +148,7 @@ def estimate_bias(gt_timed, sub_timed, probe_window=10.0):
     return diffs[len(diffs) // 2]
 
 
-def _match_nearest(g, s, bias):
+def _match_nearest(g, s, bias, tolerance):
     """
     g, s: 정렬된 시각 리스트 (같은 (class,action) 키).
     인덱스로 그냥 짝짓지 않고, 각 GT 이벤트를 아직 안 쓴 Sub 이벤트 중 가장
@@ -157,6 +157,13 @@ def _match_nearest(g, s, bias):
     문제를 막음 -- 2026-07 REDRED RF-DETR 세션에서 발견됨: 순수 인덱스 매칭은
     Sub=3인데 GT=1인 클래스에서 실제로는 거의 정확한 이벤트가 있어도 항상 가장
     이른(대개 유령) occurrence와 짝지어져 거대한 diff로 오판됨.
+
+    인과성 제약: 이 파이프라인은 항상 실제 이벤트보다 "늦게" 감지함
+    (CONFIRM_FRAMES 지연, bias는 그 중앙값). bias 보정 후에도 Sub가 GT보다
+    tolerance 이상 이르면 그건 같은 이벤트의 지연 감지가 아니라 애초에 다른
+    이벤트(유령/오탐)일 가능성이 높음 -- 억지로 매칭하지 않고 그 GT는 FN으로,
+    그 Sub는 별도 FP로 남김. GT 기록 자체도 완벽하진 않아서(ground_truth_v2
+    제작 중 기록 오류가 실제로 있었음) tolerance만큼의 이른 마진은 허용.
     Returns: pairs=[(gt_t, sub_t, diff), ...], unmatched_gt_count, unmatched_sub_count
     """
     used = [False] * len(s)
@@ -166,7 +173,10 @@ def _match_nearest(g, s, bias):
         for j, st in enumerate(s):
             if used[j]:
                 continue
-            d = abs((st - bias) - gt_t)
+            raw_diff = (st - bias) - gt_t
+            if raw_diff < -tolerance:
+                continue  # causally implausible: 감지가 GT보다 마진 이상 이름
+            d = abs(raw_diff)
             if best_d is None or d < best_d:
                 best_d, best_j = d, j
         if best_j is not None:
@@ -192,7 +202,7 @@ def score_time(gt_timed, sub_timed, tolerance=3.0, bias=None):
     mismatches = []
     for key in set(gt_by_key) | set(sub_by_key):
         g, s = sorted(gt_by_key.get(key, [])), sorted(sub_by_key.get(key, []))
-        pairs, unmatched_gt, unmatched_sub = _match_nearest(g, s, bias)
+        pairs, unmatched_gt, unmatched_sub = _match_nearest(g, s, bias, tolerance)
         for gt_t, sub_t, diff in pairs:
             if diff <= tolerance:
                 tp += 1
