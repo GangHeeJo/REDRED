@@ -396,6 +396,16 @@ def estimate_initial_state(caps, model, class_cfg: ClassConfig, default_conf: fl
         if cap is not None:
             cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
+    # 2026-07-04: 실측 결과(초기 30프레임 vote fraction) 클래스가 거의 전부
+    # 1.00(30/30) 아니면 0.00(0/30)으로 극단적으로 이분화됨 -- 진짜 존재하면
+    # 초반부터 거의 매프레임 잡히고, 진짜 없으면 아예 안 잡힘. 유일한 예외
+    # (aunt_jemima, frac=0.10=3/30)가 실제로는 처음부터 있었는데 초반 몇 초만
+    # 모델이 약하게 잡아서 과반(0.5) 문턱을 못 넘어 "없음"으로 잘못 추정 -> 유령
+    # 반환(0->1) 이벤트 발생으로 확인됨. 이분법적 분포라 문턱을 크게 낮춰도
+    # (0.5->INIT_PRESENCE_FRAC) 진짜 부재 클래스(전부 0.00)는 전혀 영향 없고,
+    # aunt_jemima 같은 "약하게 걸리는 진짜 존재" 케이스만 구제됨.
+    INIT_PRESENCE_FRAC = 0.1
+
     result = {}
     debug_fracs = []
     for cls_id, vs in votes.items():
@@ -403,7 +413,7 @@ def estimate_initial_state(caps, model, class_cfg: ClassConfig, default_conf: fl
             continue
         frac = sum(vs) / len(vs)
         debug_fracs.append((cls_id, frac, sum(vs), len(vs)))
-        if frac >= 0.5:
+        if frac >= INIT_PRESENCE_FRAC:
             result[cls_id] = 1
     debug_fracs.sort(key=lambda x: -x[1])
     print("Initial-state vote fractions (class_id, frac, present_frames/total):")
