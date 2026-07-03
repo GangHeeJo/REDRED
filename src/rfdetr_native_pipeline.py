@@ -154,6 +154,7 @@ class ClassConfig:
     duplicate_penalty: Dict[int, float] = field(default_factory=dict)  # class_id -> 중복박스 페널티 배율(기본 0.5). 일부 클래스(dove_white/milano/lindt)는 항상 중복검출되는 게 정상이라 페널티가 해로움 -- 1.0으로 override해서 무력화
     min_confirm_frames: Dict[int, int] = field(default_factory=dict)  # class_id -> adaptive confirm 하한(강한 신호일 때)
     max_confirm_frames: Dict[int, int] = field(default_factory=dict)  # class_id -> adaptive confirm 상한(문턱 근처 약한 신호일 때)
+    adaptive_confirm_classes: set = field(default_factory=set)  # 이 클래스들만 adaptive confirm 사용(opt-in), 나머지는 기존 confirm_frames/flat 기본값 그대로
 
     @classmethod
     def load(cls, path: Optional[str]) -> "ClassConfig":
@@ -174,6 +175,7 @@ class ClassConfig:
             duplicate_penalty=_int_keys(raw.get("duplicate_penalty", {})),
             min_confirm_frames=_int_keys(raw.get("min_confirm_frames", {})),
             max_confirm_frames=_int_keys(raw.get("max_confirm_frames", {})),
+            adaptive_confirm_classes=set(int(c) for c in raw.get("adaptive_confirm_classes", [])),
         )
 
     def min_confirm_for(self, cls_id: int) -> int:
@@ -463,13 +465,14 @@ class PresenceEventDetector:
                 })
                 continue
 
-            # adaptive confirm: 신호 강도(strength, 0~1)에 따라 필요 확정시간을
-            # MAX_CONFIRM_FRAMES(약한/경계 신호)~MIN_CONFIRM_FRAMES(강한 신호) 사이로
-            # 선형보간. class_cfg에 명시적 confirm_frames override가 있으면(과거
-            # 라운드에서 검증된 값들, 예: hunts_sauce=42) 그걸 그대로 존중해서 우선.
-            if cls_id in self.class_cfg.confirm_frames:
-                confirm_needed = self.class_cfg.confirm_for(cls_id)
-            else:
+            # adaptive confirm: class_cfg.adaptive_confirm_classes에 명시적으로 opt-in된
+            # 클래스만 신호 강도(strength, 0~1) 기반으로 확정시간을 MAX_CONFIRM_FRAMES
+            # (약한/경계 신호)~MIN_CONFIRM_FRAMES(강한 신호) 사이로 선형보간. 그 외에는
+            # 기존과 동일하게 confirm_frames override 우선, 없으면 flat CONFIRM_FRAMES.
+            # (2026-07-04: 처음엔 "override 없으면 전부 adaptive"로 했다가 한 번도
+            # 안 건드린 클래스들(aunt_jemima 등)까지 조용히 동작이 바뀌어서 과다발화
+            # 회귀 발생 -- opt-in 방식으로 변경, 안전한 클래스는 기존 동작 그대로 보존.)
+            if cls_id in self.class_cfg.adaptive_confirm_classes:
                 if raw_state == 1:
                     strength = max(0.0, min(1.0, (frac - HIGH_THRESH) / (1 - HIGH_THRESH)))
                 else:
@@ -477,6 +480,8 @@ class PresenceEventDetector:
                 min_c = self.class_cfg.min_confirm_for(cls_id)
                 max_c = self.class_cfg.max_confirm_for(cls_id)
                 confirm_needed = max_c - (max_c - min_c) * strength
+            else:
+                confirm_needed = self.class_cfg.confirm_for(cls_id)
             if self._frame_idx - st.candidate_since >= confirm_needed:
                 before = st.committed
                 after = raw_state

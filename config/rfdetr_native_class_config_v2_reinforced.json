@@ -47,6 +47,7 @@
     "52": 2,
     "54": 40
   },
+  "adaptive_confirm_classes": [31, 42, 45, 46, 48],
   "refractory_frames": {},
   "duplicate_penalty": {
     "23": 1.0,
