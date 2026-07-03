@@ -173,49 +173,47 @@ def fuse_presence(per_cam_dets, n_classes: int, n_cams: int,
     per_cam_dets: [[{class_id, confidence, bbox}, ...] or None, ...]  (카메라당 1개)
     반환: 길이 n_classes인 bool 리스트 (fused presence)
 
-    RF-DETR 전용 가중치 방식(YOLO의 이진 quorum 투표 대신):
-      1. confidence를 그대로 투표 가중치로 합산 -- DETR류는 Hungarian matching으로
-         학습돼서 confidence가 YOLO의 objectness*class_prob보다 훨씬 보정된
-         확률값에 가까움. 여러 카메라가 애매하게(0.3~0.4대) 동의하는 신호도
-         합산해서 살릴 수 있음 (이진 문턱이면 전부 버려짐).
-      2. 한 카메라가 같은 클래스 박스를 2개 이상 내면 그 프레임 그 카메라는
-         confidence를 절반으로 깎음 -- RF-DETR은 set prediction이라 물체당 박스
-         1개만 내도록 학습됨, 중복 박스가 나온다는 것 자체가 그 프레임/카메라의
-         신뢰도가 낮다는 신호.
+    카메라별 이진 투표(카메라 수 세기, 기존에 검증된 방식) + RF-DETR 전용 보정 하나:
+      한 카메라가 같은 클래스 박스를 2개 이상 내면 그 프레임 그 카메라의 유효
+      confidence를 절반으로 깎아서 문턱을 통과하기 어렵게 만듦 -- RF-DETR은 set
+      prediction이라 물체당 박스 1개만 내도록 학습됨, 중복 박스가 나온다는 것
+      자체가 그 프레임/카메라의 신뢰도가 낮다는 신호. (confidence를 그대로 합산해서
+      quorum과 비교하는 방식은 실측 결과 quorum 스케일 불일치로 recall이 무너져서
+      기각 -- order F1 79.2%->66.7%로 악화 확인됨, 2026-07-03.)
     """
-    # 카메라별로 conf 필터 후 클래스별 "가중 신뢰도"(max conf, 중복박스면 페널티) 계산
-    weight_by_cam: List[Optional[Dict[int, float]]] = []
+    # 카메라별로 conf 필터 후 "이 카메라가 본 클래스 집합" 계산 (중복박스 페널티 적용)
+    seen_by_cam: List[Optional[set]] = []
     for dets in per_cam_dets:
         if dets is None:
-            weight_by_cam.append(None)  # offline
+            seen_by_cam.append(None)  # offline
             continue
         per_cls_confs: Dict[int, List[float]] = defaultdict(list)
         for d in dets:
-            thresh = class_cfg.effective_conf(d["class_id"], default_conf)
-            if d["confidence"] >= thresh:
-                per_cls_confs[d["class_id"]].append(d["confidence"])
+            per_cls_confs[d["class_id"]].append(d["confidence"])
 
-        weights: Dict[int, float] = {}
+        s = set()
         for cls_id, confs in per_cls_confs.items():
-            w = max(confs)
+            eff_conf = max(confs)
             if len(confs) > 1:
-                w *= 0.5  # 중복 박스 페널티
-            weights[cls_id] = w
-        weight_by_cam.append(weights)
+                eff_conf *= 0.5  # 중복 박스 페널티
+            thresh = class_cfg.effective_conf(cls_id, default_conf)
+            if eff_conf >= thresh:
+                s.add(cls_id)
+        seen_by_cam.append(s)
 
     candidate_classes = set()
-    for w in weight_by_cam:
-        if w:
-            candidate_classes.update(w.keys())
+    for s in seen_by_cam:
+        if s:
+            candidate_classes.update(s)
 
     presence = [False] * n_classes
     for cls_id in candidate_classes:
-        active_cams = [c for c in class_cfg.cams_for(cls_id, n_cams) if weight_by_cam[c] is not None]
+        active_cams = [c for c in class_cfg.cams_for(cls_id, n_cams) if seen_by_cam[c] is not None]
         if not active_cams:
             continue
-        weighted_score = sum(weight_by_cam[c].get(cls_id, 0.0) for c in active_cams)
+        votes = sum(1 for c in active_cams if cls_id in seen_by_cam[c])
         quorum = class_cfg.quorum_for(cls_id, len(active_cams))
-        presence[cls_id] = weighted_score >= quorum
+        presence[cls_id] = votes >= quorum
 
     return presence
 
