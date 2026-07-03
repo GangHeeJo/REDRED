@@ -40,6 +40,14 @@
     "54": 60
   },
   "refractory_frames": {},
+  "relabel_regions": {
+    "36": [
+      {"cam": 1, "bbox": [430, 150, 639, 330], "iou": 0.5, "to": 4}
+    ],
+    "22": [
+      {"cam": 2, "bbox": [290, 318, 425, 381], "iou": 0.5, "to": 59}
+    ]
+  },
   "presence_threshold": {
     "0": 0.7,
     "4": 0.8,
@@ -66,6 +74,8 @@
     "36_nature_valley_crunchy": "cam1 23.9%/cam2 22.3%/cam3 10.1% (기존과 유사) -- 기존 0.85로도 부족해서 0.9로 추가 상향 시도 (예전 체크포인트에서도 구조적 한계였던 클래스라 완전 해결은 기대 안 함)",
     "45_chewy_dips_chocolate_chip": "cam0 19.2%가 새로 제일 강해짐(기존엔 cam2/cam3만 썼음) -- whitelist를 cam0 포함해서 확장, threshold도 0.6->0.55로 소폭 낮춰서 2번째 사이클 포착 시도",
     "48_cheerios": "cam2가 1.4%->11.8%로 완전히 달라짐(신호가 생김) -- 기존 전카메라+threshold 0.5(약신호용)에서 whitelist=[2]+threshold 0.75(과다발화 억제용)로 정반대 처방",
-    "변경없음": "8(hunts_sauce)/4(crayola)/9(listerine)/43(campbells_chicken_noodle_soup)/51(campbells_chunky)는 새 체크포인트에서도 미스매치 목록에 없어서 기존 값 유지"
+    "변경없음": "8(hunts_sauce)/4(crayola)/9(listerine)/43(campbells_chicken_noodle_soup)/51(campbells_chunky)는 새 체크포인트에서도 미스매치 목록에 없어서 기존 값 유지",
+    "relabel_36_to_4": "cam1의 (430,150)~(639,330) 부근 박스가 nature_valley_crunchy(36)로 잘못 라벨링됨 -- annotate_frame.py로 실측: t=90s conf=0.885/t=100s conf=0.908, 같은 자리에 crayola_24_crayons(4)도 항상 같이 잡힘(IoU 0.88~0.90). 유령 사이클 시각(80~114s)이 crayola GT(반환73s/구매108s)와 거의 일치 -- 진짜 crayola 박스를 모델이 nature_valley로 확신에 차서 오분류하는 것으로 확정, 좌표 기반 재라벨링으로 교정",
+    "relabel_22_to_59": "cam2의 (290,318)~(425,381) 부근 박스가 haribo_gold_bears(22)로 잘못 라벨링됨(conf=0.957) -- annotate_frame.py로 크롭해서 직접 확인한 결과 실제 물체는 Twix 초코바(59)였음(경쟁 후보 자체가 없는 순수 오분류). 유령 사이클 시각(84~100s)이 twix GT(반환77s/구매98s)와 거의 일치 -- 좌표 기반 재라벨링으로 교정"
   }
 }

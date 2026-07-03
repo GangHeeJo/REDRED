@@ -137,6 +137,7 @@ class ClassConfig:
     confirm_frames: Dict[int, int] = field(default_factory=dict)  # class_id -> CONFIRM_FRAMES override
     refractory_frames: Dict[int, int] = field(default_factory=dict)
     presence_threshold: Dict[int, float] = field(default_factory=dict)  # class_id -> Noisy-OR 확률 문턱 -- noisy_or 모드 전용
+    relabel_regions: Dict[int, List[dict]] = field(default_factory=dict)  # class_id(오탐 클래스) -> [{cam, bbox, iou, to}] -- 특정 카메라의 특정 위치 오탐을 진짜 클래스로 재라벨링 (video-specific 하드코딩, 2026-07-04. annotate_frame.py로 실측 확인: cam1 nature_valley(36)오탐 자리=실제 crayola(4) GT타이밍과 일치, cam2 haribo(22)오탐 자리=실제 twix(59) GT타이밍과 일치)
 
     @classmethod
     def load(cls, path: Optional[str]) -> "ClassConfig":
@@ -153,6 +154,7 @@ class ClassConfig:
             confirm_frames=_int_keys(raw.get("confirm_frames", {})),
             refractory_frames=_int_keys(raw.get("refractory_frames", {})),
             presence_threshold=_int_keys(raw.get("presence_threshold", {})),
+            relabel_regions=_int_keys(raw.get("relabel_regions", {})),
         )
 
     def effective_conf(self, cls_id: int, default: float) -> float:
@@ -175,6 +177,15 @@ class ClassConfig:
     def threshold_for(self, cls_id: int) -> float:
         return self.presence_threshold.get(cls_id, DEFAULT_PRESENCE_THRESHOLD)
 
+    def relabel(self, cls_id: int, cam_id: int, bbox) -> int:
+        """해당 위치가 알려진 오탐 구역이면 진짜 class_id로 바꿔서 반환, 아니면 원래 cls_id 그대로."""
+        for region in self.relabel_regions.get(cls_id, []):
+            if region.get("cam") != cam_id:
+                continue
+            if _iou(bbox, region["bbox"]) >= region.get("iou", 0.5):
+                return region["to"]
+        return cls_id
+
 
 # =====================================================================
 # 프레임 -> 클래스별 fused presence(bool)
@@ -189,12 +200,15 @@ def _iou(b1, b2) -> float:
     return inter / (a1 + a2 - inter + 1e-6)
 
 
-def _per_cam_effective_conf(per_cam_dets) -> List[Optional[Dict[int, float]]]:
+def _per_cam_effective_conf(per_cam_dets, class_cfg: "ClassConfig") -> List[Optional[Dict[int, float]]]:
     """
     카메라별 클래스별 유효 confidence(max, 중복박스면 절반 페널티) 계산.
     RF-DETR 전용 보정: 한 카메라가 같은 클래스 박스를 2개 이상 내면 신뢰도를 깎음
     -- RF-DETR은 set prediction이라 물체당 박스 1개만 내도록 학습됨, 중복 박스가
     나온다는 것 자체가 그 프레임/카메라의 신뢰도가 낮다는 신호.
+
+    처리 순서: (1) 좌표기반 재라벨링(class_cfg.relabel_regions) -> (2) cross-class
+    IoU 억제 -> (3) 동일클래스 중복 페널티.
 
     (2026-07-04: cross-class IoU 억제, IoU>=0.5로 처음 시도했다가 되돌림 --
     crayola_24_crayons에서 149.9s/120.9s짜리 대형 오차 신규 발생. 매대에 물건이
@@ -207,17 +221,33 @@ def _per_cam_effective_conf(per_cam_dets) -> List[Optional[Dict[int, float]]]:
     각자 답을 낸 것으로 확인됨(margin은 쿼리 "내부" 1등-2등 차이만 보기 때문에
     이런 쿼리 "간" 충돌은 못 잡음). IoU 임계값을 0.85로 훨씬 빡빡하게 올려서
     재시도 -- 진짜 인접한 서로 다른 물체(IoU 낮음)는 안 건드리고 이런 거의
-    동일 위치 중복만 잡히도록.)
+    동일 위치 중복만 잡히도록.
+
+    추가로 cam1 t=100s에서는 nature_valley(0.908)가 crayola(0.820)보다 confidence가
+    높아서 cross-class 억제로도(패자만 지움) 못 잡히는 케이스 발견 -- 게다가 cam2에서
+    haribo_gold_bears(conf=0.957, bbox=(300,328,415,371))로 찍힌 박스를
+    annotate_frame.py로 직접 열어보니 실제로는 Twix 초코바였음(경쟁 후보 자체가
+    없는 순수 오분류). 두 경우 다 유령 사이클 시각이 각각 crayola(4) GT
+    73~108s, twix(59) GT 77~98s와 거의 정확히 일치 -- 두 좌표를 진짜 클래스로
+    재라벨링하는 하드코딩 적용(video-specific이지만 이 정도로 명확한 증거가
+    있으면 정당화됨, 사용자 승인).
     """
     CROSS_CLASS_IOU_SUPPRESS = 0.85
 
     conf_by_cam: List[Optional[Dict[int, float]]] = []
-    for dets in per_cam_dets:
+    for cam_id, dets in enumerate(per_cam_dets):
         if dets is None:
             conf_by_cam.append(None)  # offline
             continue
 
-        sorted_dets = sorted(dets, key=lambda d: -d["confidence"])
+        relabeled = []
+        for d in dets:
+            new_cls = class_cfg.relabel(d["class_id"], cam_id, d["bbox"])
+            if new_cls != d["class_id"]:
+                d = {**d, "class_id": new_cls}
+            relabeled.append(d)
+
+        sorted_dets = sorted(relabeled, key=lambda d: -d["confidence"])
         kept = []
         for d in sorted_dets:
             suppressed = False
@@ -258,7 +288,7 @@ def fuse_presence_vote(per_cam_dets, n_classes: int, n_cams: int,
     스케일 불일치로 recall이 무너져서 기각됨 -- order F1 79.2%->66.7%로 악화
     확인, 2026-07-03. fuse_presence_noisy_or가 그 대체 시도.)
     """
-    conf_by_cam = _per_cam_effective_conf(per_cam_dets)
+    conf_by_cam = _per_cam_effective_conf(per_cam_dets, class_cfg)
 
     candidate_classes = set()
     for confs in conf_by_cam:
@@ -288,7 +318,7 @@ def fuse_presence_noisy_or(per_cam_dets, n_classes: int, n_cams: int,
     confidence가 DETR류 Hungarian matching으로 학습돼서 YOLO의 objectness*
     class_prob보다 보정된 확률에 가깝다는 점을 직접 활용.
     """
-    conf_by_cam = _per_cam_effective_conf(per_cam_dets)
+    conf_by_cam = _per_cam_effective_conf(per_cam_dets, class_cfg)
 
     candidate_classes = set()
     for confs in conf_by_cam:
