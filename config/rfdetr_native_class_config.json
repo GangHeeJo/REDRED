@@ -1,5 +1,5 @@
 {
-  "_comment": "conf/whitelist/quorum/confirm_frames는 --fusion_mode vote용(기존 multi_view_fusion.py 검증값 이식). presence_threshold는 --fusion_mode noisy_or 전용(비어있으면 DEFAULT_PRESENCE_THRESHOLD=0.7 사용).",
+  "_comment": "2026-07-04: presence_threshold(noisy_or 전용) 값들을 output/per_cam_native.csv 실측(카메라별 검출률)으로 재산출. conf/quorum은 --fusion_mode vote용(구형, 그대로 보존).",
   "conf": {
     "43": 0.35,
     "48": 0.35,
@@ -10,10 +10,13 @@
   "whitelist": {
     "0": [0, 2],
     "4": [0, 1, 3],
+    "6": [2, 4],
+    "8": [0],
     "17": [0, 3, 4],
     "31": [0],
     "36": [1, 2, 3],
     "41": [2],
+    "43": [4],
     "45": [2, 3],
     "54": [3]
   },
@@ -27,10 +30,30 @@
     "48": 1
   },
   "confirm_frames": {
+    "0": 60,
+    "8": 90,
     "36": 60,
     "46": 60,
     "54": 60
   },
   "refractory_frames": {},
-  "presence_threshold": {}
+  "presence_threshold": {
+    "6": 0.75,
+    "8": 0.85,
+    "43": 0.4,
+    "45": 0.6,
+    "47": 0.8,
+    "48": 0.5,
+    "51": 0.99
+  },
+  "_notes": {
+    "8_hunts_sauce": "cam0 72.4% 압도적 단일소스, 나머지 노이즈 수준 -- whitelist=[0]+threshold 0.85+confirm 90프레임(3s)으로 flicker 억제 (YOLOv7에서도 단일카메라 whitelist는 flicker 그대로 이벤트화된 전례 있어 threshold/confirm 강화로 보완)",
+    "47_nature_vally_fruit_and_nut": "5캠 전부 12~18%로 고르게 약함, 단일 우세캠 없음 -- threshold만 0.8로 높여서 우연한 동시발화 억제",
+    "0_aunt_jemima": "cam0 11.9%/cam2 11.3% 균등 (기존 whitelist 유지) -- confirm_frames 60으로 늘려서 flicker로 인한 추가 사이클 억제",
+    "51_campbells_chunky": "GT에 이 클래스는 0번 등장하는데 cam3가 17.9% 검출 -- campbells_chicken_noodle_soup(43)과 혼동으로 확정, threshold 0.99로 사실상 억제",
+    "6_honey_bunches_of_oats": "cam2 22.9%+cam4 10.8%가 실신호, 나머지 노이즈 -- whitelist=[2,4]",
+    "48_cheerios": "5캠 전부 1.3~1.5%로 균등하게 매우 약함(구조적 한계) -- threshold 0.5로 낮춰서 완전미탐지 완화 시도",
+    "43_campbells_chicken_noodle_soup": "cam4에서만 4.3%로 극히 약함 -- whitelist=[4]+threshold 0.4로 낮춰서 시도 (여전히 미탐지 가능성 높음)",
+    "45_chewy_dips_chocolate_chip": "cam2 13.8%/cam3 14.7% (기존 whitelist 유지) -- GT=2인데 Sub=1(부분미탐지)이라 threshold 0.6으로 낮춰서 두번째 사이클 포착 시도"
+  }
 }
