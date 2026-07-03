@@ -179,51 +179,26 @@ class ClassConfig:
 # 프레임 -> 클래스별 fused presence(bool)
 # =====================================================================
 
-CROSS_CLASS_IOU_SUPPRESS = 0.5  # 이 이상 겹치는 서로 다른 클래스 박스는 낮은 confidence 쪽을 버림
-
-
-def _iou(b1, b2) -> float:
-    x1 = max(b1[0], b2[0]); y1 = max(b1[1], b2[1])
-    x2 = min(b1[2], b2[2]); y2 = min(b1[3], b2[3])
-    inter = max(0, x2 - x1) * max(0, y2 - y1)
-    a1 = max(0, (b1[2] - b1[0]) * (b1[3] - b1[1]))
-    a2 = max(0, (b2[2] - b2[0]) * (b2[3] - b2[1]))
-    return inter / (a1 + a2 - inter + 1e-6)
-
-
 def _per_cam_effective_conf(per_cam_dets) -> List[Optional[Dict[int, float]]]:
     """
-    카메라별 클래스별 유효 confidence 계산. RF-DETR 전용 보정 두 가지:
-      1. 같은 클래스 박스가 2개 이상이면 confidence를 절반으로 깎음.
-      2. 클래스가 다른 두 박스가 크게 겹치면(IoU>=CROSS_CLASS_IOU_SUPPRESS) 낮은
-         confidence 쪽을 아예 버림 (예: campbells_chicken_noodle_soup vs
-         campbells_chunky_classic_chicken_noodle처럼 생김새가 비슷한 클래스 간
-         혼동).
-    둘 다 같은 원리: RF-DETR은 set prediction이라 물체 하나당 박스 1개(어떤
-    클래스로 분류되든)만 내도록 학습됨 -- 같은 위치에 박스가 여러 개(클래스가
-    같든 다르든) 나온다는 것 자체가 그 프레임/카메라가 이 물체의 정체를
-    헷갈리고 있다는 신호.
+    카메라별 클래스별 유효 confidence(max, 중복박스면 절반 페널티) 계산.
+    RF-DETR 전용 보정: 한 카메라가 같은 클래스 박스를 2개 이상 내면 신뢰도를 깎음
+    -- RF-DETR은 set prediction이라 물체당 박스 1개만 내도록 학습됨, 중복 박스가
+    나온다는 것 자체가 그 프레임/카메라의 신뢰도가 낮다는 신호.
+
+    (2026-07-04: cross-class IoU 억제 시도했다가 되돌림 -- crayola_24_crayons에서
+    149.9s/120.9s짜리 대형 오차 신규 발생 확인. 매대에 물건이 다닥다닥 붙어있으면
+    서로 다른 물체인데도 카메라 2D 투영에서는 박스가 겹치는 게 흔해서, "겹치면
+    같은 물체 혼동"이라는 가정이 틀렸음 -- 진짜 crayola 박스가 옆 물건 박스에
+    억제당해 사라진 것으로 추정.)
     """
     conf_by_cam: List[Optional[Dict[int, float]]] = []
     for dets in per_cam_dets:
         if dets is None:
             conf_by_cam.append(None)  # offline
             continue
-
-        # cross-class 억제: 겹치는 서로 다른 클래스 박스 중 confidence 낮은 쪽 제거
-        sorted_dets = sorted(dets, key=lambda d: -d["confidence"])
-        kept = []
-        for d in sorted_dets:
-            suppressed = False
-            for k in kept:
-                if k["class_id"] != d["class_id"] and _iou(k["bbox"], d["bbox"]) >= CROSS_CLASS_IOU_SUPPRESS:
-                    suppressed = True
-                    break
-            if not suppressed:
-                kept.append(d)
-
         per_cls_confs: Dict[int, List[float]] = defaultdict(list)
-        for d in kept:
+        for d in dets:
             per_cls_confs[d["class_id"]].append(d["confidence"])
 
         confs: Dict[int, float] = {}
