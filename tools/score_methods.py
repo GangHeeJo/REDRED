@@ -148,6 +148,35 @@ def estimate_bias(gt_timed, sub_timed, probe_window=10.0):
     return diffs[len(diffs) // 2]
 
 
+def _match_nearest(g, s, bias):
+    """
+    g, s: 정렬된 시각 리스트 (같은 (class,action) 키).
+    인덱스로 그냥 짝짓지 않고, 각 GT 이벤트를 아직 안 쓴 Sub 이벤트 중 가장
+    시각이 가까운 것과 짝지음 (그리디 nearest-available). 중복발화(Sub가 GT보다
+    많음)로 인해 진짜 맞는 이벤트가 엉뚱한 occurrence와 인덱스로 강제 매칭되는
+    문제를 막음 -- 2026-07 REDRED RF-DETR 세션에서 발견됨: 순수 인덱스 매칭은
+    Sub=3인데 GT=1인 클래스에서 실제로는 거의 정확한 이벤트가 있어도 항상 가장
+    이른(대개 유령) occurrence와 짝지어져 거대한 diff로 오판됨.
+    Returns: pairs=[(gt_t, sub_t, diff), ...], unmatched_gt_count, unmatched_sub_count
+    """
+    used = [False] * len(s)
+    pairs = []
+    for gt_t in g:
+        best_j, best_d = None, None
+        for j, st in enumerate(s):
+            if used[j]:
+                continue
+            d = abs((st - bias) - gt_t)
+            if best_d is None or d < best_d:
+                best_d, best_j = d, j
+        if best_j is not None:
+            used[best_j] = True
+            pairs.append((gt_t, s[best_j], best_d))
+    unmatched_sub = len(s) - sum(used)
+    unmatched_gt = len(g) - len(pairs)
+    return pairs, unmatched_gt, unmatched_sub
+
+
 def score_time(gt_timed, sub_timed, tolerance=3.0, bias=None):
     if bias is None:
         bias = estimate_bias(gt_timed, sub_timed)
@@ -163,17 +192,16 @@ def score_time(gt_timed, sub_timed, tolerance=3.0, bias=None):
     mismatches = []
     for key in set(gt_by_key) | set(sub_by_key):
         g, s = sorted(gt_by_key.get(key, [])), sorted(sub_by_key.get(key, []))
-        n = min(len(g), len(s))
-        for i in range(n):
-            diff = abs((s[i] - bias) - g[i])
+        pairs, unmatched_gt, unmatched_sub = _match_nearest(g, s, bias)
+        for gt_t, sub_t, diff in pairs:
             if diff <= tolerance:
                 tp += 1
             else:
                 fp += 1
                 fn += 1
-                mismatches.append((key[0], key[1], g[i], s[i], diff))
-        fn += len(g) - n
-        fp += len(s) - n
+                mismatches.append((key[0], key[1], gt_t, sub_t, diff))
+        fn += unmatched_gt
+        fp += unmatched_sub
     return tp, fp, fn, bias, mismatches
 
 
