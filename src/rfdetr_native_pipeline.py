@@ -397,12 +397,18 @@ def estimate_initial_state(caps, model, class_cfg: ClassConfig, default_conf: fl
             cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
     result = {}
+    debug_fracs = []
     for cls_id, vs in votes.items():
         if not vs:
             continue
         frac = sum(vs) / len(vs)
+        debug_fracs.append((cls_id, frac, sum(vs), len(vs)))
         if frac >= 0.5:
             result[cls_id] = 1
+    debug_fracs.sort(key=lambda x: -x[1])
+    print("Initial-state vote fractions (class_id, frac, present_frames/total):")
+    for cls_id, frac, n_present, n_total in debug_fracs:
+        print(f"    cls={cls_id:2d} frac={frac:.2f} ({n_present}/{n_total})")
     return result
 
 
