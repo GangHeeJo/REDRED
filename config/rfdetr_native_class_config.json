@@ -36,12 +36,7 @@
     "46": 60,
     "54": 60
   },
-  "refractory_frames": {
-    "4": 150,
-    "6": 150,
-    "9": 150,
-    "36": 150
-  },
+  "refractory_frames": {},
   "presence_threshold": {
     "4": 0.8,
     "6": 0.85,
@@ -55,10 +50,10 @@
     "51": 0.99
   },
   "_notes": {
-    "_2026-07-04_round2": "4/9/36이 threshold 0.8로도 안 잡힘(값 동일하게 재현) -- 카메라 2~3대가 동시에 중간세기(~0.55)만 줘도 Noisy-OR 결합값이 0.8을 쉽게 넘어서 threshold만으론 못 막는다는 게 확인됨. confirm_frames를 더 늘리는 대신(진짜 이벤트 감지까지 늦춰서 time F1 악화 위험) refractory_frames(확정 직후 재발화 차단)를 새로 사용 -- 이 영상에서 4/6/9/36 전부 GT상 진짜 사이클이 1번뿐이라 확정 후 150프레임(15초) 동안 새 candidate 자체를 막아도 안전.",
-    "4_crayola_24_crayons": "cam0 16.2%/cam1 14.6%/cam3 14.5% 3캠 고르게 중간세기 -- threshold 0.8(효과 미미) + refractory 150프레임 추가",
-    "9_listerine_green": "5캠 전부 10.9~15.1%로 고르게 중간세기 -- threshold 0.8 + refractory 150프레임 추가",
-    "36_nature_valley_crunchy_oats_n_honey": "cam1 24.5%/cam2 19.7%/cam3 9.7% -- threshold 0.85 + refractory 150프레임 추가 (nature_vally_fruit_and_nut(47)과 다른 클래스, 이름 헷갈리지 말 것)",
+    "_2026-07-04_round2_refractory_reverted": "4/6/9/36에 refractory_frames=150(15s) 시도했다가 되돌림. output/timed_native.csv 실측 결과 listerine_green은 39.8s/88.9s/106.9s 3연발(간격 49s/18s), nature_valley_crunchy(36)는 유령사이클(79.7~114.2s)이 진짜사이클(155.9~176.9s, GT=167s와 매칭)보다 75초나 먼저 발생 -- 둘 다 refractory 15초로 도달 불가능한 거리. 유령/진짜 이벤트가 강도/지속시간 면에서 유사해서 시간축 필터링(threshold/confirm/refractory) 어느 것으로도 구분 불가 -- 구조적 한계로 판단, YOLOv7 프로젝트에서도 이런 패턴은 결국 '구조적 한계'로 인정했던 전례 다수. order F1도 86.4%->85.8%로 순손실 확인돼서 되돌림.",
+    "4_crayola_24_crayons": "cam0 16.2%/cam1 14.6%/cam3 14.5% 3캠 고르게 중간세기 -- threshold 0.8만 유지, refractory는 효과 없어 제거. purchase는 우연히 고쳐졌었지만 재현성 낮음",
+    "9_listerine_green": "5캠 전부 10.9~15.1%로 고르게 중간세기 -- 유령 사이클이 진짜와 18~49초 이상 떨어져 있어 시간축 필터링으로 해결 불가, 구조적 한계로 잠정 확정",
+    "36_nature_valley_crunchy_oats_n_honey": "cam1 24.5%/cam2 19.7%/cam3 9.7% -- 유령 사이클이 진짜보다 75초 먼저 발생, 구조적 한계로 잠정 확정 (nature_vally_fruit_and_nut(47)과 다른 클래스, 이름 헷갈리지 말 것)",
     "8_hunts_sauce": "cam0 72.4% 압도적 단일소스, 나머지 노이즈 수준 -- whitelist=[0]+threshold 0.85+confirm 90프레임(=9초)으로 flicker 억제, 실측으로 검증됨(86.4% 결과에서 hunts_sauce 완전히 해결 확인)",
     "47_nature_vally_fruit_and_nut": "5캠 전부 12~18%로 고르게 약함, 단일 우세캠 없음 -- threshold 0.8로 해결 확인됨(86.4% 결과에서 미스매치 목록에서 사라짐)",
     "0_aunt_jemima": "cam0 11.9%/cam2 11.3% 균등 (기존 whitelist 유지) -- confirm_frames 60으로 해결 확인됨",
