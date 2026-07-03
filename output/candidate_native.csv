@@ -91,7 +91,7 @@ time_sec,frame_idx,class_id,class_name,value
 187.70,1877,25,clif_crunch_peanut_butter,1
 192.00,1920,6,honey_bunches_of_oats_honey_roasted,1
 193.50,1935,48,cheerios,1
-197.30,1973,48,cheerios,0
+197.70,1977,48,cheerios,0
 199.20,1992,6,honey_bunches_of_oats_honey_roasted,0
 202.10,2021,25,clif_crunch_peanut_butter,0
 204.30,2043,13,cheeze_it,0
@@ -104,7 +104,7 @@ time_sec,frame_idx,class_id,class_name,value
 223.30,2233,47,nature_vally_fruit_and_nut,1
 224.30,2243,45,chewy_dips_chocolate_chip,1
 227.50,2275,37,ritz_crackers,0
-228.80,2288,45,chewy_dips_chocolate_chip,0
+228.00,2280,45,chewy_dips_chocolate_chip,0
 229.30,2293,47,nature_vally_fruit_and_nut,0
 231.10,2311,19,cinnamon_toast_crunch,0
 233.30,2333,7,honey_bunches_of_oats_with_almonds,0
