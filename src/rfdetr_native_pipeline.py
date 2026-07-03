@@ -396,6 +396,7 @@ class PresenceEventDetector:
         self.class_cfg = class_cfg
         self.states: Dict[int, ClassState] = {}
         self.all_events: List[Event] = []
+        self.candidate_log: List[dict] = []  # {frame_idx, cls_id, value} -- candidate 최초 형성 시점 기록 (confirm_frames 정밀 역산용)
         self._event_counter = 0
         self._frame_idx = 0
         initial_state = initial_state or {}
@@ -438,6 +439,9 @@ class PresenceEventDetector:
             if st.candidate != raw_state:
                 st.candidate = raw_state
                 st.candidate_since = self._frame_idx
+                self.candidate_log.append({
+                    "frame_idx": self._frame_idx, "cls_id": cls_id, "value": raw_state,
+                })
                 continue
 
             confirm_needed = self.class_cfg.confirm_for(cls_id)
@@ -573,6 +577,8 @@ def main():
     p.add_argument("--debug_log", default=None)
     p.add_argument("--timed_log", default=None)
     p.add_argument("--per_cam_log", default=None)
+    p.add_argument("--candidate_log", default=None,
+                    help="candidate 최초 형성 시각 기록(confirm_frames 프레임단위 정밀 역산용)")
     args = p.parse_args()
 
     device = f"cuda:{args.device}" if args.device.isdigit() else args.device
@@ -669,6 +675,16 @@ def main():
             cap.release()
 
     write_submission_csv(detector.all_events, prices, names, init_state, args.out)
+
+    if args.candidate_log:
+        processed_fps = fps / args.skip
+        with open(args.candidate_log, "w", encoding="utf-8") as f:
+            f.write("time_sec,frame_idx,class_id,class_name,value\n")
+            for c in detector.candidate_log:
+                t = c["frame_idx"] / processed_fps
+                name = names[c["cls_id"]] if c["cls_id"] < len(names) else f"class_{c['cls_id']}"
+                f.write(f"{t:.2f},{c['frame_idx']},{c['cls_id']},{name},{c['value']}\n")
+        print(f"Candidate log: {args.candidate_log} ({len(detector.candidate_log)} entries)")
 
 
 if __name__ == "__main__":

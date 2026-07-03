@@ -24,6 +24,7 @@ OUT="output/submission_native_skip${SKIP}_conf${CONF}_${FUSION_MODE}_${MARGIN_TA
 DEBUG_LOG="output/debug_frame_counts_native.csv"
 PER_CAM_LOG="output/per_cam_native.csv"
 TIMED_LOG="output/timed_native.csv"
+CANDIDATE_LOG="output/candidate_native.csv"
 
 python src/rfdetr_native_pipeline.py \
     --videos  ${CAM_DIR}/cam0/Sample_1.mp4 \
@@ -43,7 +44,8 @@ python src/rfdetr_native_pipeline.py \
     --class_config ${CLASS_CONFIG} \
     --debug_log ${DEBUG_LOG} \
     --per_cam_log ${PER_CAM_LOG} \
-    --timed_log ${TIMED_LOG}
+    --timed_log ${TIMED_LOG} \
+    --candidate_log ${CANDIDATE_LOG}
 
 echo "=== 채점 ==="
 python tools/score.py \
