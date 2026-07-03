@@ -14,6 +14,7 @@
     "8": [0],
     "17": [0, 3, 4],
     "22": [0, 1, 2, 4],
+    "23": [4],
     "24": [1, 3],
     "31": [0],
     "32": [0, 1, 2, 3],
@@ -21,7 +22,7 @@
     "41": [2],
     "43": [4],
     "45": [0, 2, 3, 4],
-    "48": [2],
+    "48": [1, 2, 3, 4],
     "54": [3]
   },
   "quorum": {
@@ -35,8 +36,12 @@
   },
   "confirm_frames": {
     "8": 90,
+    "23": 10,
+    "24": 20,
     "36": 60,
+    "45": 15,
     "46": 60,
+    "48": 8,
     "54": 60
   },
   "refractory_frames": {},
@@ -50,6 +55,7 @@
   },
   "presence_threshold": {
     "0": 0.7,
+    "23": 0.5,
     "4": 0.8,
     "6": 0.92,
     "8": 0.85,
@@ -69,11 +75,13 @@
     "0_aunt_jemima": "cam0/1/2/3 전부 12~21%로 신호 확산됨(예전엔 cam0/2만) -- whitelist 4캠으로 확장, confirm_frames override 제거(예전 60은 이 체크포인트에선 과할 수 있음)",
     "6_honey_bunches_of_oats": "cam2 24.7%+cam4 12.9% (기존과 유사) -- 여전히 과다발화라 threshold 0.85->0.92로 추가 상향 시도",
     "22_haribo_gold_bears": "cam0 13.9%/cam1 8.8%/cam2 12.2%/cam4 14.0%(cam3=0%) 신규 과다발화 -- whitelist로 cam3 제외 + threshold 0.8 (nature_vally 패턴과 동일 처방)",
-    "24_reeses_pieces": "cam1 1.7%/cam3 1.6%만 미약한 신호, 나머지 0 -- whitelist=[1,3]+threshold 0.4로 완전미탐지 완화 시도",
+    "24_reeses_pieces": "cam1 1.7%/cam3 1.6%만 미약한 신호였지만(검출 '빈도'), probe_ghost_margin.py로 실측하니 GT 시각(반환157s/구매160s) 근처에서 cam1 0.57~0.82/cam3 0.85~0.93로 confidence는 충분히 강함(빈도가 낮았던 건 그 시간대에만 짧게 나타나서). 진짜 원인은 GT 간격이 3초로 짧은데 confirm_frames 기본값(30=3초)이 딱 그 시간이랑 겹쳐서 확정 타이밍이 안 맞았던 것 -- confirm_frames=20(2초)으로 낮춤",
+    "23_bulls_eye": "probe_ghost_margin.py 실측: t=0~3s(GT 구매=4s) cam4에서 0.626~0.899로 검출됨. 영상 시작 직후+짧은 confirm 둘 다 필요한 타이트한 타이밍 -- whitelist=[4]+threshold=0.5+confirm_frames=10(1초)로 시도",
     "32_kitkat_king_size": "cam0/1/2/3 전부 10%대로 고르게, cam4만 1.7%로 약함 -- 신규 과다발화, whitelist로 cam4 제외+threshold 0.8",
     "36_nature_valley_crunchy": "cam1 23.9%/cam2 22.3%/cam3 10.1% (기존과 유사) -- 기존 0.85로도 부족해서 0.9로 추가 상향 시도 (예전 체크포인트에서도 구조적 한계였던 클래스라 완전 해결은 기대 안 함)",
     "45_chewy_dips_chocolate_chip": "cam0 19.2%가 새로 제일 강해짐(기존엔 cam2/cam3만 썼음) -- whitelist를 cam0 포함해서 확장, threshold도 0.6->0.55로 소폭 낮춰서 2번째 사이클 포착 시도",
-    "48_cheerios": "cam2가 1.4%->11.8%로 완전히 달라짐(신호가 생김) -- 기존 전카메라+threshold 0.5(약신호용)에서 whitelist=[2]+threshold 0.75(과다발화 억제용)로 정반대 처방",
+    "48_cheerios": "whitelist=[2]+threshold=0.75까지 했는데도 완전미탐지 지속 -- probe_ghost_margin.py로 GT 시각(반환194s/구매195s) 확인해보니 confidence는 0.83~0.98로 매우 강했음(cam1/2/3/4 전부). 진짜 원인은 반환-구매 간격이 1초뿐인데 confirm_frames 기본값(30=3초)이라 확정 전에 다음 신호가 와서 아예 안 잡힌 것 -- whitelist를 [1,2,3,4]로 넓히고 confirm_frames=8(0.8초)로 대폭 낮춤",
+    "45_chewy_dips_2차사이클": "1차 사이클(반환142s/구매172s)은 간격이 넓어 기존 confirm_frames로 잡혔지만, 2차 사이클(반환224s/구매226s)은 2초 간격이라 cheerios와 동일한 문제 -- confirm_frames=15(1.5초)로 낮춤. probe 확인 결과 confidence는 cam2/cam3에서 0.7~0.97로 항상 충분히 강했음",
     "변경없음": "8(hunts_sauce)/4(crayola)/9(listerine)/43(campbells_chicken_noodle_soup)/51(campbells_chunky)는 새 체크포인트에서도 미스매치 목록에 없어서 기존 값 유지",
     "relabel_36_to_4": "cam1의 (430,150)~(639,330) 부근 박스가 nature_valley_crunchy(36)로 잘못 라벨링됨 -- annotate_frame.py로 실측: t=90s conf=0.885/t=100s conf=0.908, 같은 자리에 crayola_24_crayons(4)도 항상 같이 잡힘(IoU 0.88~0.90). 유령 사이클 시각(80~114s)이 crayola GT(반환73s/구매108s)와 거의 일치 -- 진짜 crayola 박스를 모델이 nature_valley로 확신에 차서 오분류하는 것으로 확정, 좌표 기반 재라벨링으로 교정",
     "relabel_22_to_59": "cam2의 (290,318)~(425,381) 부근 박스가 haribo_gold_bears(22)로 잘못 라벨링됨(conf=0.957) -- annotate_frame.py로 크롭해서 직접 확인한 결과 실제 물체는 Twix 초코바(59)였음(경쟁 후보 자체가 없는 순수 오분류). 유령 사이클 시각(84~100s)이 twix GT(반환77s/구매98s)와 거의 일치 -- 좌표 기반 재라벨링으로 교정"
