@@ -180,6 +180,15 @@ class ClassConfig:
 # 프레임 -> 클래스별 fused presence(bool)
 # =====================================================================
 
+def _iou(b1, b2) -> float:
+    x1 = max(b1[0], b2[0]); y1 = max(b1[1], b2[1])
+    x2 = min(b1[2], b2[2]); y2 = min(b1[3], b2[3])
+    inter = max(0, x2 - x1) * max(0, y2 - y1)
+    a1 = max(0, (b1[2] - b1[0]) * (b1[3] - b1[1]))
+    a2 = max(0, (b2[2] - b2[0]) * (b2[3] - b2[1]))
+    return inter / (a1 + a2 - inter + 1e-6)
+
+
 def _per_cam_effective_conf(per_cam_dets) -> List[Optional[Dict[int, float]]]:
     """
     카메라별 클래스별 유효 confidence(max, 중복박스면 절반 페널티) 계산.
@@ -187,19 +196,40 @@ def _per_cam_effective_conf(per_cam_dets) -> List[Optional[Dict[int, float]]]:
     -- RF-DETR은 set prediction이라 물체당 박스 1개만 내도록 학습됨, 중복 박스가
     나온다는 것 자체가 그 프레임/카메라의 신뢰도가 낮다는 신호.
 
-    (2026-07-04: cross-class IoU 억제 시도했다가 되돌림 -- crayola_24_crayons에서
-    149.9s/120.9s짜리 대형 오차 신규 발생 확인. 매대에 물건이 다닥다닥 붙어있으면
-    서로 다른 물체인데도 카메라 2D 투영에서는 박스가 겹치는 게 흔해서, "겹치면
-    같은 물체 혼동"이라는 가정이 틀렸음 -- 진짜 crayola 박스가 옆 물건 박스에
-    억제당해 사라진 것으로 추정.)
+    (2026-07-04: cross-class IoU 억제, IoU>=0.5로 처음 시도했다가 되돌림 --
+    crayola_24_crayons에서 149.9s/120.9s짜리 대형 오차 신규 발생. 매대에 물건이
+    다닥다닥 붙어있으면 서로 다른 물체인데도 2D 투영에서 박스가 어느 정도
+    겹치는 게 흔해서 0.5는 너무 느슨했음.
+    이후 annotate_frame.py로 실측 확인: cam1 t=90s에서
+    nature_valley_crunchy_oats_n_honey(conf=0.885, bbox=(451,159,638,321))와
+    crayola_24_crayons(conf=0.618, bbox=(455,171,638,317))가 IoU=0.88로 거의
+    완전히 겹침 -- 서로 다른 쿼리가 같은 물체를 두고 다른 클래스로 확신에 차서
+    각자 답을 낸 것으로 확인됨(margin은 쿼리 "내부" 1등-2등 차이만 보기 때문에
+    이런 쿼리 "간" 충돌은 못 잡음). IoU 임계값을 0.85로 훨씬 빡빡하게 올려서
+    재시도 -- 진짜 인접한 서로 다른 물체(IoU 낮음)는 안 건드리고 이런 거의
+    동일 위치 중복만 잡히도록.)
     """
+    CROSS_CLASS_IOU_SUPPRESS = 0.85
+
     conf_by_cam: List[Optional[Dict[int, float]]] = []
     for dets in per_cam_dets:
         if dets is None:
             conf_by_cam.append(None)  # offline
             continue
+
+        sorted_dets = sorted(dets, key=lambda d: -d["confidence"])
+        kept = []
+        for d in sorted_dets:
+            suppressed = False
+            for k in kept:
+                if k["class_id"] != d["class_id"] and _iou(k["bbox"], d["bbox"]) >= CROSS_CLASS_IOU_SUPPRESS:
+                    suppressed = True
+                    break
+            if not suppressed:
+                kept.append(d)
+
         per_cls_dets: Dict[int, List[dict]] = defaultdict(list)
-        for d in dets:
+        for d in kept:
             per_cls_dets[d["class_id"]].append(d)
 
         confs: Dict[int, float] = {}
