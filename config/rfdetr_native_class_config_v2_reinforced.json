@@ -21,7 +21,9 @@
     "36": [1, 2, 3],
     "41": [2],
     "43": [4],
+    "44": [3],
     "45": [0, 2, 3, 4],
+    "46": [2, 4],
     "48": [1, 2, 3, 4],
     "54": [3]
   },
@@ -38,11 +40,12 @@
     "8": 90,
     "23": 10,
     "24": 20,
+    "31": 20,
     "36": 60,
     "45": 15,
-    "46": 60,
+    "46": 20,
     "48": 8,
-    "54": 60
+    "54": 40
   },
   "refractory_frames": {},
   "duplicate_penalty": {
@@ -91,6 +94,12 @@
     "변경없음": "8(hunts_sauce)/4(crayola)/9(listerine)/43(campbells_chicken_noodle_soup)/51(campbells_chunky)는 새 체크포인트에서도 미스매치 목록에 없어서 기존 값 유지",
     "relabel_36_to_4": "cam1의 (430,150)~(639,330) 부근 박스가 nature_valley_crunchy(36)로 잘못 라벨링됨 -- annotate_frame.py로 실측: t=90s conf=0.885/t=100s conf=0.908, 같은 자리에 crayola_24_crayons(4)도 항상 같이 잡힘(IoU 0.88~0.90). 유령 사이클 시각(80~114s)이 crayola GT(반환73s/구매108s)와 거의 일치 -- 진짜 crayola 박스를 모델이 nature_valley로 확신에 차서 오분류하는 것으로 확정, 좌표 기반 재라벨링으로 교정",
     "relabel_22_to_59": "cam2의 (290,318)~(425,381) 부근 박스가 haribo_gold_bears(22)로 잘못 라벨링됨(conf=0.957) -- annotate_frame.py로 크롭해서 직접 확인한 결과 실제 물체는 Twix 초코바(59)였음(경쟁 후보 자체가 없는 순수 오분류). 유령 사이클 시각(84~100s)이 twix GT(반환77s/구매98s)와 거의 일치 -- 좌표 기반 재라벨링으로 교정",
-    "duplicate_penalty_42_49_54": "probe_ghost_margin.py로 dove_white(54, cam3)/pepperidge_farm_milano(42, cam0)가 거의 매 프레임 박스 2~5개씩 습관적으로 중복검출되는 걸 확인 -- 전역 0.5 페널티가 이 진짜 신뢰도(0.9대)를 ~0.47로 계속 깎아서 각각 36초/11초 늦게 확정됐음. lindt(49)도 같은 패턴으로 추정(전역 페널티 제거 테스트에서 같이 해결됨). 이 3개만 duplicate_penalty=1.0으로 무력화 -- 전역으로 껐더니 aunt_jemima(0)/cheerios(48)/chewy_dips_chocolate_chip(45)이 오히려 과다발화로 회귀해서(이 클래스들은 중복이 진짜 불확실성 신호였음), 클래스별로 분리함"
+    "duplicate_penalty_42_49_54": "probe_ghost_margin.py로 dove_white(54, cam3)/pepperidge_farm_milano(42, cam0)가 거의 매 프레임 박스 2~5개씩 습관적으로 중복검출되는 걸 확인 -- 전역 0.5 페널티가 이 진짜 신뢰도(0.9대)를 ~0.47로 계속 깎아서 각각 36초/11초 늦게 확정됐음. lindt(49)도 같은 패턴으로 추정(전역 페널티 제거 테스트에서 같이 해결됨). 이 3개만 duplicate_penalty=1.0으로 무력화 -- 전역으로 껐더니 aunt_jemima(0)/cheerios(48)/chewy_dips_chocolate_chip(45)이 오히려 과다발화로 회귀해서(이 클래스들은 중복이 진짜 불확실성 신호였음), 클래스별로 분리함",
+    "_round3_잔여타이밍오차": "88.0% 달성 후 남은 7개 타이밍 오차(3.1~8.1초) probe_ghost_margin.py로 재조사(2026-07-04)",
+    "31_pepperidge_milk_choc_macadamia": "GT반환=47s인데 신호가 46~49s 구간엔 약함(0.35~0.75)+중복 섞임, 50s부터 cam0가 0.94~0.97로 깨끗해짐 -- 실제 감지가 3초쯤 늦게 안정화되는 패턴. confirm_frames 기본30->20으로 낮춰서 확정을 조금 당김",
+    "44_frappuccino": "GT구매=16s. cam3는 정확히 16s에 신호가 끊기는데(GT와 일치), cam2는 20s+까지도 계속 검출됨 -- cam2가 전환 감지를 방해하는 것으로 판단, whitelist를 cam3만으로 좁힘",
+    "46_chewy_dips_peanut_butter": "cam2/cam4는 항상 깨끗하고 강함(0.92~0.98), cam0/1/3은 매 프레임 2~4개씩 중복 섞인 노이즈 -- whitelist=[2,4]로 좁히고 confirm_frames 60(예전 vote 설정에서 그대로 포팅된 값, 재검증 안 됐었음)->20으로 낮춤",
+    "54_dove_white_confirm추가조정": "duplicate_penalty=1.0으로 32초 지연은 이미 해결했지만 여전히 3.3초 남아있어서, 예전 vote 설정에서 그대로 포팅됐던 confirm_frames=60(6초, 재검증 안 됨)도 40(4초)으로 낮춰봄",
+    "8_hunts_sauce_보류": "8.1초/4.8초 지연 남아있지만 confirm_frames=90(9초)이 4배 과다발화를 막아준 핵심 장치라 건드리면 회귀 위험 -- 이번엔 손대지 않음"
   }
 }
