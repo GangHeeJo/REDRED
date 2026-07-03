@@ -1,0 +1,71 @@
+{
+  "_comment": "2026-07-04 v2: checkpoint_best_total.pth(SAM2 보강 재학습, 2차) 전용 설정. 원본 config는 checkpoint_49_original_backup.ckpt(재학습 이전)에서 86.4% 낸 값 그대로 보존됨 -- operating point(체크포인트)가 바뀌면 카메라별 신호 패턴이 달라져서 재검증 필요(이 프로젝트에서 skip/conf 바뀔 때도 반복 확인된 패턴). output/per_cam_native.csv(checkpoint_best_total.pth로 재수집)로 재산출.",
+  "conf": {
+    "43": 0.35,
+    "48": 0.35,
+    "8": 0.35,
+    "0": 0.35,
+    "45": 0.35
+  },
+  "whitelist": {
+    "0": [0, 1, 2, 3],
+    "4": [0, 1, 3],
+    "6": [2, 4],
+    "8": [0],
+    "17": [0, 3, 4],
+    "22": [0, 1, 2, 4],
+    "24": [1, 3],
+    "31": [0],
+    "32": [0, 1, 2, 3],
+    "36": [1, 2, 3],
+    "41": [2],
+    "43": [4],
+    "45": [0, 2, 3, 4],
+    "48": [2],
+    "54": [3]
+  },
+  "quorum": {
+    "2": 2,
+    "53": 1,
+    "15": 1,
+    "39": 1,
+    "21": 1,
+    "29": 1,
+    "48": 1
+  },
+  "confirm_frames": {
+    "8": 90,
+    "36": 60,
+    "46": 60,
+    "54": 60
+  },
+  "refractory_frames": {},
+  "presence_threshold": {
+    "0": 0.7,
+    "4": 0.8,
+    "6": 0.92,
+    "8": 0.85,
+    "9": 0.8,
+    "22": 0.8,
+    "24": 0.4,
+    "32": 0.8,
+    "36": 0.9,
+    "43": 0.4,
+    "45": 0.55,
+    "47": 0.8,
+    "48": 0.75,
+    "51": 0.99
+  },
+  "_notes": {
+    "_v2_체크포인트변경": "checkpoint_best_total.pth(SAM2 보강)에서 output/per_cam_native.csv 재수집 후 재산출(2026-07-04). 예전 체크포인트에서 안 좋았던 클래스가 좋아지기도(cheerios: cam2 1.4%->11.8%로 signal 생김) 했고, 반대로 새로 문제생긴 클래스도 있음(haribo/kitkat_king_size가 새로 과다발화, aunt_jemima/reeses_pieces가 새로 미탐지).",
+    "0_aunt_jemima": "cam0/1/2/3 전부 12~21%로 신호 확산됨(예전엔 cam0/2만) -- whitelist 4캠으로 확장, confirm_frames override 제거(예전 60은 이 체크포인트에선 과할 수 있음)",
+    "6_honey_bunches_of_oats": "cam2 24.7%+cam4 12.9% (기존과 유사) -- 여전히 과다발화라 threshold 0.85->0.92로 추가 상향 시도",
+    "22_haribo_gold_bears": "cam0 13.9%/cam1 8.8%/cam2 12.2%/cam4 14.0%(cam3=0%) 신규 과다발화 -- whitelist로 cam3 제외 + threshold 0.8 (nature_vally 패턴과 동일 처방)",
+    "24_reeses_pieces": "cam1 1.7%/cam3 1.6%만 미약한 신호, 나머지 0 -- whitelist=[1,3]+threshold 0.4로 완전미탐지 완화 시도",
+    "32_kitkat_king_size": "cam0/1/2/3 전부 10%대로 고르게, cam4만 1.7%로 약함 -- 신규 과다발화, whitelist로 cam4 제외+threshold 0.8",
+    "36_nature_valley_crunchy": "cam1 23.9%/cam2 22.3%/cam3 10.1% (기존과 유사) -- 기존 0.85로도 부족해서 0.9로 추가 상향 시도 (예전 체크포인트에서도 구조적 한계였던 클래스라 완전 해결은 기대 안 함)",
+    "45_chewy_dips_chocolate_chip": "cam0 19.2%가 새로 제일 강해짐(기존엔 cam2/cam3만 썼음) -- whitelist를 cam0 포함해서 확장, threshold도 0.6->0.55로 소폭 낮춰서 2번째 사이클 포착 시도",
+    "48_cheerios": "cam2가 1.4%->11.8%로 완전히 달라짐(신호가 생김) -- 기존 전카메라+threshold 0.5(약신호용)에서 whitelist=[2]+threshold 0.75(과다발화 억제용)로 정반대 처방",
+    "변경없음": "8(hunts_sauce)/4(crayola)/9(listerine)/43(campbells_chicken_noodle_soup)/51(campbells_chunky)는 새 체크포인트에서도 미스매치 목록에 없어서 기존 값 유지"
+  }
+}
