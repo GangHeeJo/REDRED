@@ -46,6 +46,7 @@ import cv2
 
 sys.path.insert(0, str(Path(__file__).parent))
 from infer_rfdetr import load_rfdetr, infer_rfdetr  # RF-DETR 전용 모델 래퍼, 순수 추론만 함 -- 재사용
+from rfdetr_margin_infer import infer_rfdetr_with_margin  # top-2 class margin 포함 추론 (--use_margin 옵션)
 
 
 # =====================================================================
@@ -197,14 +198,22 @@ def _per_cam_effective_conf(per_cam_dets) -> List[Optional[Dict[int, float]]]:
         if dets is None:
             conf_by_cam.append(None)  # offline
             continue
-        per_cls_confs: Dict[int, List[float]] = defaultdict(list)
+        per_cls_dets: Dict[int, List[dict]] = defaultdict(list)
         for d in dets:
-            per_cls_confs[d["class_id"]].append(d["confidence"])
+            per_cls_dets[d["class_id"]].append(d)
 
         confs: Dict[int, float] = {}
-        for cls_id, cs in per_cls_confs.items():
-            eff = max(cs)
-            if len(cs) > 1:
+        for cls_id, ds in per_cls_dets.items():
+            best = max(ds, key=lambda d: d["confidence"])
+            eff = best["confidence"]
+            # top-2 class margin 페널티(margin 정보가 있을 때만, 2026-07-04 추가):
+            # RF-DETR raw forward에서 얻은 top1-top2 sigmoid확률 차이가 작으면
+            # (예: campbells_chunky conf=0.68인데 margin=0.16 -- 실측 확인됨,
+            # tools/validate_margin_infer.py) 모델이 확신에 차 보여도 사실 다른
+            # 클래스와 헷갈리고 있다는 뜻이라 confidence를 그만큼 깎음.
+            if "margin" in best:
+                eff *= max(0.0, best["margin"])
+            if len(ds) > 1:
                 eff *= 0.5  # 동일클래스 중복 박스 페널티
             confs[cls_id] = eff
         conf_by_cam.append(confs)
@@ -386,14 +395,18 @@ class PresenceEventDetector:
 
 def estimate_initial_state(caps, model, class_cfg: ClassConfig, default_conf: float,
                             n_classes: int, n_cams: int, device: str,
-                            init_frames: int = INIT_FRAMES, fusion_mode: str = "vote") -> Dict[int, int]:
+                            init_frames: int = INIT_FRAMES, fusion_mode: str = "vote",
+                            use_margin: bool = False) -> Dict[int, int]:
     votes: Dict[int, List[bool]] = defaultdict(list)
     for _ in range(init_frames):
         statuses = grab_frames(caps)
         if not any(statuses):
             break
         frames = retrieve_frames(caps, statuses)
-        per_cam = infer_rfdetr(model, frames, default_conf, device)
+        if use_margin:
+            per_cam = infer_rfdetr_with_margin(model, frames, default_conf, device)
+        else:
+            per_cam = infer_rfdetr(model, frames, default_conf, device)
         presence = fuse_presence(per_cam, n_classes, n_cams, class_cfg, default_conf, mode=fusion_mode)
         for cls_id, p in enumerate(presence):
             votes[cls_id].append(p)
@@ -477,6 +490,8 @@ def main():
                     help="vote=카메라 수 세기(검증된 baseline), noisy_or=confidence 확률결합(실험적)")
     p.add_argument("--class_config", default=None,
                     help="클래스별 conf/whitelist/quorum/confirm/refractory override JSON")
+    p.add_argument("--use_margin", action="store_true",
+                    help="raw forward로 top-2 class margin 계산해서 confidence에 반영 (실험적, validate_margin_infer.py로 먼저 검증할 것)")
     p.add_argument("--debug_log", default=None)
     p.add_argument("--timed_log", default=None)
     p.add_argument("--per_cam_log", default=None)
@@ -498,7 +513,7 @@ def main():
     print("Estimating initial state (binary presence)...")
     init_state = estimate_initial_state(
         caps, model, class_cfg, args.conf, n_classes, n_cams, device, args.init_frames,
-        fusion_mode=args.fusion_mode)
+        fusion_mode=args.fusion_mode, use_margin=args.use_margin)
     print(f"Initial state: {len(init_state)} classes present -- "
           f"{[names[c] for c in init_state]}")
 
@@ -526,7 +541,10 @@ def main():
             continue
 
         frames = retrieve_frames(caps, statuses)
-        per_cam = infer_rfdetr(model, frames, args.conf, device)
+        if args.use_margin:
+            per_cam = infer_rfdetr_with_margin(model, frames, args.conf, device)
+        else:
+            per_cam = infer_rfdetr(model, frames, args.conf, device)
 
         if per_cam_f:
             for cam_i, dets in enumerate(per_cam):
