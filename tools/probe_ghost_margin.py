@@ -36,7 +36,14 @@ def main():
     p.add_argument("--step_sec", type=float, default=1.0)
     p.add_argument("--conf", type=float, default=0.35)
     p.add_argument("--device", default="0")
+    p.add_argument("--out", default=None, help="지정하면 stdout 대신(+동시에) 이 파일에도 저장")
     args = p.parse_args()
+
+    out_f = open(args.out, "w", encoding="utf-8") if args.out else None
+    def emit(line):
+        print(line)
+        if out_f:
+            out_f.write(line + "\n")
 
     names = load_names(args.names)
     device = f"cuda:{args.device}" if args.device.isdigit() else args.device
@@ -49,7 +56,7 @@ def main():
     fps = 30.0
 
     t = args.start_sec
-    print(f"{'time':>7} {'cam':>3} {'class':<40} {'conf':>6} {'margin':>7}")
+    emit(f"{'time':>7} {'cam':>3} {'class':<40} {'conf':>6} {'margin':>7}")
     while t <= args.end_sec:
         frame_no = int(t * fps)
         frames = []
@@ -65,11 +72,14 @@ def main():
             for d in dets:
                 if d["class_id"] in args.focus:
                     name = names[d["class_id"]] if d["class_id"] < len(names) else f"cls_{d['class_id']}"
-                    print(f"{t:7.1f} {cam_i:3d} {name:<40} {d['confidence']:6.3f} {d['margin']:7.3f}")
+                    emit(f"{t:7.1f} {cam_i:3d} {name:<40} {d['confidence']:6.3f} {d['margin']:7.3f}")
         t += args.step_sec
 
     for cap in caps:
         cap.release()
+    if out_f:
+        out_f.close()
+        print(f"\n저장됨: {args.out}")
 
 
 if __name__ == "__main__":
