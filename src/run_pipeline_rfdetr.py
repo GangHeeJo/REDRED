@@ -35,15 +35,13 @@ from run_pipeline import (
     estimate_initial_inventory,
 )
 
-# 2026-07-02: a1_steak_sauce(17) 초기 30프레임 raw fused count가 [1,2,2,2,2,2,2,
-# 1,2,...] (28/30이 2)라 median=2로 추정되는데, 8.0s에 바로 2->1로 "정정"되고
-# 이후 31.0s에 진짜 GT 구매(1->0)가 또 발화 -- 초기값이 실제보다 높게 잡혀서
-# 유령 구매 이벤트 하나가 시작하자마자 생기는 것으로 의심됨. YOLOv7에서 campbells
-# 에 이 방식(CLASS_INIT_INVENTORY_OVERRIDE)을 시도했다가 부작용으로 롤백한 전례가
-# 있어 리스크 있음 -- 실험적으로 적용, 효과 없거나 역효과면 되돌릴 것.
-CLASS_INIT_INVENTORY_OVERRIDE: dict = {
-    17: 1,  # a1_steak_sauce
-}
+# 2026-07-03: a1_steak_sauce(17)의 raw fused count가 [1,2,2,...]로 잘못 잡혀서
+# median=2가 되는 문제를 여기서 개별 override(17:1)로 우회했었는데, 근본원인이
+# multi_view_fusion.py의 DEFAULT_MAX_COUNT=1(전 클래스 fused count를 물리적
+# 최대치 1로 clamp)로 밝혀져서 이제 fuse() 단계에서 자동으로 막힘 -- 이 override는
+# 더 이상 필요 없어져서 비움. 재발하면(=DEFAULT_MAX_COUNT 클램프로도 못 잡는
+# 케이스) 여기 다시 등록.
+CLASS_INIT_INVENTORY_OVERRIDE: dict = {}
 
 
 def main():

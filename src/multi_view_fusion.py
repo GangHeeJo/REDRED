@@ -84,12 +84,19 @@ CLASS_CAM_WHITELIST: Dict[int, List[int]] = {
     54: [3],        # dove_white
 }
 
-# 2026-07-02: dove_white(54)가 0->2로 바로 뛰는 반환 이벤트 발생 확인
-# (cam3가 물리적으로 1개인 물체를 박스 2개로 중복검출하는 것으로 추정 --
-# KD_clean 때 cholula 이중감지와 같은 패턴, NMS 레벨 문제라 quorum/whitelist/
-# confirm으로는 못 잡음, 값 자체를 clamp해야 함).
+# 2026-07-03: data/ground_truth_v2.csv 전체(105개 이벤트) 검증 결과 before/after
+# 값이 전부 0 아니면 1 -- 이 매대는 클래스당 실물 재고가 항상 1개뿐이라는 뜻.
+# 그런데 dove_white(54)만 개별 clamp가 있어서 다른 클래스는 NMS/중복검출로 fused
+# count가 2 이상 튈 수 있었음(nature_valley/honey_bunches/cheerios/haribo/
+# pepperidge_milano 등에서 GT=1인데 Sub=2~3으로 중복발화 확인, a1_steak_sauce는
+# 초기 30프레임 raw count가 [1,2,2,...]로 잘못 잡혀서 CLASS_INIT_INVENTORY_OVERRIDE
+# 로 우회했던 것도 같은 근본원인). DEFAULT_MAX_COUNT=1을 전 클래스 기본값으로
+# 적용 -- 물리적으로 불가능한 count>=2를 애초에 fusion 단계에서 차단하면 초기값
+# 오추정과 이벤트 중복발화를 한번에 예방할 수 있음. 예외가 필요한 클래스가 나오면
+# 여기 개별 등록.
+DEFAULT_MAX_COUNT = 1
 CLASS_MAX_COUNT_OVERRIDE: Dict[int, int] = {
-    54: 1,  # dove_white
+    # 현재 예외 없음 -- DEFAULT_MAX_COUNT=1이 전부 커버
 }
 
 # 2026-07-02: conf=0.5(전역)가 과다발화 클래스는 안정화시켰지만, 원래 신호가
@@ -191,8 +198,7 @@ def fuse_weighted_median(
         sorted_desc = sorted(votes, reverse=True)
         idx = min(cls_quorum, len(sorted_desc)) - 1
         count = sorted_desc[idx]
-        if cls_id in CLASS_MAX_COUNT_OVERRIDE:
-            count = min(count, CLASS_MAX_COUNT_OVERRIDE[cls_id])
+        count = min(count, CLASS_MAX_COUNT_OVERRIDE.get(cls_id, DEFAULT_MAX_COUNT))
         result[cls_id] = count
 
     return result
