@@ -150,7 +150,7 @@ def main():
         if tracker:
             per_cam_raw = infer_rfdetr(model, frames, args.conf, device)
             per_cam_raw = filter_per_cam_by_conf(per_cam_raw)
-            per_cam     = [tracker.update(i, dets or []) for i, dets in enumerate(per_cam_raw)]
+            per_cam     = tracker.update(per_cam_raw)
         else:
             per_cam = infer_rfdetr(model, frames, args.conf, device)
             per_cam = filter_per_cam_by_conf(per_cam)
