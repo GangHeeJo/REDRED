@@ -36,12 +36,18 @@
     "46": 60,
     "54": 60
   },
-  "refractory_frames": {},
+  "refractory_frames": {
+    "4": 150,
+    "6": 150,
+    "9": 150,
+    "36": 150
+  },
   "presence_threshold": {
     "4": 0.8,
-    "6": 0.75,
+    "6": 0.85,
     "8": 0.85,
     "9": 0.8,
+    "36": 0.85,
     "43": 0.4,
     "45": 0.6,
     "47": 0.8,
@@ -49,15 +55,17 @@
     "51": 0.99
   },
   "_notes": {
-    "4_crayola_24_crayons": "cam0 16.2%/cam1 14.6%/cam3 14.5% 3캠 고르게 중간세기, 단일우세캠 없음 -- nature_vally와 동일 패턴, threshold 0.8로 동일 처방",
-    "9_listerine_green": "5캠 전부 10.9~15.1%로 고르게 중간세기, 단일우세캠 없음 -- 동일 패턴, threshold 0.8",
-    "8_hunts_sauce": "cam0 72.4% 압도적 단일소스, 나머지 노이즈 수준 -- whitelist=[0]+threshold 0.85+confirm 90프레임(3s)으로 flicker 억제 (YOLOv7에서도 단일카메라 whitelist는 flicker 그대로 이벤트화된 전례 있어 threshold/confirm 강화로 보완)",
-    "47_nature_vally_fruit_and_nut": "5캠 전부 12~18%로 고르게 약함, 단일 우세캠 없음 -- threshold만 0.8로 높여서 우연한 동시발화 억제",
-    "0_aunt_jemima": "cam0 11.9%/cam2 11.3% 균등 (기존 whitelist 유지) -- confirm_frames 60으로 늘려서 flicker로 인한 추가 사이클 억제",
-    "51_campbells_chunky": "GT에 이 클래스는 0번 등장하는데 cam3가 17.9% 검출 -- campbells_chicken_noodle_soup(43)과 혼동으로 확정, threshold 0.99로 사실상 억제",
-    "6_honey_bunches_of_oats": "cam2 22.9%+cam4 10.8%가 실신호, 나머지 노이즈 -- whitelist=[2,4]",
-    "48_cheerios": "5캠 전부 1.3~1.5%로 균등하게 매우 약함(구조적 한계) -- threshold 0.5로 낮춰서 완전미탐지 완화 시도",
-    "43_campbells_chicken_noodle_soup": "cam4에서만 4.3%로 극히 약함 -- whitelist=[4]+threshold 0.4로 낮춰서 시도 (여전히 미탐지 가능성 높음)",
-    "45_chewy_dips_chocolate_chip": "cam2 13.8%/cam3 14.7% (기존 whitelist 유지) -- GT=2인데 Sub=1(부분미탐지)이라 threshold 0.6으로 낮춰서 두번째 사이클 포착 시도"
+    "_2026-07-04_round2": "4/9/36이 threshold 0.8로도 안 잡힘(값 동일하게 재현) -- 카메라 2~3대가 동시에 중간세기(~0.55)만 줘도 Noisy-OR 결합값이 0.8을 쉽게 넘어서 threshold만으론 못 막는다는 게 확인됨. confirm_frames를 더 늘리는 대신(진짜 이벤트 감지까지 늦춰서 time F1 악화 위험) refractory_frames(확정 직후 재발화 차단)를 새로 사용 -- 이 영상에서 4/6/9/36 전부 GT상 진짜 사이클이 1번뿐이라 확정 후 150프레임(15초) 동안 새 candidate 자체를 막아도 안전.",
+    "4_crayola_24_crayons": "cam0 16.2%/cam1 14.6%/cam3 14.5% 3캠 고르게 중간세기 -- threshold 0.8(효과 미미) + refractory 150프레임 추가",
+    "9_listerine_green": "5캠 전부 10.9~15.1%로 고르게 중간세기 -- threshold 0.8 + refractory 150프레임 추가",
+    "36_nature_valley_crunchy_oats_n_honey": "cam1 24.5%/cam2 19.7%/cam3 9.7% -- threshold 0.85 + refractory 150프레임 추가 (nature_vally_fruit_and_nut(47)과 다른 클래스, 이름 헷갈리지 말 것)",
+    "8_hunts_sauce": "cam0 72.4% 압도적 단일소스, 나머지 노이즈 수준 -- whitelist=[0]+threshold 0.85+confirm 90프레임(=9초)으로 flicker 억제, 실측으로 검증됨(86.4% 결과에서 hunts_sauce 완전히 해결 확인)",
+    "47_nature_vally_fruit_and_nut": "5캠 전부 12~18%로 고르게 약함, 단일 우세캠 없음 -- threshold 0.8로 해결 확인됨(86.4% 결과에서 미스매치 목록에서 사라짐)",
+    "0_aunt_jemima": "cam0 11.9%/cam2 11.3% 균등 (기존 whitelist 유지) -- confirm_frames 60으로 해결 확인됨",
+    "51_campbells_chunky": "GT에 이 클래스는 0번 등장하는데 cam3가 17.9% 검출 -- campbells_chicken_noodle_soup(43)과 혼동으로 확정, threshold 0.99로 해결 확인됨",
+    "6_honey_bunches_of_oats": "cam2 22.9%+cam4 10.8%가 실신호 -- whitelist=[2,4]+threshold 0.85로도 안 잡혀서 refractory 150프레임 추가",
+    "48_cheerios": "5캠 전부 1.3~1.5%로 균등하게 매우 약함(구조적 한계) -- threshold 0.5로 낮춰서 완전미탐지 완화 시도, 효과 미확인",
+    "43_campbells_chicken_noodle_soup": "cam4에서만 4.3%로 극히 약함 -- whitelist=[4]+threshold 0.4로 해결 확인됨(미스매치 목록에서 사라짐)",
+    "45_chewy_dips_chocolate_chip": "cam2 13.8%/cam3 14.7% -- threshold 0.6으로도 GT=2 Sub=1 그대로, 효과 없었음(부분미탐지는 threshold 낮추는 것과 다른 문제로 보임, 미해결)"
   }
 }
