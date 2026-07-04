@@ -33,8 +33,7 @@ time_sec,frame_idx,class_id,class_name,value
 65.50,655,1,band_aid_clear_strips,1
 68.20,682,16,mom_to_mom_sweet_potato_corn_apple,1
 72.60,726,53,dove_pink,1
-73.10,731,4,crayola_24_crayons,1
-74.30,743,36,nature_valley_crunchy_oats_n_honey,1
+73.20,732,4,crayola_24_crayons,1
 76.70,767,33,snickers,1
 78.60,786,59,twix,1
 81.30,813,14,hersheys_bar,1
@@ -62,14 +61,14 @@ time_sec,frame_idx,class_id,class_name,value
 121.10,1211,18,jif_creamy_peanut_butter,0
 123.60,1236,30,coffee_mate_french_vanilla,0
 127.50,1275,27,pop_tararts_strawberry,0
-131.40,1314,22,haribo_gold_bears_gummi_candy,1
+131.50,1315,22,haribo_gold_bears_gummi_candy,1
 134.20,1342,49,lindt_excellence_cocoa_dark_chocolate,1
 135.60,1356,50,hersheys_symphony,1
 139.50,1395,47,nature_vally_fruit_and_nut,1
 142.20,1422,45,chewy_dips_chocolate_chip,1
 145.10,1451,28,quaker_big_chewy_chocolate_chip,1
 147.20,1472,46,chewy_dips_peanut_butter,1
-150.00,1500,36,nature_valley_crunchy_oats_n_honey,1
+150.60,1506,36,nature_valley_crunchy_oats_n_honey,1
 153.30,1533,35,clif_z_bar_chocolate_chip,1
 156.00,1560,57,act_ii_butter_lovers_popcorn,1
 157.40,1574,24,reeses_pieces,1
@@ -79,7 +78,7 @@ time_sec,frame_idx,class_id,class_name,value
 162.10,1621,46,chewy_dips_peanut_butter,0
 164.20,1642,22,haribo_gold_bears_gummi_candy,0
 165.90,1659,50,hersheys_symphony,0
-167.80,1678,36,nature_valley_crunchy_oats_n_honey,0
+167.70,1677,36,nature_valley_crunchy_oats_n_honey,0
 169.80,1698,35,clif_z_bar_chocolate_chip,0
 171.40,1714,28,quaker_big_chewy_chocolate_chip,0
 174.00,1740,45,chewy_dips_chocolate_chip,0
