@@ -32,7 +32,7 @@ time_sec,class_name,action
 75.60,dove_pink,반환
 76.10,crayola_24_crayons,반환
 79.70,snickers,반환
-81.60,twix,반환
+80.10,twix,반환
 82.40,hersheys_bar,반환
 84.30,toblerone_milk_chocolate,반환
 89.70,kitkat_king_size,반환
@@ -40,9 +40,9 @@ time_sec,class_name,action
 92.30,martinellis_apple_juice,반환
 94.50,arm_hammer_baking_soda,구매
 96.80,hersheys_bar,구매
+99.50,twix,구매
 99.90,snickers,구매
 100.90,toblerone_milk_chocolate,구매
-101.00,twix,구매
 101.70,martinellis_apple_juice,구매
 106.50,bumblebee_albacore,구매
 109.10,dove_white,구매
