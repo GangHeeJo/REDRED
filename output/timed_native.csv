@@ -59,7 +59,7 @@ time_sec,class_name,action
 126.60,coffee_mate_french_vanilla,구매
 130.50,pop_tararts_strawberry,구매
 134.40,haribo_gold_bears_gummi_candy,반환
-137.20,lindt_excellence_cocoa_dark_chocolate,반환
+135.20,lindt_excellence_cocoa_dark_chocolate,반환
 138.60,hersheys_symphony,반환
 140.50,nature_vally_fruit_and_nut,반환
 142.50,chewy_dips_chocolate_chip,반환
@@ -69,8 +69,8 @@ time_sec,class_name,action
 156.30,clif_z_bar_chocolate_chip,반환
 156.80,act_ii_butter_lovers_popcorn,반환
 158.20,reeses_pieces,반환
+159.60,lindt_excellence_cocoa_dark_chocolate,구매
 160.60,act_ii_butter_lovers_popcorn,구매
-161.60,lindt_excellence_cocoa_dark_chocolate,구매
 162.00,reeses_pieces,구매
 163.60,chewy_dips_peanut_butter,구매
 167.20,haribo_gold_bears_gummi_candy,구매
