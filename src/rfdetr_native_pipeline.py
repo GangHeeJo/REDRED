@@ -202,8 +202,17 @@ class ClassConfig:
             return self.quorum[cls_id]
         return max(1, round(n_active_cams * DEFAULT_QUORUM_FRAC))
 
-    def confirm_for(self, cls_id: int) -> int:
-        return self.confirm_frames.get(cls_id, CONFIRM_FRAMES)
+    def confirm_for(self, cls_id: int, raw_state: int = None) -> int:
+        """confirm_frames JSON 값은 보통 클래스당 정수 하나(양방향 공용)지만,
+        {"0": 구매쪽, "1": 반환쪽}처럼 dict로 주면 방향별로 다르게 줄 수 있음
+        -- macadamia(31)처럼 반환은 이미 잘 맞는데 구매만 유독 GT보다 훨씬
+        일찍(6.4초) candidate가 형성되는 클래스는 confirm 하나로 양쪽을 동시에
+        만족 못 시킴(구매를 늦추려고 크게 잡으면 반환까지 같이 늦어져서 그
+        옆의 다른 클래스와 순서가 깨짐) -- 방향별 override로 분리."""
+        val = self.confirm_frames.get(cls_id, CONFIRM_FRAMES)
+        if isinstance(val, dict):
+            return int(val.get(str(raw_state), val.get(raw_state, CONFIRM_FRAMES)))
+        return int(val)
 
     def refractory_for(self, cls_id: int) -> int:
         return self.refractory_frames.get(cls_id, REFRACTORY_FRAMES)
@@ -492,7 +501,7 @@ class PresenceEventDetector:
                 max_c = self.class_cfg.max_confirm_for(cls_id)
                 confirm_needed = max_c - (max_c - min_c) * strength
             else:
-                confirm_needed = self.class_cfg.confirm_for(cls_id)
+                confirm_needed = self.class_cfg.confirm_for(cls_id, raw_state)
             if self._frame_idx - st.candidate_since >= confirm_needed:
                 before = st.committed
                 after = raw_state
