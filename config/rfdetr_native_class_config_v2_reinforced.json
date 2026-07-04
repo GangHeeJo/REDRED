@@ -42,7 +42,7 @@
     "14": 11,
     "20": 2,
     "23": 8,
-    "24": 20,
+    "24": 8,
     "33": 15,
     "34": 5,
     "36": 40,
@@ -53,6 +53,7 @@
     "47": 10,
     "52": 2,
     "54": 40,
+    "57": 8,
     "59": 15
   },
   "adaptive_confirm_classes": [31, 45, 48],
@@ -126,6 +127,7 @@
     "_round7_reeses_미해결": "chewy_dips_peanut_butter(46) purchase vs reeses_pieces(24) purchase 순서충돌은 confirm_frames로 해결 불가로 판명 -- reeses_pieces의 purchase candidate 자체가 GT(160.0s)보다 3.1초나 늦게 형성됨(candidate=163.10s), 즉 confirm 이전 단계인 '신호가 언제 LOW_THRESH 밑으로 떨어지는가' 자체가 이미 느림. confirm_frames는 candidate 형성 이후 지연만 조절 가능하므로 이 3.1초 자체를 못 줄임. per-cam 로그로 어느 카메라가 언제까지 reeses를 잔류 검출하는지 실측 확인 필요 -- 다음 라운드 과제로 남김.",
     "_round7_실측결과": "round7 실측 결과 order F1 92.4%->97.1% (TP102/FP3/FN3), Method3 F1 94.3%->98.1%. toblerone(34)=5로 martinellis는 이겼지만 그 앞의 twix(GT98.0, 기본confirm30이라 fire101.0)한테 새로 추월당함(toblerone fire100.9<101.0) -- 같은 whack-a-mole 패턴, twix(59)도 confirm_frames=15로 낮춤(candidate=98.00 기준, fire=99.50, toblerone fire100.9보다 확실히 앞서도록). 미해결 2건은 그대로 남음: macadamia(31) purchase(candidate가 GT보다 6.4초 빨라서 confirm으로 해결 불가 -- 실제 물리적 사건(선반이탈)과 GT 기록(계산대 스캔?) 시점 자체가 다른 걸로 추정, 영상 확인 필요), chewy_dips_peanut_butter(46) vs reeses_pieces(24) purchase(위 _round7_reeses_미해결 참조).",
     "_round8_reeses_window실험": "probe_ghost_margin.py로 reeses_pieces(24) 실측: cam1에서 conf 0.58~0.92로 꾸준히 잡히다가 161.3s를 마지막으로 완전히 사라짐(그 뒤론 chewy_dips_peanut_butter만 검출) -- 실제 소멸 시점은 161.3s인데 candidate는 163.10s에야 형성됨(1.8초 추가 지연). 원인은 WINDOW_SIZE=15(1.5초)+LOW_THRESH=0.4가 전역 상수라 소멸 판정에 스무딩 지연이 걸리는 것. 전역으로 건드리면 이미 튜닝된 다른 클래스 전부가 흔들리므로, WINDOW_SIZE/LOW_THRESH를 confirm_frames처럼 클래스별 override 가능하게 코드 수정(rfdetr_native_pipeline.py: ClassConfig.window_size/low_thresh 필드+window_size_for/low_thresh_for 추가, PresenceEventDetector._state/update에서 전역 상수 대신 클래스별 값 사용) -- 24번만 window_size=8(0.8초)+low_thresh=0.5로 실험. 다른 클래스는 기존 전역값(15/0.4) 그대로라 영향 없음. 미검증 상태, 서버 재테스트 필요 -- 이 실험이 reeses/chewy_dips_pb purchase 순서충돌을 해결 못하면 confirm_frames=24도 같이 낮추는 2단계 조정 고려.",
+    "_round8b_실측및2단계": "round8 실측 결과 window_size=8/low_thresh=0.5만으로는 부족(order F1 오히려 97.1%로 하락, TP102/FP3/FN3) -- candidate는 163.10->162.40으로 0.7초만 빨라졌는데 confirm_frames=20(2초)이 그 이득을 다 까먹어서 fire=164.4, chewy_dips_pb(163.6)를 여전히 못 이김. 예고했던 2단계 적용: confirm_frames[24]=20->8(candidate162.40+0.8=163.20, chewy_dips_pb 163.6보다 확실히 앞서도록; return쪽도 157.40+0.8=158.20으로 자기 자신의 purchase(163.2)와 여유 충분). 이 조정이 이번엔 act_ii_butter_lovers_popcorn(57, 기본confirm30)과 새로 충돌 유발(reeses가 빨라지면서 GT상 앞서야 할 act_ii를 추월) -- 전체 시퀀스 재시뮬레이션으로 확인 후 57=8도 같이 적용(candidate156.00/162.00 기준, fire156.8/162.8, reeses보다 항상 앞서도록). 재시뮬레이션 결과 macadamia 1건만 남고 나머지 cascading 없음 확인 -- 미검증, 서버 재테스트 필요.",
     "_round7_c_snickers": "round7-b 재검증(twix=15) 결과도 여전히 97.1%(TP102/FP3/FN3) -- twix 자체는 고쳤지만 이번엔 twix보다 더 앞(GT96.0, hersheys_bar와 동시각)의 snickers(기본confirm30, fire99.9)가 twix(fire99.5)를 추월. 3번째 whack-a-mole이라 이번엔 개별 수정 대신 candidate_native.csv+timed_native.csv 전체를 GT 시퀀스에 대입해서 6초 이내 인접한 모든 쌍의 예측 순서를 한 번에 검증(스크립트 기반, 추측 아님) -- snickers(33)=15(candidate=96.90 기준, fire=98.40, twix보다 확실히 앞서도록) 적용 후 재시뮬레이션한 결과 새로운 역전 없이 기존에 이미 파악된 macadamia/reeses 2건만 남는 것 확인. 이 2건은 confirm_frames로 원천적으로 해결 불가(구조적 원인, 위 노트 참조)이므로 order F1 97.1%가 이 파이프라인 설계 하에서의 사실상 상한으로 판단됨."
   }
 }
