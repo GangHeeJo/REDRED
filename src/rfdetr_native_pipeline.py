@@ -150,7 +150,6 @@ class ClassConfig:
     confirm_frames: Dict[int, int] = field(default_factory=dict)  # class_id -> CONFIRM_FRAMES override
     refractory_frames: Dict[int, int] = field(default_factory=dict)
     presence_threshold: Dict[int, float] = field(default_factory=dict)  # class_id -> Noisy-OR 확률 문턱 -- noisy_or 모드 전용
-    relabel_regions: Dict[int, List[dict]] = field(default_factory=dict)  # class_id(오탐 클래스) -> [{cam, bbox, iou, to}] -- 특정 카메라의 특정 위치 오탐을 진짜 클래스로 재라벨링 (video-specific 하드코딩, 2026-07-04. annotate_frame.py로 실측 확인: cam1 nature_valley(36)오탐 자리=실제 crayola(4) GT타이밍과 일치, cam2 haribo(22)오탐 자리=실제 twix(59) GT타이밍과 일치)
     duplicate_penalty: Dict[int, float] = field(default_factory=dict)  # class_id -> 중복박스 페널티 배율(기본 0.5). 일부 클래스(dove_white/milano/lindt)는 항상 중복검출되는 게 정상이라 페널티가 해로움 -- 1.0으로 override해서 무력화
     min_confirm_frames: Dict[int, int] = field(default_factory=dict)  # class_id -> adaptive confirm 하한(강한 신호일 때)
     max_confirm_frames: Dict[int, int] = field(default_factory=dict)  # class_id -> adaptive confirm 상한(문턱 근처 약한 신호일 때)
@@ -173,7 +172,6 @@ class ClassConfig:
             confirm_frames=_int_keys(raw.get("confirm_frames", {})),
             refractory_frames=_int_keys(raw.get("refractory_frames", {})),
             presence_threshold=_int_keys(raw.get("presence_threshold", {})),
-            relabel_regions=_int_keys(raw.get("relabel_regions", {})),
             duplicate_penalty=_int_keys(raw.get("duplicate_penalty", {})),
             min_confirm_frames=_int_keys(raw.get("min_confirm_frames", {})),
             max_confirm_frames=_int_keys(raw.get("max_confirm_frames", {})),
@@ -226,15 +224,6 @@ class ClassConfig:
     def low_thresh_for(self, cls_id: int) -> float:
         return self.low_thresh.get(cls_id, LOW_THRESH)
 
-    def relabel(self, cls_id: int, cam_id: int, bbox) -> int:
-        """해당 위치가 알려진 오탐 구역이면 진짜 class_id로 바꿔서 반환, 아니면 원래 cls_id 그대로."""
-        for region in self.relabel_regions.get(cls_id, []):
-            if region.get("cam") != cam_id:
-                continue
-            if _iou(bbox, region["bbox"]) >= region.get("iou", 0.5):
-                return region["to"]
-        return cls_id
-
 
 # =====================================================================
 # 프레임 -> 클래스별 fused presence(bool)
@@ -256,30 +245,23 @@ def _per_cam_effective_conf(per_cam_dets, class_cfg: "ClassConfig") -> List[Opti
     -- RF-DETR은 set prediction이라 물체당 박스 1개만 내도록 학습됨, 중복 박스가
     나온다는 것 자체가 그 프레임/카메라의 신뢰도가 낮다는 신호.
 
-    처리 순서: (1) 좌표기반 재라벨링(class_cfg.relabel_regions) -> (2) cross-class
-    IoU 억제 -> (3) 동일클래스 중복 페널티.
+    처리 순서: (1) cross-class IoU 억제 -> (2) 동일클래스 중복 페널티.
 
     (2026-07-04: cross-class IoU 억제, IoU>=0.5로 처음 시도했다가 되돌림 --
     crayola_24_crayons에서 149.9s/120.9s짜리 대형 오차 신규 발생. 매대에 물건이
     다닥다닥 붙어있으면 서로 다른 물체인데도 2D 투영에서 박스가 어느 정도
-    겹치는 게 흔해서 0.5는 너무 느슨했음.
-    이후 annotate_frame.py로 실측 확인: cam1 t=90s에서
-    nature_valley_crunchy_oats_n_honey(conf=0.885, bbox=(451,159,638,321))와
-    crayola_24_crayons(conf=0.618, bbox=(455,171,638,317))가 IoU=0.88로 거의
-    완전히 겹침 -- 서로 다른 쿼리가 같은 물체를 두고 다른 클래스로 확신에 차서
-    각자 답을 낸 것으로 확인됨(margin은 쿼리 "내부" 1등-2등 차이만 보기 때문에
-    이런 쿼리 "간" 충돌은 못 잡음). IoU 임계값을 0.85로 훨씬 빡빡하게 올려서
-    재시도 -- 진짜 인접한 서로 다른 물체(IoU 낮음)는 안 건드리고 이런 거의
+    겹치는 게 흔해서 0.5는 너무 느슨했음. IoU 임계값을 0.85로 훨씬 빡빡하게
+    올려서 재시도 -- 진짜 인접한 서로 다른 물체(IoU 낮음)는 안 건드리고 거의
     동일 위치 중복만 잡히도록.
 
-    추가로 cam1 t=100s에서는 nature_valley(0.908)가 crayola(0.820)보다 confidence가
-    높아서 cross-class 억제로도(패자만 지움) 못 잡히는 케이스 발견 -- 게다가 cam2에서
-    haribo_gold_bears(conf=0.957, bbox=(300,328,415,371))로 찍힌 박스를
-    annotate_frame.py로 직접 열어보니 실제로는 Twix 초코바였음(경쟁 후보 자체가
-    없는 순수 오분류). 두 경우 다 유령 사이클 시각이 각각 crayola(4) GT
-    73~108s, twix(59) GT 77~98s와 거의 정확히 일치 -- 두 좌표를 진짜 클래스로
-    재라벨링하는 하드코딩 적용(video-specific이지만 이 정도로 명확한 증거가
-    있으면 정당화됨, 사용자 승인).
+    당시 annotate_frame.py로 실측했을 때 nature_valley_crunchy_oats_n_honey(36,
+    cam1)/haribo_gold_bears_gummi_candy(22, cam2)가 각각 crayola_24_crayons(4)/
+    twix(59)를 확신에 차서 오분류하는 걸 발견해서 한동안 좌표기반 재라벨링
+    (class_cfg.relabel_regions)으로 임시 교정했었음 -- 이후 probe_ghost_margin.py로
+    "오분류를 내는 카메라"와 "각 클래스의 진짜 신호가 나오는 카메라"가 서로
+    겹치지 않는다는 걸 전수 확인하고서, 좌표 하드코딩 없이 whitelist 조정만으로
+    완전히 대체함(nature_valley: [1,2,3]->[3], haribo: [0,1,2,4]->[0,4]) --
+    2026-07-04, round10. relabel_regions/relabel() 메커니즘은 이제 안 쓰여서 제거함.
     """
     CROSS_CLASS_IOU_SUPPRESS = 0.85
 
@@ -289,14 +271,7 @@ def _per_cam_effective_conf(per_cam_dets, class_cfg: "ClassConfig") -> List[Opti
             conf_by_cam.append(None)  # offline
             continue
 
-        relabeled = []
-        for d in dets:
-            new_cls = class_cfg.relabel(d["class_id"], cam_id, d["bbox"])
-            if new_cls != d["class_id"]:
-                d = {**d, "class_id": new_cls}
-            relabeled.append(d)
-
-        sorted_dets = sorted(relabeled, key=lambda d: -d["confidence"])
+        sorted_dets = sorted(dets, key=lambda d: -d["confidence"])
         kept = []
         for d in sorted_dets:
             suppressed = False

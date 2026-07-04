@@ -72,7 +72,6 @@
     "49": 1.0,
     "54": 1.0
   },
-  "relabel_regions": {},
   "presence_threshold": {
     "0": 0.7,
     "23": 0.5,
