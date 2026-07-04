@@ -72,11 +72,11 @@ time_sec,frame_idx,class_id,class_name,value
 150.00,1500,36,nature_valley_crunchy_oats_n_honey,1
 153.30,1533,35,clif_z_bar_chocolate_chip,1
 156.00,1560,57,act_ii_butter_lovers_popcorn,1
-158.10,1581,24,reeses_pieces,1
+157.40,1574,24,reeses_pieces,1
 158.60,1586,49,lindt_excellence_cocoa_dark_chocolate,0
 162.00,1620,57,act_ii_butter_lovers_popcorn,0
 162.10,1621,46,chewy_dips_peanut_butter,0
-163.10,1631,24,reeses_pieces,0
+162.40,1624,24,reeses_pieces,0
 164.20,1642,22,haribo_gold_bears_gummi_candy,0
 165.90,1659,50,hersheys_symphony,0
 167.80,1678,36,nature_valley_crunchy_oats_n_honey,0
