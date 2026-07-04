@@ -155,6 +155,8 @@ class ClassConfig:
     min_confirm_frames: Dict[int, int] = field(default_factory=dict)  # class_id -> adaptive confirm 하한(강한 신호일 때)
     max_confirm_frames: Dict[int, int] = field(default_factory=dict)  # class_id -> adaptive confirm 상한(문턱 근처 약한 신호일 때)
     adaptive_confirm_classes: set = field(default_factory=set)  # 이 클래스들만 adaptive confirm 사용(opt-in), 나머지는 기존 confirm_frames/flat 기본값 그대로
+    window_size: Dict[int, int] = field(default_factory=dict)  # class_id -> WINDOW_SIZE override (기본 15). 짧을수록 candidate 형성 자체가 빨라짐(스무딩 줄어듦) -- 전역 WINDOW_SIZE를 건드리면 이미 튜닝된 다른 클래스 전부에 영향 가서, 특정 클래스만 반응성을 높이고 싶을 때 사용
+    low_thresh: Dict[int, float] = field(default_factory=dict)  # class_id -> LOW_THRESH override (기본 0.4). 높일수록 "사라짐" 판정(raw_state=0)이 더 쉽게 남
 
     @classmethod
     def load(cls, path: Optional[str]) -> "ClassConfig":
@@ -176,6 +178,8 @@ class ClassConfig:
             min_confirm_frames=_int_keys(raw.get("min_confirm_frames", {})),
             max_confirm_frames=_int_keys(raw.get("max_confirm_frames", {})),
             adaptive_confirm_classes=set(int(c) for c in raw.get("adaptive_confirm_classes", [])),
+            window_size=_int_keys(raw.get("window_size", {})),
+            low_thresh=_int_keys(raw.get("low_thresh", {})),
         )
 
     def min_confirm_for(self, cls_id: int) -> int:
@@ -206,6 +210,12 @@ class ClassConfig:
 
     def threshold_for(self, cls_id: int) -> float:
         return self.presence_threshold.get(cls_id, DEFAULT_PRESENCE_THRESHOLD)
+
+    def window_size_for(self, cls_id: int) -> int:
+        return self.window_size.get(cls_id, WINDOW_SIZE)
+
+    def low_thresh_for(self, cls_id: int) -> float:
+        return self.low_thresh.get(cls_id, LOW_THRESH)
 
     def relabel(self, cls_id: int, cam_id: int, bbox) -> int:
         """해당 위치가 알려진 오탐 구역이면 진짜 class_id로 바꿔서 반환, 아니면 원래 cls_id 그대로."""
@@ -426,7 +436,7 @@ class PresenceEventDetector:
 
     def _state(self, cls_id: int) -> ClassState:
         if cls_id not in self.states:
-            self.states[cls_id] = ClassState(history=deque(maxlen=WINDOW_SIZE))
+            self.states[cls_id] = ClassState(history=deque(maxlen=self.class_cfg.window_size_for(cls_id)))
         return self.states[cls_id]
 
     def update(self, presence: List[bool]) -> List[Event]:
@@ -436,14 +446,15 @@ class PresenceEventDetector:
         for cls_id in touched:
             st = self._state(cls_id)
             st.history.append(1 if (cls_id < len(presence) and presence[cls_id]) else 0)
+            low_thresh = self.class_cfg.low_thresh_for(cls_id)
 
-            if len(st.history) < WINDOW_SIZE:
+            if len(st.history) < self.class_cfg.window_size_for(cls_id):
                 continue
 
             frac = sum(st.history) / len(st.history)
             if frac >= HIGH_THRESH:
                 raw_state = 1
-            elif frac <= LOW_THRESH:
+            elif frac <= low_thresh:
                 raw_state = 0
             else:
                 raw_state = st.committed  # 애매구간: 변화 없음으로 취급
@@ -476,7 +487,7 @@ class PresenceEventDetector:
                 if raw_state == 1:
                     strength = max(0.0, min(1.0, (frac - HIGH_THRESH) / (1 - HIGH_THRESH)))
                 else:
-                    strength = max(0.0, min(1.0, (LOW_THRESH - frac) / LOW_THRESH)) if LOW_THRESH > 0 else 1.0
+                    strength = max(0.0, min(1.0, (low_thresh - frac) / low_thresh)) if low_thresh > 0 else 1.0
                 min_c = self.class_cfg.min_confirm_for(cls_id)
                 max_c = self.class_cfg.max_confirm_for(cls_id)
                 confirm_needed = max_c - (max_c - min_c) * strength
