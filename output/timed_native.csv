@@ -22,7 +22,7 @@ time_sec,class_name,action
 44.90,jif_creamy_peanut_butter,반환
 47.00,pop_tararts_strawberry,반환
 51.20,pepperidge_farm_milk_chocolate_macadamia_cookies,반환
-57.10,hunts_sauce,반환
+54.40,hunts_sauce,반환
 57.50,pepperidge_farm_milano_cookies_double_chocolate,반환
 59.60,mom_to_mom_butternut_squash_pear,반환
 63.40,bumblebee_albacore,반환
@@ -51,9 +51,9 @@ time_sec,class_name,action
 113.20,kitkat_king_size,구매
 114.70,mom_to_mom_butternut_squash_pear,구매
 116.50,band_aid_clear_strips,구매
+119.10,hunts_sauce,구매
 119.90,pepperidge_farm_milano_cookies_double_chocolate,구매
 120.00,mom_to_mom_sweet_potato_corn_apple,구매
-121.80,hunts_sauce,구매
 124.10,jif_creamy_peanut_butter,구매
 126.60,coffee_mate_french_vanilla,구매
 128.50,pepperidge_farm_milk_chocolate_macadamia_cookies,구매
