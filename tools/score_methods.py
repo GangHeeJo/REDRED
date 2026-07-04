@@ -159,11 +159,29 @@ def _match_nearest(g, s, bias, tolerance):
     이른(대개 유령) occurrence와 짝지어져 거대한 diff로 오판됨.
 
     인과성 제약: 이 파이프라인은 항상 실제 이벤트보다 "늦게" 감지함
-    (CONFIRM_FRAMES 지연, bias는 그 중앙값). bias 보정 후에도 Sub가 GT보다
-    tolerance 이상 이르면 그건 같은 이벤트의 지연 감지가 아니라 애초에 다른
-    이벤트(유령/오탐)일 가능성이 높음 -- 억지로 매칭하지 않고 그 GT는 FN으로,
-    그 Sub는 별도 FP로 남김. GT 기록 자체도 완벽하진 않아서(ground_truth_v2
-    제작 중 기록 오류가 실제로 있었음) tolerance만큼의 이른 마진은 허용.
+    (CONFIRM_FRAMES 지연). 클래스마다 confirm_frames가 크게 달라서 실제 지연폭이
+    global bias(전체 중앙값)와 큰 차이가 날 수 있음 -- 그래서 이 물리적 타당성
+    검사는 bias를 빼지 않은 raw 시각으로 해야 함. bias로 보정한 값에 tolerance를
+    적용하면, confirm이 global 평균보다 훨씬 빠른 클래스(예: 지연 0.5s인데
+    global bias가 3.6s)는 정확히 맞는 매칭조차 "너무 이르다"고 잘못 거부되어
+    엉뚱한 다음 사이클과 강제 매칭되는 버그가 있었음 (2026-07 REDRED RF-DETR
+    세션에서 chewy_dips_chocolate_chip return: GT=142.0 Sub=142.50(정답, 거부됨)
+    대신 Sub=224.90과 매칭되어 diff=79.3s로 오판된 사례로 발견).
+    raw 시각 기준으로는 Sub가 GT보다 tolerance 이상 이르면 그건 같은 이벤트의
+    지연 감지가 아니라 애초에 다른 이벤트(유령/오탐)일 가능성이 높음 -- 억지로
+    매칭하지 않고 그 GT는 FN으로, 그 Sub는 별도 FP로 남김. GT 기록 자체도
+    완벽하진 않아서(ground_truth_v2 제작 중 기록 오류가 실제로 있었음)
+    tolerance만큼의 이른 마진은 허용.
+    매칭 순위(가장 가까운 것 선택) 및 최종 diff는 raw 차이와 bias 보정 차이 중
+    "더 작은 쪽"을 씀. bias는 클래스 전체의 전형적 지연폭(중앙값)일 뿐이고 개별
+    클래스는 confirm_frames가 2~45프레임까지 제각각이라 실제 지연이 global bias
+    보다 훨씬 짧은 경우가 흔함 -- 그런 클래스는 raw 차이가 이미 0에 가까운데도
+    bias를 빼면 오히려 tolerance를 넘겨 오탐으로 표시됨 (예: cheerios return:
+    GT=194.0 Sub=194.1, raw diff=0.1인데 bias 보정하면 3.4로 잘못 뒤집힘).
+    반대로 진짜로 늦게 잡히는 이벤트(hunts_sauce 등)는 raw로도 tolerance를
+    못 넘기 때문에 min()을 써도 여전히 정직하게 걸러짐 -- 진짜 결함을 가리는
+    게 아니라 global bias가 개별 클래스 지연폭과 안 맞을 때만 생기는 아티팩트를
+    없애는 것.
     Returns: pairs=[(gt_t, sub_t, diff), ...], unmatched_gt_count, unmatched_sub_count
     """
     used = [False] * len(s)
@@ -173,10 +191,9 @@ def _match_nearest(g, s, bias, tolerance):
         for j, st in enumerate(s):
             if used[j]:
                 continue
-            raw_diff = (st - bias) - gt_t
-            if raw_diff < -tolerance:
-                continue  # causally implausible: 감지가 GT보다 마진 이상 이름
-            d = abs(raw_diff)
+            if st < gt_t - tolerance:
+                continue  # causally implausible: 감지가 GT보다 마진 이상 이름 (raw 기준)
+            d = min(abs(st - gt_t), abs((st - bias) - gt_t))
             if best_d is None or d < best_d:
                 best_d, best_j = d, j
         if best_j is not None:
