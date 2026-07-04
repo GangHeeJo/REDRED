@@ -103,9 +103,9 @@ time_sec,frame_idx,class_id,class_name,value
 221.50,2215,37,ritz_crackers,1
 223.30,2233,47,nature_vally_fruit_and_nut,1
 224.30,2243,45,chewy_dips_chocolate_chip,1
-227.50,2275,37,ritz_crackers,0
+226.50,2265,37,ritz_crackers,0
 227.90,2279,45,chewy_dips_chocolate_chip,0
-229.30,2293,47,nature_vally_fruit_and_nut,0
+229.20,2292,47,nature_vally_fruit_and_nut,0
 231.10,2311,19,cinnamon_toast_crunch,0
 233.30,2333,7,honey_bunches_of_oats_with_almonds,0
 234.20,2342,41,nabisco_nilla_wafers,0
