@@ -1,19 +1,17 @@
 """
-YOLO11 Knowledge Distillation Trainer.
+YOLO11 Knowledge Distillation Trainer — v2 (feat/kd-occ-aug)
 
-Teacher(YOLOv7) soft label(.npy)을 loss 함수 내부에서 im_file 경로로 직접 로드해
-classification loss에 KL divergence를 추가한다. DataLoader 수정 없음.
+v1 대비 변경사항:
+  1. Occlusion augmentation — preprocess_batch에서 GT bbox 위에 랜덤 마스킹
+     dove_white/milano처럼 occlusion 구간에서 검출 끊기는 문제를 훈련에서 직접 재현
+  2. GT-aligned anchor selection — top-50 naive 대신 GT box 위치 기반 anchor 선택
+     실제 물체가 있는 anchor 위치의 예측으로 KL divergence 계산
 
 KD Loss:
-  L = (1-alpha)*L_det  +  alpha * tau^2 * KL(teacher_avg || student_avg)
-
-  teacher_avg: 이미지 내 GT box별 soft label의 평균 [nc]
-  student_avg: top-K anchor 예측 확률의 평균 [nc]
-
-Usage:
-    bash train_kd.sh --skip_softlabel --epochs 100 --batch 16
+  L = (1-alpha)*L_det  +  alpha * tau^2 * KL(teacher_gt || student_gt_aligned)
 """
 import os
+import random
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -24,18 +22,46 @@ from ultralytics.utils.loss import v8DetectionLoss
 
 
 class KDDetectionLoss(v8DetectionLoss):
-    """
-    v8DetectionLoss + per-image KL divergence KD term.
-
-    soft label은 batch["im_file"] 경로 stem으로 soft_label_dir에서 로드.
-    DataLoader/collate 수정 불필요.
-    """
-
     def __init__(self, model, soft_label_dir, kd_alpha=0.5, kd_tau=4.0):
         super().__init__(model)
         self.soft_label_dir = Path(soft_label_dir).expanduser()
         self.kd_alpha = kd_alpha
-        self.kd_tau   = kd_tau
+        self.kd_tau = kd_tau
+
+    def _gt_aligned_student_dist(self, pred_scores, batch, b_idx, strides):
+        """
+        GT bbox 위치에 해당하는 anchor의 class prediction을 뽑아 평균.
+        top-50 naive 방식 → 실제 물체가 있는 grid cell의 예측으로 개선.
+
+        pred_scores: [A, nc]
+        """
+        device = pred_scores.device
+
+        mask = (batch['batch_idx'].cpu() == b_idx)
+        if not mask.any():
+            topk = min(20, pred_scores.shape[0])
+            top_idx = pred_scores.max(dim=1).values.topk(topk).indices
+            return pred_scores[top_idx].mean(dim=0)
+
+        gt_bboxes = batch['bboxes'][mask].cpu()  # [N, 4] normalized xywh
+        imgsz = batch['img'].shape[-1]
+
+        selected_indices = []
+        anchor_start = 0
+
+        for stride in strides:
+            grid_size = imgsz // stride
+            n_anchors = grid_size * grid_size
+
+            gt_cx = (gt_bboxes[:, 0] * grid_size).long().clamp(0, grid_size - 1)
+            gt_cy = (gt_bboxes[:, 1] * grid_size).long().clamp(0, grid_size - 1)
+            anchor_idx = (gt_cy * grid_size + gt_cx) + anchor_start
+            selected_indices.append(anchor_idx)
+
+            anchor_start += n_anchors
+
+        indices = torch.cat(selected_indices).clamp(0, pred_scores.shape[0] - 1).to(device)
+        return pred_scores[indices].mean(dim=0)
 
     def __call__(self, preds, batch):
         base_loss, loss_items = super().__call__(preds, batch)
@@ -44,17 +70,19 @@ class KDDetectionLoss(v8DetectionLoss):
         if not im_files:
             return base_loss, loss_items
 
-        device     = base_loss.device
+        device = base_loss.device
         batch_size = len(im_files)
 
-        # student class predictions: [B, A, nc]
         feats = preds[1] if isinstance(preds, tuple) else preds
         pred_all = torch.cat(
             [xi.view(batch_size, self.no, -1) for xi in feats], dim=2
         )  # [B, no, A]
         pred_scores = pred_all[:, self.reg_max * 4:, :].permute(0, 2, 1).sigmoid()  # [B, A, nc]
 
-        kd_loss = base_loss * 0.0  # 0, 그래프에 연결
+        imgsz = batch['img'].shape[-1]
+        strides = [imgsz // xi.shape[-1] for xi in feats]
+
+        kd_loss = base_loss * 0.0
         n_valid = 0
 
         for b_idx, im_file in enumerate(im_files):
@@ -63,23 +91,20 @@ class KDDetectionLoss(v8DetectionLoss):
             if not npy_path.exists():
                 continue
 
-            soft = np.load(str(npy_path))  # [N_gt, nc]
+            soft = np.load(str(npy_path))
             if soft.shape[0] == 0:
                 continue
 
-            # teacher: GT box별 soft label 평균 [nc]
             teacher_dist = torch.from_numpy(soft.mean(axis=0)).float().to(device)
 
-            # student: max confidence 상위 50개 anchor 평균 [nc]
-            student_cls = pred_scores[b_idx]                     # [A, nc]
-            topk        = min(50, student_cls.shape[0])
-            top_idx     = student_cls.max(dim=1).values.topk(topk).indices
-            student_dist = student_cls[top_idx].mean(dim=0)       # [nc]
+            # v2: GT-aligned anchor selection
+            student_dist = self._gt_aligned_student_dist(
+                pred_scores[b_idx], batch, b_idx, strides
+            )
 
-            # temperature softmax
             tau = self.kd_tau
-            t_log  = torch.log(teacher_dist + 1e-8) / tau
-            s_log  = torch.log(student_dist + 1e-8) / tau
+            t_log = torch.log(teacher_dist + 1e-8) / tau
+            s_log = torch.log(student_dist + 1e-8) / tau
             t_soft = F.softmax(t_log, dim=0)
             s_lsft = F.log_softmax(s_log, dim=0)
 
@@ -95,18 +120,68 @@ class KDDetectionLoss(v8DetectionLoss):
 
 
 class KDTrainer(DetectionTrainer):
-    """
-    KD 하이퍼파라미터를 overrides dict에서 추출해 KDDetectionLoss를 사용하는 trainer.
-    ultralytics는 trainer(overrides=dict, _callbacks=...) 형태로 호출한다.
-    """
-
     def __init__(self, cfg=None, overrides=None, _callbacks=None):
         from ultralytics.cfg import DEFAULT_CFG
         overrides = dict(overrides or {})
         self.soft_label_dir = Path(overrides.pop("soft_label_dir", "~/Dataset/soft_labels")).expanduser()
         self.kd_alpha = float(overrides.pop("kd_alpha", 0.5))
-        self.kd_tau   = float(overrides.pop("kd_tau",   4.0))
+        self.kd_tau = float(overrides.pop("kd_tau", 4.0))
+        self.occ_prob = float(overrides.pop("occ_prob", 0.3))
         super().__init__(cfg=cfg or DEFAULT_CFG, overrides=overrides, _callbacks=_callbacks)
+
+    def preprocess_batch(self, batch):
+        """Occlusion augmentation: GT bbox 위에 랜덤 마스킹 추가."""
+        batch = super().preprocess_batch(batch)
+
+        if not self.model.training:
+            return batch
+
+        imgs = batch['img']             # [B, C, H, W] float [0,1], on device
+        bboxes = batch.get('bboxes')
+        batch_idx_t = batch.get('batch_idx')
+
+        if bboxes is None or batch_idx_t is None:
+            return batch
+
+        B, C, H, W = imgs.shape
+        bboxes_cpu = bboxes.cpu() if torch.is_tensor(bboxes) else bboxes
+        bidx_cpu = batch_idx_t.cpu() if torch.is_tensor(batch_idx_t) else batch_idx_t
+
+        for b in range(B):
+            mask = (bidx_cpu == b)
+            if not mask.any():
+                continue
+
+            for box in bboxes_cpu[mask]:
+                if random.random() > self.occ_prob:
+                    continue
+
+                cx, cy, bw, bh = box.tolist()
+                x1 = int((cx - bw / 2) * W)
+                y1 = int((cy - bh / 2) * H)
+                x2 = int((cx + bw / 2) * W)
+                y2 = int((cy + bh / 2) * H)
+                x1, y1 = max(0, x1), max(0, y1)
+                x2, y2 = min(W, x2), min(H, y2)
+
+                if x2 <= x1 or y2 <= y1:
+                    continue
+
+                # bbox 내 30~70% 크기의 랜덤 영역을 어두운 노이즈로 가림
+                occ_ratio = random.uniform(0.3, 0.7)
+                occ_w = max(1, int((x2 - x1) * occ_ratio))
+                occ_h = max(1, int((y2 - y1) * occ_ratio))
+                ox1 = random.randint(x1, max(x1, x2 - occ_w))
+                oy1 = random.randint(y1, max(y1, y2 - occ_h))
+                ox2 = min(ox1 + occ_w, W)
+                oy2 = min(oy1 + occ_h, H)
+
+                imgs[b, :, oy1:oy2, ox1:ox2] = torch.rand(
+                    C, oy2 - oy1, ox2 - ox1, device=imgs.device
+                ) * 0.3
+
+        batch['img'] = imgs
+        return batch
 
     def init_criterion(self):
         return KDDetectionLoss(
@@ -129,6 +204,7 @@ def train_kd(
     name:           str   = "yolo11m_kd",
     alpha:          float = 0.5,
     tau:            float = 4.0,
+    occ_prob:       float = 0.3,
     resume:         bool  = False,
 ):
     model = YOLO(model_path)
@@ -145,6 +221,7 @@ def train_kd(
         soft_label_dir=soft_label_dir,
         kd_alpha=alpha,
         kd_tau=tau,
+        occ_prob=occ_prob,
         lr0=0.01,
         lrf=0.1,
         momentum=0.937,
@@ -169,6 +246,7 @@ if __name__ == "__main__":
     p.add_argument("--name",               default="yolo11m_kd")
     p.add_argument("--alpha",    type=float, default=0.5)
     p.add_argument("--tau",      type=float, default=4.0)
+    p.add_argument("--occ_prob", type=float, default=0.3)
     p.add_argument("--resume",   action="store_true")
     args = p.parse_args()
     train_kd(
@@ -183,5 +261,6 @@ if __name__ == "__main__":
         name=args.name,
         alpha=args.alpha,
         tau=args.tau,
+        occ_prob=args.occ_prob,
         resume=args.resume,
     )
