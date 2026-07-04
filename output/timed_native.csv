@@ -67,12 +67,12 @@ time_sec,class_name,action
 148.70,chewy_dips_peanut_butter,반환
 154.00,nature_valley_crunchy_oats_n_honey,반환
 156.30,clif_z_bar_chocolate_chip,반환
-159.00,act_ii_butter_lovers_popcorn,반환
-159.40,reeses_pieces,반환
+156.80,act_ii_butter_lovers_popcorn,반환
+158.20,reeses_pieces,반환
+160.60,act_ii_butter_lovers_popcorn,구매
 161.60,lindt_excellence_cocoa_dark_chocolate,구매
+162.00,reeses_pieces,구매
 163.60,chewy_dips_peanut_butter,구매
-164.40,reeses_pieces,구매
-165.00,act_ii_butter_lovers_popcorn,구매
 167.20,haribo_gold_bears_gummi_candy,구매
 168.90,hersheys_symphony,구매
 171.80,nature_valley_crunchy_oats_n_honey,구매
