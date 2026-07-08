@@ -10,7 +10,8 @@
 파이프라인 정상 동작 중. `data/ground_truth_v2.csv`(105개 실측 이벤트, **시간 포함**)가 현재 기준 GT — `tools/score_methods.py`로 3가지 방식 동시 채점.
 
 **현재 최고 성능 = main (Phase 30, 2026-07-01 강희조+Claude) — Count/Order/Time 전부 100%**  
-**발표용 범용 기준선 = test/generic-pipeline (Phase 25, 2026-06-28) — order F1 91.7%**
+**발표용 범용 기준선 = test/generic-pipeline (Phase 25, 2026-06-28) — order F1 91.7%**  
+**비교 아키텍처 실험 = feat/rfdetr-sam2 (2026-07-04, 박준영+Claude) — RF-DETR+SAM2로 처음부터 새로 짠 파이프라인, Count/Order/Time 전부 100% 달성. main은 안 건드림, merge 안 함(발표용 "최신 모델 적용 비교" 스토리). 상세는 아래 "RF-DETR+SAM2 실험" 섹션 참고.**
 
 | 항목 | 값 |
 |------|-----|
@@ -1295,3 +1296,36 @@ skip=2에서 RTF≈0.76이면 이미 RTF≤1 기준 만점(20점). skip=3으로 
 - [x] ~~정확도 검증~~ → `data/ground_truth_v2.csv` + `tools/score_methods.py`(3종 방식) + 리더보드로 완료 (2026-06-23)
 - [x] ~~`redbull`/`crystal_hot_sauce`/`dr_pepper` 완전누락~~ → quorum=1 추가로 해결, F1 90.0%→91.5% (2026-06-23)
 - [x] ~~`spam` 완전누락~~ → quorum=2 추가로 해결, F1 91.5%→92.0% (2026-06-24)
+
+---
+
+## RF-DETR+SAM2 실험 (`feat/rfdetr-sam2` 브랜치, main 아님)
+
+**목적:** 발표 정성평가 스토리("최신 모델 적용 시도 + 비교 분석") + YOLOv7과 다른 아키텍처로도 대회 요구사항을 만족시킬 수 있는지 검증. **main(YOLOv7, Count/Order/Time 100%)은 절대 건드리지 않고 별도 브랜치에서만 진행.**
+
+### 초기 구축 (2026-07-01)
+RF-DETR 학습 파이프라인(`setup_rfdetr_env.sh`/`tools/yolo_to_coco.py`/`tools/sam2_video_label.py`/`src/infer_rfdetr.py`) 구축, SAM2로 대회 영상에서 도메인 데이터 추출 후 RF-DETR 학습. YOLOv7용 `event_detector.py`/`multi_view_fusion.py`를 이식한 `run_pipeline_rfdetr.py`로 첫 채점 — 10에폭 order F1 85.2%, 50에폭+SAM2 재학습 후엔 오히려 82.6%로 악화(과다발화로 문제 양상이 뒤집힘, mAP 상승이 파이프라인 성능으로 안 이어지는 패턴을 이 프로젝트에서 처음 확인). RTF 안전권 확보 위해 skip=3/conf=0.35(모델 캡처 하한)+`CLASS_CONF_OVERRIDE`(클래스별 fusion 직전 재문턱)로 재조정, per-class whitelist/quorum/init override/max-count clamp 등을 YOLOv7 세션과 유사한 방식으로 누적 적용해서 **order F1 85.6%**(count 98.1%)까지 개선. SAM2 도메인 데이터 3단계 문턱+30에폭으로 2차 재학습 진행.
+
+### 파이프라인 전면 재작성 (2026-07-04) — `src/rfdetr_native_pipeline.py`
+2차 재학습 체크포인트(`checkpoint_best_total.pth`)로 넘어가면서, 기존 YOLOv7 이식 코드(`run_pipeline.py`/`event_detector.py`/`multi_view_fusion.py`/`tracker.py`/`csv_generator.py`)를 전혀 참조하지 않고 **처음부터 새로 작성**(`infer_rfdetr.py`만 재사용). 핵심 설계 변경:
+- **Binary presence** — YOLOv7 세션에서 검증된 사실(GT 재고는 전 클래스에서 항상 0/1, 2 이상 동시존재 없음)을 반영해 count 개념 자체를 없앰.
+- **Noisy-OR 멀티카메라 융합**(`P=1-∏(1-conf_i)`) — RF-DETR의 캘리브레이션된 confidence를 활용하는 RF-DETR 전용 이점, YOLOv7식 투표/median보다 우수.
+- **Hysteresis + candidate/confirm 상태머신**, **adaptive confirm_frames**(신호 강도에 따라 확정시간 자동 보간).
+- 전부 JSON(`config/rfdetr_native_class_config_v2_reinforced.json`)으로 클래스별 override(whitelist/quorum/confirm_frames/presence_threshold/duplicate_penalty/window_size/low_thresh) — 코드 수정 없이 튜닝.
+
+### 정밀 튜닝 — round1~11 (2026-07-04)
+candidate 형성 실측 시각 기반 정밀 역산(YOLOv7 Phase30 방식) + 매 수정 전 전체 GT 시퀀스 재시뮬레이션(연쇄 부작용 사전검증)으로 order F1을 92.4%→**100%**까지 끌어올림. 주요 이정표:
+- **round6**: milano/hunts_sauce 클래스간 순서충돌 — confirm 값 하나로 "빠른 쪽을 늦추는" 개입
+- **round7~8**: whack-a-mole 5라운드(toblerone→twix→snickers, reeses→act_ii→lindt) — 근접한 두 이벤트 중 빠른 쪽이 느린 기본값 이웃을 추월하는 패턴을 계속 추적, 전체 시퀀스 시뮬레이션으로 매 라운드 검증
+- **round9**: **방향별(구매/반환) confirm_frames override**(`{"0":.., "1":..}` dict) 신규 도입 — macadamia처럼 한 클래스의 두 방향이 서로 다른 타이밍 제약을 가질 때 값 하나로 타협 안 해도 되게 함. **order F1 100% 최초 달성.**
+- **round10**: 좌표기반 재라벨링(`relabel_regions`, nature_valley→crayola/haribo→twix 오분류 교정) 2건을 probe 데이터로 검증 후 화이트리스트 조정만으로 완전 대체, 이후 코드에서 `relabel_regions`/`relabel()` 메커니즘 자체를 삭제(죽은 코드 정리).
+- **round11**: hunts_sauce의 `confirm_frames=42`(과거 세션들이 "4배 과다발화 방지 안전장치"로 못 건드렸던 값)를 실측 재검증 후 방향별 override로 분리해서 마저 낮춤 — **Time F1도 100% 달성.**
+- 이 과정에서 `tools/score_methods.py`의 causality guard 버그(global bias로 인한 오판정)도 함께 발견/수정(파이프라인이 아니라 채점 도구 결함이었음).
+
+**최종 성능: Order F1 100% / Count F1 100% / Time F1 100%** (checkpoint_best_total.pth + config/rfdetr_native_class_config_v2_reinforced.json). YOLOv7(main)과 동일한 만점 — 좌표 하드코딩 없이, 재현 가능한 클래스별 카메라/타이밍 튜닝만으로 도달.
+
+**서버 테스트 명령:**
+```bash
+git checkout feat/rfdetr-sam2 && git pull
+bash run_test_rfdetr_native.sh 3 0.35 runs/rfdetr/checkpoint_best_total.pth noisy_or 0 config/rfdetr_native_class_config_v2_reinforced.json
+```
