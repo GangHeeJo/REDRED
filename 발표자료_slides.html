@@ -1,7 +1,7 @@
-<title>REDRED 발표자료</title>
+<title>REDRED — YOLOv7 vs RF-DETR+SAM2</title>
 <style>
 :root{
-  --bg:#0A0E13; --surface:#121821; --surface-2:#1B232E; --surface-3:#232D3A;
+  --bg:#000000; --surface:#121821; --surface-2:#1B232E; --surface-3:#232D3A;
   --border:#2A3441; --text:#E9EEF3; --text-dim:#8FA0B0; --text-faint:#5C6B7A;
   --accent:#45D3C6; --accent-soft:rgba(69,211,198,.14);
   --indigo:#7C93FF; --indigo-soft:rgba(124,147,255,.13);
@@ -9,37 +9,18 @@
   --good:#5FDB8F; --good-soft:rgba(95,219,143,.13);
   --neutral-bar:#3D4A59;
 }
-:root[data-theme="light"]{
-  --bg:#F2F4F6; --surface:#FFFFFF; --surface-2:#E7ECF1; --surface-3:#DCE3E9;
-  --border:#D5DCE3; --text:#182029; --text-dim:#5B6B7A; --text-faint:#8494A3;
-  --accent:#0C8F82; --accent-soft:rgba(12,143,130,.09);
-  --indigo:#3A55D9; --indigo-soft:rgba(58,85,217,.08);
-  --warm:#B96B14; --warm-soft:rgba(185,107,20,.09);
-  --good:#1D9A56; --good-soft:rgba(29,154,86,.09);
-  --neutral-bar:#B7C0C9;
-}
-@media (prefers-color-scheme: light){
-  :root:not([data-theme="dark"]){
-    --bg:#F2F4F6; --surface:#FFFFFF; --surface-2:#E7ECF1; --surface-3:#DCE3E9;
-    --border:#D5DCE3; --text:#182029; --text-dim:#5B6B7A; --text-faint:#8494A3;
-    --accent:#0C8F82; --accent-soft:rgba(12,143,130,.09);
-    --indigo:#3A55D9; --indigo-soft:rgba(58,85,217,.08);
-    --warm:#B96B14; --warm-soft:rgba(185,107,20,.09);
-    --good:#1D9A56; --good-soft:rgba(29,154,86,.09);
-    --neutral-bar:#B7C0C9;
-  }
-}
 *{box-sizing:border-box;}
-html,body{margin:0;background:var(--bg);}
+html,body{margin:0;background:#000;}
 body{
-  font-family:'Segoe UI','Malgun Gothic',system-ui,sans-serif;
+  font-family:'Segoe UI',system-ui,sans-serif;
   color:var(--text);
   scroll-snap-type:y mandatory;
   overflow-y:scroll;
   height:100vh;
+  background:#000;
 }
 .mono{font-family:'Cascadia Code','Consolas',monospace;}
-h1,h2,h3{font-family:'Bahnschrift','Segoe UI Semibold','Malgun Gothic',system-ui,sans-serif;}
+h1,h2,h3{font-family:'Bahnschrift','Segoe UI Semibold',system-ui,sans-serif;}
 
 .slide{
   scroll-snap-align:start;
@@ -51,8 +32,9 @@ h1,h2,h3{font-family:'Bahnschrift','Segoe UI Semibold','Malgun Gothic',system-ui
   padding:56px clamp(24px,6vw,96px);
   position:relative;
   border-bottom:1px solid var(--border);
+  background:#000;
 }
-.slide-inner{max-width:1160px;margin:0 auto;width:100%;}
+.slide-inner{max-width:1200px;margin:0 auto;width:100%;}
 .kicker{
   font-family:'Cascadia Code','Consolas',monospace;
   font-size:12.5px; letter-spacing:.14em; text-transform:uppercase;
@@ -62,7 +44,7 @@ h1,h2,h3{font-family:'Bahnschrift','Segoe UI Semibold','Malgun Gothic',system-ui
   font-size:clamp(24px,3.2vw,38px); font-weight:700; margin:0 0 8px; text-wrap:balance;
 }
 .slide p.lead{
-  font-size:15px; color:var(--text-dim); max-width:76ch; line-height:1.65; margin:0 0 26px;
+  font-size:15px; color:var(--text-dim); max-width:80ch; line-height:1.65; margin:0 0 24px;
 }
 .slide-num{
   position:absolute; bottom:22px; right:28px;
@@ -77,7 +59,7 @@ h1,h2,h3{font-family:'Bahnschrift','Segoe UI Semibold','Malgun Gothic',system-ui
 }
 .title-slide .team b{color:var(--text);}
 .title-slide h1{
-  font-size:clamp(36px,5.6vw,60px); font-weight:700; line-height:1.1; margin:0 0 18px; text-wrap:balance;
+  font-size:clamp(34px,5.2vw,56px); font-weight:700; line-height:1.15; margin:0 0 18px; text-wrap:balance;
 }
 .title-slide .badges{display:flex;gap:10px;margin-top:30px;flex-wrap:wrap;}
 .badge{
@@ -89,16 +71,16 @@ h1,h2,h3{font-family:'Bahnschrift','Segoe UI Semibold','Malgun Gothic',system-ui
 /* ---------- agenda ---------- */
 .agenda-list{display:flex;flex-direction:column;gap:2px;background:var(--border);border:1px solid var(--border);border-radius:6px;overflow:hidden;}
 .agenda-row{background:var(--surface);padding:10px 18px;display:flex;gap:14px;align-items:baseline;}
-.agenda-row .n{font-family:'Cascadia Code','Consolas',monospace;font-size:12.5px;color:var(--accent);flex:0 0 22px;}
+.agenda-row .n{font-family:'Cascadia Code','Consolas',monospace;font-size:12.5px;color:var(--accent);flex:0 0 24px;}
 .agenda-row .t{font-size:13.5px;}
 
-/* ---------- challenge cards ---------- */
+/* ---------- camera diagram ---------- */
 .cam-illustration{
   display:flex;align-items:center;justify-content:center;gap:10px;
   padding:22px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;margin-bottom:20px;
 }
 .cam-illustration .shelf{
-  width:110px;height:54px;border:2px solid var(--text-faint);border-top:none;position:relative;border-radius:0 0 4px 4px;
+  width:120px;height:56px;border:2px solid var(--text-faint);border-top:none;position:relative;border-radius:0 0 4px 4px;
   display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px;
   font-family:'Cascadia Code','Consolas',monospace;font-size:10px;color:var(--text-faint);
 }
@@ -131,18 +113,59 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
 .callout.indigo{border-left-color:var(--indigo);background:var(--indigo-soft);}
 .callout.indigo b{color:var(--indigo);}
 
+/* ---------- pipeline flow diagram ---------- */
+.pipe-wrap{overflow-x:auto;padding-bottom:6px;margin-bottom:16px;}
+.pipe{display:flex;align-items:stretch;min-width:fit-content;}
+.pipe-stage{flex:0 0 auto;width:190px;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:14px 15px;display:flex;flex-direction:column;gap:5px;}
+.pipe-stage .n{font-family:'Cascadia Code','Consolas',monospace;font-size:10.5px;color:var(--text-faint);}
+.pipe-stage h4{margin:0;font-size:14px;font-weight:600;}
+.pipe-stage p{margin:0;font-size:11px;color:var(--text-dim);line-height:1.5;}
+.pipe-stage.c1{border-top:3px solid var(--accent);}
+.pipe-stage.c2{border-top:3px solid var(--indigo);}
+.pipe-stage.c3{border-top:3px solid var(--warm);}
+.pipe-stage.c4{border-top:3px solid var(--good);}
+.pipe-conn{flex:0 0 28px;align-self:center;height:2px;background:var(--border);position:relative;}
+.pipe-conn::after{content:"";position:absolute;right:-1px;top:50%;transform:translateY(-50%);border-top:4px solid transparent;border-bottom:4px solid transparent;border-left:6px solid var(--border);}
+
 /* ---------- layer stack ---------- */
 .layer-stack{display:flex;flex-direction:column;gap:8px;margin-bottom:18px;}
 .layer-card{display:flex;align-items:center;gap:14px;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--indigo);border-radius:4px;}
 .layer-card .ln{font-family:'Cascadia Code','Consolas',monospace;font-size:12px;color:var(--indigo);flex:0 0 32px;font-weight:700;}
-.layer-card .lt{font-size:13.5px;font-weight:600;flex:0 0 200px;}
+.layer-card .lt{font-size:13.5px;font-weight:600;flex:0 0 220px;}
 .layer-card .ld{font-size:12px;color:var(--text-dim);}
 
-/* ---------- big layer hero (per-layer detail slide) ---------- */
+/* ---------- per-layer hero ---------- */
 .layer-hero{display:flex;align-items:center;gap:16px;padding:20px 22px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;margin-bottom:18px;}
 .layer-hero .num{font-family:'Cascadia Code','Consolas',monospace;font-size:34px;font-weight:700;color:var(--indigo);flex:0 0 auto;}
 .layer-hero .txt h3{margin:0 0 4px;font-size:17px;}
 .layer-hero .txt p{margin:0;font-size:12.5px;color:var(--text-dim);}
+
+/* ---------- state machine diagram ---------- */
+.statemachine{display:flex;align-items:center;gap:0;flex-wrap:wrap;padding:20px 22px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;margin-bottom:18px;}
+.sm-node{font-family:'Cascadia Code','Consolas',monospace;font-size:13px;font-weight:600;padding:9px 16px;border-radius:20px;border:1.5px solid var(--border);}
+.sm-node.stable{color:var(--good);border-color:var(--good);background:var(--good-soft);}
+.sm-node.candidate{color:var(--warm);border-color:var(--warm);background:var(--warm-soft);}
+.sm-arrow{font-size:10.5px;color:var(--text-dim);padding:0 14px;display:flex;flex-direction:column;align-items:center;gap:3px;}
+.sm-arrow .line{width:44px;height:1px;background:var(--border);position:relative;}
+.sm-arrow .line::after{content:"";position:absolute;right:0;top:-3px;border:4px solid transparent;border-left-color:var(--border);}
+
+/* ---------- occlusion exclusion diagram ---------- */
+.mini-diagram{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:18px 20px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;margin-bottom:18px;}
+.cam-chip{display:flex;flex-direction:column;align-items:center;gap:4px;}
+.cam-chip .box{width:40px;height:32px;border-radius:3px;border:1.5px solid var(--border);background:var(--surface);display:flex;align-items:center;justify-content:center;font-family:'Cascadia Code','Consolas',monospace;font-size:12px;color:var(--text-dim);}
+.cam-chip.pos .box{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:700;}
+.cam-chip.excluded .box{background:var(--warm-soft);border-color:var(--warm);color:var(--warm);text-decoration:line-through;}
+.cam-chip label{font-size:10px;color:var(--text-dim);}
+.mini-verdict{font-size:12.5px;color:var(--text-dim);flex:1;min-width:220px;}
+.mini-verdict b{color:var(--warm);}
+
+/* ---------- data flow diagram ---------- */
+.flow-wrap{display:flex;align-items:stretch;gap:0;overflow-x:auto;margin-bottom:16px;padding-bottom:4px;}
+.flow-node{flex:0 0 auto;width:180px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:4px;}
+.flow-node h4{margin:0;font-size:13px;color:var(--text);}
+.flow-node p{margin:0;font-size:11px;color:var(--text-dim);line-height:1.5;}
+.flow-conn{flex:0 0 26px;align-self:center;height:2px;background:var(--border);position:relative;}
+.flow-conn::after{content:"";position:absolute;right:-1px;top:50%;transform:translateY(-50%);border-top:4px solid transparent;border-bottom:4px solid transparent;border-left:6px solid var(--border);}
 
 /* ---------- timeline (case study) ---------- */
 .timeline{display:flex;flex-direction:column;gap:0;margin-bottom:8px;}
@@ -151,7 +174,7 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
 .tl-step .dot-col{display:flex;flex-direction:column;align-items:center;flex:0 0 28px;}
 .tl-step .dot{width:24px;height:24px;border-radius:50%;background:var(--surface-2);border:1.5px solid var(--accent);color:var(--accent);display:flex;align-items:center;justify-content:center;font-family:'Cascadia Code','Consolas',monospace;font-size:11px;font-weight:700;}
 .tl-step h4{margin:0 0 3px;font-size:13.5px;}
-.tl-step p{margin:0;font-size:12px;color:var(--text-dim);line-height:1.55;max-width:72ch;}
+.tl-step p{margin:0;font-size:12px;color:var(--text-dim);line-height:1.55;max-width:74ch;}
 
 /* ---------- checklist ---------- */
 .checklist{display:flex;flex-direction:column;gap:0;}
@@ -181,7 +204,7 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
 .closing-numbers .item .l{font-size:11.5px;color:var(--text-dim);}
 
 /* ---------- nav ---------- */
-.navbar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:30px;padding:8px 10px;z-index:50;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.navbar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:30px;padding:8px 10px;z-index:50;box-shadow:0 4px 20px rgba(0,0,0,.5);}
 .navbar button{width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:var(--surface-2);color:var(--text);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;}
 .navbar button:hover{border-color:var(--accent);color:var(--accent);}
 .navbar .count{font-family:'Cascadia Code','Consolas',monospace;font-size:12px;color:var(--text-dim);min-width:52px;text-align:center;}
@@ -195,51 +218,52 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
 <!-- ============ SLIDE 00 : TITLE ============ -->
 <section class="slide title-slide">
   <div class="slide-inner">
-    <div class="kicker">2026 딥러닝 기반 무인판매대 상품인식 경진대회</div>
-    <h1>REDRED<br>같은 문제를 두 번 푼 기록</h1>
+    <div class="kicker">2026 Deep Learning Unmanned Store Product Recognition Competition</div>
+    <h1>REDRED<br>The Same Problem, Solved Twice</h1>
+    <p class="lead">Two completely different detectors — YOLOv7 and RF-DETR+SAM2 — each independently reached a perfect score. This is the record of what stayed the same, and what didn't.</p>
     <div class="team">
-      <span><b>팀명</b> REDRED</span>
-      <span><b>팀원</b> 조강희 · 정현수 · 박준영</span>
-      <span><b>소속</b> 서울대학교 전기정보공학부</span>
+      <span><b>Team</b> REDRED</span>
+      <span><b>Members</b> Ganghee Cho · Hyunsoo Jung · Junyoung Park</span>
+      <span><b>Affiliation</b> Dept. of Electrical and Computer Engineering, Seoul National University</span>
     </div>
     <div class="badges">
       <div class="badge hl">YOLOv7 — Count/Order/Time F1 100%</div>
       <div class="badge hl">RF-DETR+SAM2 — Count/Order/Time F1 100%</div>
-      <div class="badge">완전히 다른 탐지기, 같은 만점</div>
+      <div class="badge">Two independent architectures, one identical result</div>
     </div>
   </div>
-  <div class="slide-num">00 / 17</div>
+  <div class="slide-num">00 / 18</div>
 </section>
 
 <!-- ============ SLIDE 01 : AGENDA ============ -->
 <section class="slide">
   <div class="slide-inner">
-    <div class="kicker">목차 — 여정 순서</div>
-    <h2 class="title">겪은 순서 그대로 보여준다</h2>
-    <p class="lead">파이프라인 개선 → 다른 모델(YOLO11) 실패 → 원인 규명 → 논문 리서치 → RF-DETR 채택 → 이식 실패 → 진단 → SAM2로 데이터 증대 → 재설계 → 100% 재현 → 비교.</p>
+    <div class="kicker">Agenda — In the Order It Happened</div>
+    <h2 class="title">Told in the order we actually lived it</h2>
+    <p class="lead">Pipeline improvement → a different model (YOLO11) fails → root cause identified → literature and industry research → RF-DETR adopted → porting fails → diagnosis → data expanded with SAM2 → redesign → 100% reproduced → comparison.</p>
     <div class="agenda-list">
-      <div class="agenda-row"><span class="n">00</span><span class="t">문제 정의 / 평가 기준 + 배경지식(3종 채점, 리더보드)</span></div>
-      <div class="agenda-row"><span class="n">01</span><span class="t">YOLOv7 — 자체 파인튜닝 실패 → 파이프라인 개선으로 방향 전환</span></div>
-      <div class="agenda-row"><span class="n">02</span><span class="t">YOLOv7 — 4단 레이어 파이프라인 상세 → 100% 달성</span></div>
-      <div class="agenda-row"><span class="n">03</span><span class="t">YOLO11 시도 → "mAP는 높은데 왜 반영이 안 되지?"</span></div>
-      <div class="agenda-row"><span class="n">04</span><span class="t">논문·업계 리서치 → 이태호 교수 추천 기법 실패 → RF-DETR 채택</span></div>
-      <div class="agenda-row"><span class="n">05</span><span class="t">RF-DETR 전체 스택 도입 → 이식만으로는 안 나옴</span></div>
-      <div class="agenda-row"><span class="n">06</span><span class="t">특정 클래스 오류 진단 → raw data가 근본 해결책</span></div>
-      <div class="agenda-row"><span class="n">07</span><span class="t">SAM2로 raw data 증대 + 재설계 → 더 얕은 파이프라인으로 100%</span></div>
-      <div class="agenda-row"><span class="n">08</span><span class="t">confidence 캘리브레이션 우위 → 하드코딩 최소화 + RTF</span></div>
-      <div class="agenda-row"><span class="n">09</span><span class="t">두 아키텍처 비교</span></div>
-      <div class="agenda-row"><span class="n">10</span><span class="t">결론</span></div>
+      <div class="agenda-row"><span class="n">00</span><span class="t">Problem definition / evaluation criteria + background (3-way scoring, leaderboard)</span></div>
+      <div class="agenda-row"><span class="n">01</span><span class="t">YOLOv7 — self fine-tuning fails → pivot to pipeline engineering</span></div>
+      <div class="agenda-row"><span class="n">02</span><span class="t">YOLOv7 — the full 4-layer pipeline, in detail → 100%</span></div>
+      <div class="agenda-row"><span class="n">03</span><span class="t">YOLO11 attempt → "mAP is higher, so why doesn't it show up on video?"</span></div>
+      <div class="agenda-row"><span class="n">04</span><span class="t">Literature / industry research → recommended techniques fail → RF-DETR adopted</span></div>
+      <div class="agenda-row"><span class="n">05</span><span class="t">Adopting the full RF-DETR stack → porting alone isn't enough</span></div>
+      <div class="agenda-row"><span class="n">06</span><span class="t">Class-specific error diagnosis → raw data is the root fix</span></div>
+      <div class="agenda-row"><span class="n">07</span><span class="t">SAM2 expands raw data + redesign → a shallower pipeline reaches 100%</span></div>
+      <div class="agenda-row"><span class="n">08</span><span class="t">RF-DETR's confidence calibration advantage → less hardcoding + RTF</span></div>
+      <div class="agenda-row"><span class="n">09</span><span class="t">Comparing the two architectures</span></div>
+      <div class="agenda-row"><span class="n">10</span><span class="t">Conclusion</span></div>
     </div>
   </div>
-  <div class="slide-num">01 / 17</div>
+  <div class="slide-num">01 / 18</div>
 </section>
 
-<!-- ============ SLIDE 02 : 문제정의/평가기준 ============ -->
+<!-- ============ SLIDE 02 : PROBLEM DEFINITION ============ -->
 <section class="slide">
   <div class="slide-inner">
-    <div class="kicker">00 · 문제 정의 / 평가 기준</div>
-    <h2 class="title">"본다"고 다 같은 정보가 아니다</h2>
-    <p class="lead">카메라 5대가 같은 진열대를 서로 다른 각도에서 촬영, 60종 상품의 구매/반환을 인식해 재고·결제 정보를 CSV로 산출하는 과제.</p>
+    <div class="kicker">00 · Problem Definition / Evaluation Criteria</div>
+    <h2 class="title">"Seeing" isn't the same as "knowing"</h2>
+    <p class="lead">Five cameras film the same shelf from five different angles. The task: recognize purchase/return events across 60 product classes and output inventory and payment data as a CSV.</p>
 
     <div class="cam-illustration">
       <div class="cams">
@@ -247,111 +271,152 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
         <div class="cam blind">cam3</div><div class="cam blind">cam4</div>
       </div>
       <div class="arrow">→</div>
-      <div class="shelf">진열대<br>(60개 클래스)</div>
+      <div class="shelf">shelf<br>(60 classes)</div>
     </div>
 
     <table class="ctable">
-      <tr><th>평가 항목</th><th>배점</th></tr>
-      <tr><td class="name">재고 인식 정확도 (Count/Order/Time F1)</td><td class="val">40점</td></tr>
-      <tr><td class="name">RTF (처리 속도, ≤1 → 만점)</td><td class="val">20점</td></tr>
-      <tr><td class="name">정성평가 + 발표</td><td class="val">40점</td></tr>
+      <tr><th>Evaluation item</th><th>Points</th></tr>
+      <tr><td class="name">Inventory recognition accuracy (Count/Order/Time F1)</td><td class="val">40</td></tr>
+      <tr><td class="name">RTF (processing speed, ≤1 → full score)</td><td class="val">20</td></tr>
+      <tr><td class="name">Qualitative evaluation + presentation</td><td class="val">40</td></tr>
     </table>
   </div>
-  <div class="slide-num">02 / 17</div>
+  <div class="slide-num">02 / 18</div>
 </section>
 
-<!-- ============ SLIDE 03 : 배경지식(0부 도구) ============ -->
+<!-- ============ SLIDE 03 : BACKGROUND / METHODOLOGY TOOLKIT ============ -->
 <section class="slide">
   <div class="slide-inner">
-    <div class="kicker">00 · 배경지식</div>
-    <h2 class="title">앞으로 계속 등장할 도구들</h2>
-    <p class="lead">대회가 공식 채점 기준을 공개하지 않는 상황에서, 이 프로젝트 전체를 관통하는 진단·자동화 도구를 직접 만들어 썼다.</p>
+    <div class="kicker">00 · Background</div>
+    <h2 class="title">The tools that recur through everything that follows</h2>
+    <p class="lead">The competition never published an official scoring formula. Every diagnostic and automation tool below was built from scratch, and every one of them gets reused across both architectures later in this deck.</p>
 
     <div class="checklist">
-      <div class="check-row"><div class="mark">✓</div><div class="txt"><b>3종 채점 방법론</b> (count/order/time, <span class="mono">tools/score_methods.py</span>)<p>단일 지표의 맹점을 서로 보완</p></div></div>
-      <div class="check-row"><div class="mark">✓</div><div class="txt"><b>LCS 역추적 알고리즘</b><p>Order F1 미스매치 시 정확히 어느 이벤트 쌍이 순서를 깨뜨렸는지 특정</p></div></div>
-      <div class="check-row"><div class="mark">✓</div><div class="txt"><b>실험노트형 디버깅 히스토리</b> (<span class="mono">output/leaderboard.html</span>)<p>55회 이상 실행의 계기/문제/다음단계 전부 기록</p></div></div>
-      <div class="check-row"><div class="mark">✓</div><div class="txt"><b>End-to-end 자동화</b> (<span class="mono">run_test.sh</span>)<p>실행 → 채점 → 리더보드 갱신 → git push 원스톱</p></div></div>
-      <div class="check-row"><div class="mark">✓</div><div class="txt"><b>debug_frame_counts 리플레이</b><p>서버 없이 로컬에서 "모델 미검출" vs "로직 버그" 구분</p></div></div>
-      <div class="check-row"><div class="mark">✓</div><div class="txt"><b>candidate 시각 역산</b> (<span class="mono">fire_time</span> 공식)<p>이벤트 확정 시각을 역산해 confirm_frames 정밀 튜닝 — YOLOv7·RF-DETR 양쪽에 재사용</p></div></div>
+      <div class="check-row"><div class="mark">✓</div><div class="txt"><b>3-way scoring methodology</b> (count / order / time, <span class="mono">tools/score_methods.py</span>)<p>Count alone can be "correct" even when order is wrong, and a single misordered pair can wrongly fail unrelated classes — the three metrics cover each other's blind spots.</p></div></div>
+      <div class="check-row"><div class="mark">✓</div><div class="txt"><b>LCS backtracking algorithm</b><p>When Order F1 shows a mismatch, this pinpoints exactly which pair of events swapped places — down to the index.</p></div></div>
+      <div class="check-row"><div class="mark">✓</div><div class="txt"><b>Experiment-log leaderboard</b> (<span class="mono">output/leaderboard.html</span>)<p>Every one of 55+ runs is logged with what motivated it, what problem it exposed, and what came next — an expandable lab notebook, not just a scoreboard.</p></div></div>
+      <div class="check-row"><div class="mark">✓</div><div class="txt"><b><span class="mono">debug_frame_counts.csv</span> replay tool</b><p>Replays raw per-frame counts locally, no server needed, to separate "the model genuinely missed it" from "the pipeline logic is buggy."</p></div></div>
+      <div class="check-row"><div class="mark">✓</div><div class="txt"><b>Candidate-time back-calculation</b> (<span class="mono">fire_time</span> formula)<p>Works backward from an event's confirmed firing time to tune <span class="mono">confirm_frames</span> precisely — reused verbatim in both the YOLOv7 and RF-DETR sessions.</p></div></div>
     </div>
   </div>
-  <div class="slide-num">03 / 17</div>
+  <div class="slide-num">03 / 18</div>
 </section>
 
-<!-- ============ SLIDE 04 : YOLOv7 자체파인튜닝 실패→방향전환 ============ -->
+<!-- ============ SLIDE 04 : YOLOv7 SELF FINE-TUNING FAILS ============ -->
 <section class="slide">
   <div class="slide-inner">
     <div class="kicker">01 · YOLOv7</div>
-    <h2 class="title">자체 파인튜닝 실패 → 파이프라인으로 방향 전환</h2>
-    <p class="lead">출발점: 대회 제공 가중치(<span class="mono">yolov7_custom.pt</span>, mAP@0.5 98.1%, 약 20만 장 학습).</p>
+    <h2 class="title">Self fine-tuning fails → pivot to pipeline engineering</h2>
+    <p class="lead">Starting point: the competition-provided weights (<span class="mono">yolov7_custom.pt</span>, mAP@0.5 98.1%, trained on roughly 200,000 images).</p>
 
     <table class="ctable">
-      <tr><th>시도</th><th>결과</th><th>판단</th></tr>
-      <tr><td class="name">Cut&amp;Paste 증강 5,000장 + 자체 파인튜닝(30ep)</td><td>mAP@0.5 0.9904 → 0.9840 (하락)</td><td class="verdict reject">미채택</td></tr>
+      <tr><th>Attempt</th><th>Result</th><th>Verdict</th></tr>
+      <tr><td class="name">Cut&amp;Paste augmentation (5,000 images) + self fine-tune (30 epochs)</td><td>mAP@0.5 0.9904 → 0.9840 (dropped)</td><td class="verdict reject">Not adopted</td></tr>
     </table>
 
-    <div class="callout warm"><b>방향 전환</b>&nbsp;— 증강 이미지의 조명·그림자·배치 분포가 실제 테스트 영상과 괴리돼 모델이 오히려 저하됨. "모델 자체를 손대는 건 위험하다 — 대회 제공 가중치는 그대로 두고, 그 위에서 돌아가는 파이프라인 쪽을 개선하자."</div>
-
-    <div class="stat-row" style="grid-template-columns:repeat(1,1fr);margin-top:16px;">
-      <div class="stat-tile"><div class="l">속도 최적화 — 기록값 RTF</div><div class="v" style="color:var(--accent);">0.763</div><div class="n"><span class="mono">grab()/retrieve()</span> skip 디코딩 생략 + 5캠 배치추론</div></div>
-    </div>
+    <div class="callout warm"><b>The pivot</b>&nbsp;— the lighting, shadow, and object-placement distribution of the augmented images diverged from the real test footage, so the model drifted toward that synthetic distribution instead of improving. Conclusion: touching the model itself is risky. Keep the provided weights untouched, and improve the pipeline that sits on top of them instead.</div>
   </div>
-  <div class="slide-num">04 / 17</div>
+  <div class="slide-num">04 / 18</div>
 </section>
 
-<!-- ============ SLIDE 05 : 레이어 1 — 멀티카메라 퓨전 ============ -->
+<!-- ============ SLIDE 05 : YOLOv7 FULL PIPELINE OVERVIEW (NEW) ============ -->
 <section class="slide">
   <div class="slide-inner">
-    <div class="kicker">02 · YOLOv7 4단 레이어</div>
-    <h2 class="title">레이어 1 — 멀티카메라 퓨전</h2>
+    <div class="kicker">02 · YOLOv7 — Full Pipeline</div>
+    <h2 class="title">Four layers, stacked on top of a fixed detector</h2>
+    <p class="lead">Because the detector weights are frozen, every gain from here on comes from four layers of pipeline logic sitting above it — each one solving a problem the last one couldn't.</p>
+
+    <div class="pipe-wrap">
+      <div class="pipe">
+        <div class="pipe-stage c1">
+          <span class="n">LAYER 1</span><h4>Multi-Camera Fusion</h4>
+          <p>Weighted median + per-class quorum override + camera whitelist</p>
+        </div>
+        <div class="pipe-conn"></div>
+        <div class="pipe-stage c2">
+          <span class="n">LAYER 2</span><h4>Occlusion-Aware Weighting</h4>
+          <p>Global → per-class → per-camera exclusion, 3 stages of refinement</p>
+        </div>
+        <div class="pipe-conn"></div>
+        <div class="pipe-stage c3">
+          <span class="n">LAYER 3</span><h4>SORT Tracker</h4>
+          <p><span class="mono">max_age=15</span>, bridges short occlusion gaps</p>
+        </div>
+        <div class="pipe-conn"></div>
+        <div class="pipe-stage c4">
+          <span class="n">LAYER 4</span><h4>Hysteresis State Machine</h4>
+          <p>STABLE/CANDIDATE + per-class, per-direction confirm timing</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout"><b>Why four layers</b>&nbsp;— each layer targets a failure mode the previous one leaves behind: physical blind spots (L1), transient hand occlusion (L2), short tracking gaps (L3), and precise event-timing disputes between classes (L4). The next three slides go through each in turn.</div>
+  </div>
+  <div class="slide-num">05 / 18</div>
+</section>
+
+<!-- ============ SLIDE 06 : LAYER 1 — MULTI-CAMERA FUSION ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">02 · YOLOv7 4-Layer Pipeline</div>
+    <h2 class="title">Layer 1 — Multi-Camera Fusion</h2>
     <div class="layer-hero">
       <div class="num">1</div>
-      <div class="txt"><h3>Quorum + 화이트리스트</h3><p>기본은 weighted median(과반 동의) — 그 위에 클래스별 예외 규칙 2가지를 얹는다.</p></div>
+      <div class="txt"><h3>Quorum override + camera whitelist</h3><p>Default rule: weighted median across 5 cameras (majority agreement). Two class-specific exceptions sit on top of that default.</p></div>
     </div>
 
     <div class="timeline">
-      <div class="tl-step"><div class="dot-col"><div class="dot">Q</div></div><div><h4><span class="mono">CLASS_QUORUM_OVERRIDE</span></h4><p>일부 상품은 진열 위치상 카메라 5대 중 1~2대에서만 물리적으로 보임(구조적 사각지대) — 클래스별로 필요 동의 카메라 수를 1~2대로 완화 (8개 클래스 적용)</p></div></div>
-      <div class="tl-step"><div class="dot-col"><div class="dot">W</div></div><div><h4><span class="mono">CLASS_CAM_WHITELIST</span></h4><p><span class="mono">campbells</span>/<span class="mono">milano</span>/<span class="mono">dove_white</span> 등에서 특정 카메라가 유사 상품과 계속 혼동을 일으키는 걸 발견 — 그 카메라를 신뢰 목록에서 원천 배제</p></div></div>
+      <div class="tl-step"><div class="dot-col"><div class="dot">Q</div></div><div><h4><span class="mono">CLASS_QUORUM_OVERRIDE</span></h4><p>Some products are physically visible from only 1-2 of the 5 cameras due to shelf placement — a structural blind spot no "majority rule" can satisfy. For those classes (8 in total), the required agreement count is relaxed to 1-2 cameras.</p></div></div>
+      <div class="tl-step"><div class="dot-col"><div class="dot">W</div></div><div><h4><span class="mono">CLASS_CAM_WHITELIST</span></h4><p>Per-camera logs showed specific cameras (e.g. one angle confusing <span class="mono">campbells</span> with <span class="mono">milano</span> or <span class="mono">dove_white</span>) were the source of repeated misclassification — those cameras are excluded outright for the affected classes.</p></div></div>
     </div>
   </div>
-  <div class="slide-num">05 / 17</div>
+  <div class="slide-num">06 / 18</div>
 </section>
 
-<!-- ============ SLIDE 06 : 레이어 2 — Occlusion 가중치 ============ -->
+<!-- ============ SLIDE 07 : LAYER 2 — OCCLUSION-AWARE WEIGHTING ============ -->
 <section class="slide">
   <div class="slide-inner">
-    <div class="kicker">02 · YOLOv7 4단 레이어</div>
-    <h2 class="title">레이어 2 — Occlusion-aware 카메라 가중치</h2>
+    <div class="kicker">02 · YOLOv7 4-Layer Pipeline</div>
+    <h2 class="title">Layer 2 — Occlusion-Aware Camera Weighting</h2>
     <div class="layer-hero">
       <div class="num">2</div>
-      <div class="txt"><h3>"일시적 가림"과 "진짜 재고 변화" 구분</h3><p>전역 평균 → 클래스별 판단 → 개별 카메라 단위로 3단계 정교화.</p></div>
+      <div class="txt"><h3>Telling "briefly blocked" apart from "actually changed"</h3><p>Global average → per-class judgment → individual camera exclusion, refined across three stages.</p></div>
     </div>
 
-    <table class="ctable">
-      <tr><th>단계</th><th>판단 기준</th></tr>
-      <tr><td class="name">1단계</td><td>전역 평균으로 가림 판단</td></tr>
-      <tr><td class="name">2단계</td><td>클래스 자신의 confidence만 사용(전역 평균 아님)</td></tr>
-      <tr><td class="name">3단계</td><td>"카메라 i가 0인데 나머지 4대 중 <span class="mono">N=2</span>대 이상 양수면 i를 가려진 것으로 보고 제외"</td></tr>
-    </table>
+    <div class="mini-diagram">
+      <div class="cam-chip excluded"><div class="box">0</div><label>cam0</label></div>
+      <div class="cam-chip pos"><div class="box">●</div><label>cam1</label></div>
+      <div class="cam-chip pos"><div class="box">●</div><label>cam2</label></div>
+      <div class="cam-chip pos"><div class="box">●</div><label>cam3</label></div>
+      <div class="cam-chip"><div class="box">·</div><label>cam4</label></div>
+      <div class="mini-verdict">cam0 reads 0 while <b>N=2 or more</b> of the remaining four read positive → cam0 is treated as occluded and excluded from the vote. Uses only that class's own confidence, never a global average.</div>
+    </div>
 
-    <div class="stat-row" style="grid-template-columns:repeat(2,1fr);margin-top:16px;">
-      <div class="stat-tile"><div class="l">Occlusion 감지율</div><div class="v" style="color:var(--accent);">8% → 27~38%</div></div>
-      <div class="stat-tile"><div class="l">FP(가짜 이벤트)</div><div class="v">완전 0</div></div>
+    <div class="stat-row" style="grid-template-columns:repeat(2,1fr);">
+      <div class="stat-tile"><div class="l">Occlusion detection rate</div><div class="v" style="color:var(--accent);">8% → 27–38%</div></div>
+      <div class="stat-tile"><div class="l">False-positive events</div><div class="v">reduced to 0</div></div>
     </div>
   </div>
-  <div class="slide-num">06 / 17</div>
+  <div class="slide-num">07 / 18</div>
 </section>
 
-<!-- ============ SLIDE 07 : 레이어 3+4 — 트래커 + 상태머신, 최종 100% ============ -->
+<!-- ============ SLIDE 08 : LAYER 3+4 — TRACKER + STATE MACHINE, FINAL 100% ============ -->
 <section class="slide">
   <div class="slide-inner">
-    <div class="kicker">02 · YOLOv7 4단 레이어</div>
-    <h2 class="title">레이어 3~4 — 트래커 + 상태머신 → 100%</h2>
+    <div class="kicker">02 · YOLOv7 4-Layer Pipeline</div>
+    <h2 class="title">Layer 3–4 — Tracker + State Machine → 100%</h2>
 
     <div class="layer-stack">
-      <div class="layer-card"><span class="ln">③</span><span class="lt">SORT 트래커</span><span class="ld"><span class="mono">max_age=15</span> — occlusion gap(실측 0.4~1.5초)을 버티는 짧은 id 유지. RTF는 거의 공짜(CPU Kalman/IoU 매칭만 추가)</span></div>
-      <div class="layer-card"><span class="ln">④</span><span class="lt">Hysteresis 상태머신</span><span class="ld">STABLE/CANDIDATE 2-state, <span class="mono">WINDOW_SIZE=25</span>, <span class="mono">CONFIRM_FRAMES=30</span> + 클래스별·방향별 <span class="mono">per_class_confirm</span> 개별 튜닝</span></div>
+      <div class="layer-card"><span class="ln">③</span><span class="lt">SORT tracker</span><span class="ld"><span class="mono">max_age=15</span> — bridges measured occlusion gaps of 0.4–1.5s. Nearly free on RTF: adds only CPU-side Kalman/IoU matching, no extra GPU inference.</span></div>
+      <div class="layer-card"><span class="ln">④</span><span class="lt">Hysteresis state machine</span><span class="ld">STABLE/CANDIDATE two-state machine, <span class="mono">WINDOW_SIZE=25</span>, <span class="mono">CONFIRM_FRAMES=30</span>, plus per-class and per-direction <span class="mono">per_class_confirm</span> tuning</span></div>
+    </div>
+
+    <div class="statemachine">
+      <div class="sm-node stable">STABLE (committed)</div>
+      <div class="sm-arrow"><span>value change detected</span><div class="line"></div></div>
+      <div class="sm-node candidate">CANDIDATE</div>
+      <div class="sm-arrow"><span>held for CONFIRM_FRAMES</span><div class="line"></div></div>
+      <div class="sm-node stable">STABLE (event confirmed)</div>
     </div>
 
     <div class="stat-row" style="grid-template-columns:repeat(4,1fr);">
@@ -361,218 +426,249 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
       <div class="stat-tile"><div class="l">RTF</div><div class="v" style="color:var(--accent);">0.763</div></div>
     </div>
   </div>
-  <div class="slide-num">07 / 17</div>
+  <div class="slide-num">08 / 18</div>
 </section>
 
-<!-- ============ SLIDE 08 : YOLO11 시도 → raw data 깨달음 ============ -->
+<!-- ============ SLIDE 09 : YOLO11 ATTEMPT ============ -->
 <section class="slide">
   <div class="slide-inner">
-    <div class="kicker">03 · YOLO11 시도</div>
-    <h2 class="title">"mAP는 높은데 왜 반영이 안 되지?"</h2>
-    <p class="lead">가설: 대회 가중치보다 최신·경량 아키텍처(YOLO11)를 쓰면 정확도·속도 모두 개선되지 않을까?</p>
+    <div class="kicker">03 · The YOLO11 Attempt</div>
+    <h2 class="title">"mAP is higher — so why doesn't it show up on video?"</h2>
+    <p class="lead">Hypothesis: a newer, lighter architecture (YOLO11) should beat the competition weights on both accuracy and speed.</p>
 
     <table class="ctable">
-      <tr><th>시도</th><th>결과</th></tr>
-      <tr><td class="name">YOLO11m 재학습 (18,392장, 50ep)</td><td>mAP 98.4%(유사/우세) · <span class="val">order F1 73.4%</span> (−23.2%p)</td></tr>
-      <tr><td class="name">YOLO11m + Knowledge Distillation</td><td><span class="val">order F1 91.1%</span> (YOLOv7 대비 −7.5%p)</td></tr>
+      <tr><th>Attempt</th><th>Result</th></tr>
+      <tr><td class="name">YOLO11m retrained (18,392 images, 50 epochs)</td><td>mAP 98.4% (comparable/higher) · <span class="val">order F1 73.4%</span> (−23.2pp)</td></tr>
+      <tr><td class="name">YOLO11m + Knowledge Distillation</td><td><span class="val">order F1 91.1%</span> (−7.5pp vs. YOLOv7)</td></tr>
     </table>
 
-    <div class="callout warm"><b>진짜 원인은 모델 구조가 아니라 raw data 양이었다</b>&nbsp;— 대회 제공 YOLOv7 가중치는 약 20만 장, 팀이 재학습에 쓸 수 있던 데이터는 1.8만 장(10배 이상 격차). mAP는 표준 벤치마크에서 비슷해도, 실제 테스트 영상의 다양한 각도·조명·occlusion을 커버하려면 학습 데이터의 절대량이 더 중요했다.</div>
+    <div class="callout warm"><b>The real cause wasn't model architecture — it was raw data volume</b>&nbsp;— the provided YOLOv7 weights were trained on roughly 200,000 images; the team's own retraining set had only 18,000 (a 10x+ gap). mAP on a standard benchmark can look similar even when the model has nowhere near enough coverage of the real footage's angles, lighting, and occlusion patterns.</div>
 
-    <div class="callout indigo"><b>이 깨달음이 이후 전략을 결정했다</b>&nbsp;— "다음에 다른 모델을 시도할 땐, 모델 구조만 바꾸는 게 아니라 raw data 자체를 어떻게 확보할지가 핵심이다."</div>
+    <div class="callout indigo"><b>This realization set the strategy going forward</b>&nbsp;— "the next time we try a different model, the question isn't just architecture — it's how we secure enough raw data."</div>
   </div>
-  <div class="slide-num">08 / 17</div>
+  <div class="slide-num">09 / 18</div>
 </section>
 
-<!-- ============ SLIDE 09 : 논문리서치 → 이태호교수 기법 실패 → RF-DETR 채택 ============ -->
+<!-- ============ SLIDE 10 : LITERATURE / INDUSTRY RESEARCH ============ -->
 <section class="slide">
   <div class="slide-inner">
-    <div class="kicker">04 · 논문 · 업계 리서치</div>
-    <h2 class="title">이태호 교수 추천 기법도 실패 → RF-DETR 채택</h2>
-    <p class="lead">YOLOv7이 100%에 도달한 뒤에도 남는 질문 — "이 결과가 YOLOv7이라는 특정 모델에만 통하는 우연은 아닐까?"를 검증하려 최신 논문·업계 동향을 조사했다.</p>
+    <div class="kicker">04 · Literature &amp; Industry Research</div>
+    <h2 class="title">Recommended techniques fail too → RF-DETR adopted</h2>
+    <p class="lead">Even after YOLOv7 reached 100%, one question remained: is this result specific to YOLOv7, or just luck? To find out, the team surveyed recent papers and industry practice.</p>
 
     <table class="ctable">
-      <tr><th>기법</th><th>실측 결과</th><th>기각 근거</th></tr>
-      <tr><td class="name">ByteTrack <span class="mono">(이태호 교수 추천)</span></td><td>count 93.6% / order 91.7% / time 89.9%</td><td class="verdict reject">저신뢰도 유지가 신규 track 차단 또는 과다발화 유발</td></tr>
-      <tr><td class="name">SeqNMS</td><td>정상 이벤트까지 억제</td><td class="verdict reject">sparse한 진짜 신호도 함께 필터링</td></tr>
-      <tr><td class="name">EMA Smoothing</td><td>이벤트 억제</td><td class="verdict reject">reset 불가로 과거값 잔류</td></tr>
-      <tr><td class="name">Ghost Detector</td><td>적용 불가</td><td class="verdict reject">재학습 기반 논문이라 원용 불가</td></tr>
-      <tr><td class="name">WBF 앙상블</td><td>FP 폭발</td><td class="verdict reject">두 모델 confidence calibration 불일치</td></tr>
-      <tr><td class="name">BEV 3D fusion</td><td>적용 불가</td><td class="verdict reject">카메라 캘리브레이션 데이터 미제공</td></tr>
+      <tr><th>Technique</th><th>Measured result</th><th>Reason for rejection</th></tr>
+      <tr><td class="name">ByteTrack</td><td>count 93.6% / order 91.7% / time 89.9%</td><td class="verdict reject">Keeping low-confidence detections either blocks new tracks or triggers over-firing</td></tr>
+      <tr><td class="name">SeqNMS</td><td>Suppressed legitimate events too</td><td class="verdict reject">Filters out sparse-but-real signals along with noise</td></tr>
+      <tr><td class="name">EMA smoothing</td><td>Suppressed events</td><td class="verdict reject">No reset mechanism — stale values persist</td></tr>
+      <tr><td class="name">Ghost Detector</td><td>Not applicable</td><td class="verdict reject">Requires retraining the base paper's own model — can't be reused here</td></tr>
+      <tr><td class="name">WBF ensemble</td><td>False-positive explosion</td><td class="verdict reject">Confidence calibration mismatch between the two ensembled models</td></tr>
+      <tr><td class="name">BEV 3D fusion</td><td>Not applicable</td><td class="verdict reject">Camera calibration data was never provided by the competition</td></tr>
     </table>
 
-    <div class="callout"><b>결론</b>&nbsp;— 시간축 보정 계열로는 한계가 뚜렷했다. 아예 다른 탐지기 아키텍처로 넘어가기로 결정 — <b style="color:var(--good);">RF-DETR</b>(Transformer 기반, NMS 불필요, confidence 캘리브레이션이 상대적으로 우수하다고 알려진 모델) 채택.</div>
+    <div class="callout"><b>Conclusion</b>&nbsp;— the ceiling on temporal-smoothing tricks was clear. Time to switch detector architecture entirely — adopting <b style="color:var(--good);">RF-DETR</b> (Transformer-based, NMS-free, reported to have better-calibrated confidence than CNN detectors).</div>
   </div>
-  <div class="slide-num">09 / 17</div>
+  <div class="slide-num">10 / 18</div>
 </section>
 
-<!-- ============ SLIDE 10 : RF-DETR 1차 이식 → 안 나옴 ============ -->
+<!-- ============ SLIDE 11 : RF-DETR INITIAL PORT FAILS ============ -->
 <section class="slide">
   <div class="slide-inner">
-    <div class="kicker">05 · RF-DETR 전체 스택 도입</div>
-    <h2 class="title">이식만으로는 그냥 안 나온다</h2>
-    <p class="lead">별도 브랜치(<span class="mono">feat/rfdetr-sam2</span>)에서 진행, main·최종 제출본은 건드리지 않는 병행 실험. RF-DETR을 도입하되 전처리부터 판단까지 스택 전체를 새로 구성해야 했다.</p>
+    <div class="kicker">05 · Adopting the Full RF-DETR Stack</div>
+    <h2 class="title">Porting alone doesn't just work</h2>
+    <p class="lead">Developed on a separate branch (<span class="mono">feat/rfdetr-sam2</span>) — main and the final submission were never touched. Adopting RF-DETR meant rebuilding the entire stack, from preprocessing to decision logic.</p>
 
     <div class="timeline">
-      <div class="tl-step"><div class="dot-col"><div class="dot">1</div></div><div><h4>YOLOv7 코드 그대로 이식</h4><p>기존 <span class="mono">event_detector.py</span>/<span class="mono">multi_view_fusion.py</span>를 그대로 가져다 쓴 <span class="mono">run_pipeline_rfdetr.py</span>로 첫 채점 — 10epoch order F1 85.2%</p></div></div>
-      <div class="tl-step"><div class="dot-col"><div class="dot">2</div></div><div><h4>50epoch 재학습(보강 없음) → 오히려 악화</h4><p>order F1 82.6% — 과다발화 9종 신규 발생. mAP 상승이 파이프라인 성능으로 이어지지 않는 패턴을 두 번째로 확인(YOLO11 때와 동일한 교훈)</p></div></div>
-      <div class="tl-step"><div class="dot-col"><div class="dot">3</div></div><div><h4>RTF 재조정 + 누적 튜닝 → order F1 85.6%</h4><p><span class="mono">skip=3</span>/<span class="mono">conf=0.35</span> + <span class="mono">CLASS_CONF_OVERRIDE</span> + per-class whitelist/quorum을 YOLOv7 세션과 유사하게 적용</p></div></div>
+      <div class="tl-step"><div class="dot-col"><div class="dot">1</div></div><div><h4>YOLOv7 code ported as-is</h4><p>First scored with <span class="mono">run_pipeline_rfdetr.py</span>, which reused <span class="mono">event_detector.py</span>/<span class="mono">multi_view_fusion.py</span> unchanged — 10-epoch order F1 85.2%</p></div></div>
+      <div class="tl-step"><div class="dot-col"><div class="dot">2</div></div><div><h4>50-epoch retrain (no augmentation) → got worse</h4><p>Order F1 dropped to 82.6% — 9 new classes started over-firing. Confirmed for the second time in this project that higher mAP doesn't translate into better pipeline performance (same lesson as YOLO11).</p></div></div>
+      <div class="tl-step"><div class="dot-col"><div class="dot">3</div></div><div><h4>RTF retuning + accumulated fixes → order F1 85.6%</h4><p>Adjusted <span class="mono">skip=3</span>/<span class="mono">conf=0.35</span>, added <span class="mono">CLASS_CONF_OVERRIDE</span> plus per-class whitelist/quorum, following the same playbook as the YOLOv7 session</p></div></div>
     </div>
 
-    <div class="callout warm"><b>YOLOv7의 진단법과 튜닝 스택을 그대로 옮기는 것만으로는 100%에 못 미친다</b>&nbsp;— (1) 데이터 자체를 늘려야 한다, (2) 파이프라인도 RF-DETR 특성에 맞게 다시 설계해야 한다.</div>
+    <div class="callout warm"><b>Copying YOLOv7's diagnostics and tuning stack wasn't enough to reach 100%</b>&nbsp;— it became clear that two things were needed at once: (1) more raw data, and (2) a pipeline redesigned around RF-DETR's own characteristics.</div>
   </div>
-  <div class="slide-num">10 / 17</div>
+  <div class="slide-num">11 / 18</div>
 </section>
 
-<!-- ============ SLIDE 11 : 특정클래스 오류 진단 ============ -->
+<!-- ============ SLIDE 12 : CLASS-SPECIFIC ERROR DIAGNOSIS ============ -->
 <section class="slide">
   <div class="slide-inner">
-    <div class="kicker">06 · 진단</div>
-    <h2 class="title">"raw data를 더 만드는 것"이 근본 해결책</h2>
-    <p class="lead">85.6%에서 정체된 원인을 클래스별로 뜯어봤다.</p>
+    <div class="kicker">06 · Diagnosis</div>
+    <h2 class="title">"More raw data" is the real fix</h2>
+    <p class="lead">Breaking down the 85.6% plateau class by class.</p>
 
-    <div class="callout warm"><b>증상</b>&nbsp;— <span class="mono">campbells</span>/<span class="mono">hunts_sauce</span>/<span class="mono">cheerios</span> 등 특정 클래스가 구조적으로 계속 잘 안 잡힘.</div>
-    <div class="callout indigo"><b>진단</b>&nbsp;— YOLO11 때와 같은 패턴. 모델 구조나 파이프라인 로직의 문제가 아니라, 학습 데이터에서 해당 클래스의 <b style="color:var(--text);">노출 빈도 자체가 부족</b>해서 생기는 문제였다.</div>
-    <div class="callout"><b>결론</b>&nbsp;— 파라미터를 더 손보는 대신 raw data를 늘리는 쪽이 근본적인 해결책. 대회가 제공한 건 20만 장으로 학습된 <b style="color:var(--text);">가중치뿐</b> — 원본 이미지는 팀에 전달된 적이 없었으므로, 데이터를 늘리려면 팀이 직접 확보해야 했다.</div>
+    <div class="callout warm"><b>Symptom</b>&nbsp;— specific classes (<span class="mono">campbells</span>, <span class="mono">hunts_sauce</span>, <span class="mono">cheerios</span>, and others) kept failing to be detected in a structural way.</div>
+    <div class="callout indigo"><b>Diagnosis</b>&nbsp;— the same pattern as YOLO11. Not a model-architecture problem, not a pipeline-logic problem — the training data simply didn't contain enough exposure to those specific classes.</div>
+    <div class="callout"><b>Conclusion</b>&nbsp;— rather than tune more parameters, expanding raw data is the root-level fix. The competition only ever handed over the <b style="color:var(--text);">weights</b> trained on 200,000 images — never the original images themselves — so growing the dataset had to be done in-house.</div>
   </div>
-  <div class="slide-num">11 / 17</div>
+  <div class="slide-num">12 / 18</div>
 </section>
 
-<!-- ============ SLIDE 12 : SAM2 데이터증대 ============ -->
+<!-- ============ SLIDE 13 : SAM2 DATA EXPANSION ============ -->
 <section class="slide">
   <div class="slide-inner">
-    <div class="kicker">07 · SAM2로 raw data 증대</div>
-    <h2 class="title">영상을 프레임화해서 데이터를 직접 늘리다</h2>
+    <div class="kicker">07 · Expanding Raw Data With SAM2</div>
+    <h2 class="title">Turning video into training data, directly</h2>
+
+    <div class="flow-wrap">
+      <div class="flow-node"><h4>Team dataset</h4><p>~20,000 images owned by the team</p></div>
+      <div class="flow-conn"></div>
+      <div class="flow-node"><h4>COCO conversion</h4><p><span class="mono">tools/yolo_to_coco.py</span></p></div>
+      <div class="flow-conn"></div>
+      <div class="flow-node"><h4>SAM2 domain extraction</h4><p><span class="mono">tools/sam2_video_label.py</span> — labels the competition's own test footage frame by frame</p></div>
+      <div class="flow-conn"></div>
+      <div class="flow-node"><h4>Weak-class boost</h4><p>Capture threshold 0.3 → 0.1 for weak classes + 5x oversampling</p></div>
+      <div class="flow-conn"></div>
+      <div class="flow-node"><h4>Retrain</h4><p>mAP 0.898 → 0.9045</p></div>
+    </div>
 
     <div class="timeline">
-      <div class="tl-step"><div class="dot-col"><div class="dot">1</div></div><div><h4>팀 보유 2만여 장 전량 COCO 변환</h4><p><span class="mono">tools/yolo_to_coco.py</span></p></div></div>
-      <div class="tl-step"><div class="dot-col"><div class="dot">2</div></div><div><h4>SAM2로 대회 테스트 영상 자체를 프레임화</h4><p><span class="mono">tools/sam2_video_label.py</span> — 도메인 데이터 추가 추출·라벨링, 학습-테스트 분포 차이를 줄임</p></div></div>
-      <div class="tl-step"><div class="dot-col"><div class="dot">3</div></div><div><h4>약한 클래스 대응 + 5배 오버샘플링</h4><p><span class="mono">campbells/hunts_sauce/cheerios</span> 등은 SAM2 캡처 문턱을 <b style="color:var(--text);">0.3→0.1</b>로 낮춰 추출 강화, 표적 클래스 포함 이미지를 5배 오버샘플링(선별이 아니라 중복 노출)</p></div></div>
+      <div class="tl-step"><div class="dot-col"><div class="dot">1</div></div><div><h4>All ~20,000 team images converted to COCO format</h4><p>Used to train RF-DETR</p></div></div>
+      <div class="tl-step"><div class="dot-col"><div class="dot">2</div></div><div><h4>SAM2 turns the competition's own test video into frames</h4><p>Extracts and labels additional domain data directly from the target footage, narrowing the train/test distribution gap</p></div></div>
+      <div class="tl-step"><div class="dot-col"><div class="dot">3</div></div><div><h4>Weak-class handling + 5x oversampling</h4><p><span class="mono">campbells/hunts_sauce/cheerios</span> and others: SAM2 capture threshold lowered <b style="color:var(--text);">0.3 → 0.1</b> for stronger extraction; images containing target classes oversampled 5x (repetition, not selection)</p></div></div>
     </div>
 
     <div class="stat-row" style="grid-template-columns:repeat(1,1fr);">
-      <div class="stat-tile"><div class="l">1차(보강없음) → 2차(보강) mAP</div><div class="v" style="color:var(--accent);">0.898 → 0.9045</div><div class="n">@0.5:0.95 — YOLOv7의 @0.5 mAP와 기준이 달라 직접 비교 불가</div></div>
+      <div class="stat-tile"><div class="l">mAP, pass 1 (no augmentation) → pass 2 (augmented)</div><div class="v" style="color:var(--accent);">0.898 → 0.9045</div><div class="n">@0.5:0.95 — measured on a different basis than YOLOv7's @0.5 mAP, not directly comparable</div></div>
     </div>
   </div>
-  <div class="slide-num">12 / 17</div>
+  <div class="slide-num">13 / 18</div>
 </section>
 
-<!-- ============ SLIDE 13 : RF-DETR 파이프라인 재설계 + 100% ============ -->
+<!-- ============ SLIDE 14 : RF-DETR PIPELINE REDESIGN + 100% ============ -->
 <section class="slide">
   <div class="slide-inner">
-    <div class="kicker">07 · 파이프라인 재설계</div>
-    <h2 class="title">YOLOv7의 4단 레이어보다 더 얕게, 그래도 100%</h2>
-    <p class="lead">YOLOv7 레이어를 그대로 이식하는 대신 <span class="mono">src/rfdetr_native_pipeline.py</span>로 처음부터 다시 설계.</p>
+    <div class="kicker">07 · Pipeline Redesign</div>
+    <h2 class="title">Shallower than YOLOv7's 4 layers — and still 100%</h2>
+    <p class="lead">Instead of porting YOLOv7's layers, <span class="mono">src/rfdetr_native_pipeline.py</span> was designed from scratch around RF-DETR's own properties.</p>
 
-    <div class="layer-stack">
-      <div class="layer-card"><span class="ln">①</span><span class="lt">Binary Presence</span><span class="ld">카운트 개념 자체를 제거(GT 재고는 항상 0/1)</span></div>
-      <div class="layer-card"><span class="ln">②</span><span class="lt">Noisy-OR 확률 융합</span><span class="ld"><span class="mono">P = 1-∏(1-conf_i)</span> — YOLOv7의 4단 레이어를 확률식 하나로 대체</span></div>
-      <div class="layer-card"><span class="ln">③</span><span class="lt">Adaptive Confirm</span><span class="ld">신호 강도에 따라 확정 프레임 수 자동 보간, 방향별(구매/반환) override</span></div>
-      <div class="layer-card"><span class="ln">④</span><span class="lt">좌표 하드코딩 완전 제거</span><span class="ld"><span class="mono">relabel_regions</span>를 화이트리스트 튜닝으로 대체 후 코드에서 삭제</span></div>
+    <div class="pipe-wrap">
+      <div class="pipe">
+        <div class="pipe-stage c1">
+          <span class="n">01</span><h4>Binary Presence</h4>
+          <p>No count concept — GT inventory is always 0/1</p>
+        </div>
+        <div class="pipe-conn"></div>
+        <div class="pipe-stage c2">
+          <span class="n">02</span><h4>Noisy-OR Fusion</h4>
+          <p><span class="mono">P = 1-∏(1-conf_i)</span> replaces YOLOv7's 4 layers with one formula</p>
+        </div>
+        <div class="pipe-conn"></div>
+        <div class="pipe-stage c3">
+          <span class="n">03</span><h4>Adaptive Confirm</h4>
+          <p>Confirmation time auto-interpolated by signal strength, per direction</p>
+        </div>
+        <div class="pipe-conn"></div>
+        <div class="pipe-stage c4">
+          <span class="n">04</span><h4>No Coordinate Hardcoding</h4>
+          <p><span class="mono">relabel_regions</span> removed, replaced by whitelist tuning</p>
+        </div>
+      </div>
     </div>
 
-    <div class="callout"><b>정밀 튜닝(round1~11)</b>&nbsp;— candidate 시각 역산 + 매 수정 전 전체 시퀀스 재시뮬레이션으로 order F1 92.4%→100%. whack-a-mole 순서충돌 반복 해결, 방향별 confirm override 신규 도입(macadamia 등)까지 거쳐 Time F1도 100% 달성.</div>
+    <div class="callout"><b>Fine-tuning (round 1–11)</b>&nbsp;— using the same methodology as the YOLOv7 session (candidate-time back-calculation + full-sequence resimulation before every change), order F1 climbed from 92.4% to 100%. Repeated whack-a-mole ordering conflicts were resolved, a new per-direction confirm override was introduced (e.g. for <span class="mono">macadamia</span>), and Time F1 also reached 100%.</div>
 
     <div class="stat-row" style="grid-template-columns:repeat(4,1fr);margin-top:14px;">
       <div class="stat-tile"><div class="l">Count F1</div><div class="v">100%</div></div>
       <div class="stat-tile"><div class="l">Order F1</div><div class="v">100%</div></div>
       <div class="stat-tile"><div class="l">Time F1</div><div class="v">100%</div></div>
-      <div class="stat-tile"><div class="l">구조</div><div class="v" style="color:var(--accent);font-size:16px;">더 얕음</div></div>
+      <div class="stat-tile"><div class="l">Structure</div><div class="v" style="color:var(--accent);font-size:16px;">shallower</div></div>
     </div>
   </div>
-  <div class="slide-num">13 / 17</div>
+  <div class="slide-num">14 / 18</div>
 </section>
 
-<!-- ============ SLIDE 14 : confidence calibration + RTF ============ -->
+<!-- ============ SLIDE 15 : CONFIDENCE CALIBRATION + RTF ============ -->
 <section class="slide">
   <div class="slide-inner">
-    <div class="kicker">08 · 왜 더 얕아도 됐는가</div>
-    <h2 class="title">Confidence 캘리브레이션 우위</h2>
-    <p class="lead">모델이 "confidence 0.9"라고 낸 예측들을 모아봤을 때 실제로 약 90%가 맞아야 "잘 캘리브레이션된" 모델 — 그래야 그 숫자를 확률로 그대로 믿을 수 있다.</p>
+    <div class="kicker">08 · Why the Shallower Pipeline Still Worked</div>
+    <h2 class="title">Confidence calibration advantage</h2>
+    <p class="lead">A model is "well-calibrated" if, among all predictions it labels confidence 0.9, roughly 90% actually turn out correct — only then can that number be trusted as a probability.</p>
 
     <table class="ctable">
       <tr><th></th><th>YOLOv7</th><th>RF-DETR</th></tr>
-      <tr><td class="name">Confidence 신뢰도</td><td>있는 그대로 못 믿음</td><td>상대적으로 잘 캘리브레이션됨</td></tr>
-      <tr><td class="name">그래서 필요했던 것</td><td>quorum·화이트리스트·occlusion가중치·트래커 (4단 우회 장치)</td><td>확률식(Noisy-OR) 하나로 곧바로 결합</td></tr>
+      <tr><td class="name">Confidence reliability</td><td>Can't be trusted at face value</td><td>Relatively well-calibrated</td></tr>
+      <tr><td class="name">What that required</td><td>Quorum + whitelist + occlusion weighting + tracker (4 layers of workaround)</td><td>A single probability formula (Noisy-OR)</td></tr>
     </table>
 
-    <div class="callout warm"><b>RTF는 정직하게</b>&nbsp;— 절대값(RF-DETR 기록값 0.6856)은 이 세션에서 재현되지 않아 <b style="color:var(--warm);">미검증</b>. 대신 2026-07-09 같은 서버·같은 시간대 나란히 재측정한 상대 비교에서는 <b style="color:var(--text);">RF-DETR(0.905~0.914)이 YOLOv7(0.933~0.949)보다 매번 더 빨랐다</b>. 두 아키텍처 모두 대회 기준(RTF ≤1 → 만점)은 여유 있게 통과.</div>
+    <div class="callout warm"><b>RTF, handled honestly</b>&nbsp;— the absolute figure on record for RF-DETR (0.6856) could not be reproduced in this session and is <b style="color:var(--warm);">unverified</b>. What is verified: on 2026-07-09, measured back-to-back on the same server in the same time window, <b style="color:var(--text);">RF-DETR (0.905–0.914) was faster than YOLOv7 (0.933–0.949) every single time</b>. Both architectures clear the competition's RTF ≤ 1 threshold for full marks regardless.</div>
   </div>
-  <div class="slide-num">14 / 17</div>
+  <div class="slide-num">15 / 18</div>
 </section>
 
-<!-- ============ SLIDE 15 : 두 아키텍처 비교 ============ -->
+<!-- ============ SLIDE 16 : COMPARISON ============ -->
 <section class="slide">
   <div class="slide-inner">
-    <div class="kicker">09 · 두 아키텍처 비교</div>
-    <h2 class="title">완전히 다른 두 아키텍처, 동일한 100%</h2>
+    <div class="kicker">09 · Comparing the Two Architectures</div>
+    <h2 class="title">Two completely different architectures, one identical 100%</h2>
 
     <table class="ctable">
-      <tr><th>항목</th><th>YOLOv7</th><th>RF-DETR + SAM2</th></tr>
-      <tr><td class="name">탐지기 가중치</td><td>대회 제공 (20만 장 사전학습)</td><td>팀 보유 2만여 장 + SAM2 도메인 데이터, mAP 0.898→0.9045</td></tr>
-      <tr><td class="name">자체 개선 1차 시도</td><td>Cut&amp;Paste 파인튜닝 → mAP 하락</td><td>YOLOv7 코드 이식 → order F1 82.6~85.6% 정체</td></tr>
-      <tr><td class="name">멀티뷰 융합</td><td>weighted median + quorum + whitelist (4단 레이어)</td><td>Noisy-OR 확률 융합 (단일 공식)</td></tr>
-      <tr><td class="name">Occlusion 대응</td><td>전역→클래스별→카메라 단위 가중치 + SORT 트래커</td><td>adaptive confirm</td></tr>
-      <tr><td class="name">데이터 부족 대응</td><td>(해당 없음)</td><td>SAM2로 raw data 직접 증대 + 5배 오버샘플링</td></tr>
-      <tr><td class="name">최종 정확도</td><td class="val">Count/Order/Time F1 100%</td><td class="val">Count/Order/Time F1 100%</td></tr>
-      <tr><td class="name">RTF (07-09 상대비교)</td><td class="val">0.93~0.95</td><td class="val" style="color:var(--good);">0.905~0.914 (더 빠름)</td></tr>
+      <tr><th>Item</th><th>YOLOv7</th><th>RF-DETR + SAM2</th></tr>
+      <tr><td class="name">Detector weights</td><td>Competition-provided (200k images, pretrained)</td><td>Team's 20k images + SAM2 domain data, mAP 0.898→0.9045</td></tr>
+      <tr><td class="name">First self-improvement attempt</td><td>Cut&amp;Paste fine-tuning → mAP dropped</td><td>YOLOv7 code ported as-is → order F1 stuck at 82.6–85.6%</td></tr>
+      <tr><td class="name">Multi-view fusion</td><td>Weighted median + quorum + whitelist (4-layer stack)</td><td>Noisy-OR probability fusion (single formula)</td></tr>
+      <tr><td class="name">Occlusion handling</td><td>Global→per-class→per-camera weighting + SORT tracker</td><td>Adaptive confirm (signal-strength interpolation)</td></tr>
+      <tr><td class="name">Data-scarcity response</td><td>(n/a — used provided weights as-is)</td><td>SAM2-driven raw data expansion + 5x oversampling</td></tr>
+      <tr><td class="name">Final accuracy</td><td class="val">Count/Order/Time F1 100%</td><td class="val">Count/Order/Time F1 100%</td></tr>
+      <tr><td class="name">RTF (07-09 paired comparison)</td><td class="val">0.93–0.95</td><td class="val" style="color:var(--good);">0.905–0.914 (faster)</td></tr>
     </table>
   </div>
-  <div class="slide-num">15 / 17</div>
+  <div class="slide-num">16 / 18</div>
 </section>
 
-<!-- ============ SLIDE 16 : 기각기법 전체표 ============ -->
+<!-- ============ SLIDE 17 : FULL REJECTED-TECHNIQUES TABLE ============ -->
 <section class="slide">
   <div class="slide-inner">
-    <div class="kicker">09 · 시도했으나 기각한 것들 (전체)</div>
-    <h2 class="title">추측이 아니라, 실측 수치로 확정했다</h2>
+    <div class="kicker">09 · Everything Tried and Rejected</div>
+    <h2 class="title">Not guesswork — confirmed by measured numbers</h2>
 
     <table class="ctable">
-      <tr><th>계열</th><th>기법</th><th>실측 결과</th><th>기각 근거</th></tr>
-      <tr><td class="name">YOLOv7</td><td>자체 파인튜닝(Cut&amp;Paste)</td><td>mAP 0.9904→0.9840 하락</td><td class="verdict reject">증강 분포가 테스트 영상과 괴리</td></tr>
-      <tr><td class="name">YOLOv7</td><td>SeqNMS</td><td>정상 이벤트까지 억제</td><td class="verdict reject">sparse한 진짜 신호도 필터링</td></tr>
-      <tr><td class="name">YOLOv7</td><td>EMA Smoothing</td><td>이벤트 억제</td><td class="verdict reject">reset 불가로 과거값 잔류</td></tr>
-      <tr><td class="name">YOLOv7</td><td>Ghost Detector</td><td>적용 불가</td><td class="verdict reject">재학습 기반 논문, 원용 불가</td></tr>
-      <tr><td class="name">YOLOv7</td><td>ByteTrack (이태호 교수 추천)</td><td>count 93.6%/order 91.7%/time 89.9%</td><td class="verdict reject">저신뢰도 유지가 track 차단·과다발화 유발</td></tr>
-      <tr><td class="name">YOLOv7</td><td>WBF 앙상블</td><td>FP 폭발</td><td class="verdict reject">confidence calibration 불일치</td></tr>
-      <tr><td class="name">YOLOv7</td><td>BEV 3D fusion</td><td>적용 불가</td><td class="verdict reject">카메라 캘리브레이션 데이터 미제공</td></tr>
-      <tr><td class="name">YOLOv7</td><td>YOLO11 재학습</td><td>order F1 -23.2%p</td><td class="verdict reject">raw data 20만 vs 1.8만 장 격차</td></tr>
-      <tr><td class="name">RF-DETR</td><td>YOLOv7 코드 그대로 이식</td><td>order F1 82.6~85.6% 정체</td><td class="verdict reject">confidence 특성에 안 맞는 로직</td></tr>
-      <tr><td class="name">RF-DETR</td><td>50ep 1차 학습(보강 없음)</td><td>과다발화 9종 신규 발생</td><td class="verdict reject">raw data 부족 문제 그대로</td></tr>
+      <tr><th>Track</th><th>Technique</th><th>Measured result</th><th>Reason for rejection</th></tr>
+      <tr><td class="name">YOLOv7</td><td>Self fine-tuning (Cut&amp;Paste)</td><td>mAP 0.9904→0.9840, dropped</td><td class="verdict reject">Augmented distribution diverged from test footage</td></tr>
+      <tr><td class="name">YOLOv7</td><td>SeqNMS</td><td>Suppressed real events too</td><td class="verdict reject">Filters sparse-but-real signals along with noise</td></tr>
+      <tr><td class="name">YOLOv7</td><td>EMA smoothing</td><td>Suppressed events</td><td class="verdict reject">No reset — stale values persist</td></tr>
+      <tr><td class="name">YOLOv7</td><td>Ghost Detector</td><td>Not applicable</td><td class="verdict reject">Requires retraining the source paper's model</td></tr>
+      <tr><td class="name">YOLOv7</td><td>ByteTrack</td><td>count 93.6%/order 91.7%/time 89.9%</td><td class="verdict reject">Low-confidence retention blocks new tracks or over-fires</td></tr>
+      <tr><td class="name">YOLOv7</td><td>WBF ensemble</td><td>FP explosion</td><td class="verdict reject">Confidence calibration mismatch between models</td></tr>
+      <tr><td class="name">YOLOv7</td><td>BEV 3D fusion</td><td>Not applicable</td><td class="verdict reject">Camera calibration data was never provided</td></tr>
+      <tr><td class="name">YOLOv7</td><td>YOLO11 retraining</td><td>Order F1 −23.2pp</td><td class="verdict reject">Raw data gap: 200k vs 18k images</td></tr>
+      <tr><td class="name">RF-DETR</td><td>YOLOv7 code ported as-is</td><td>Order F1 stuck at 82.6–85.6%</td><td class="verdict reject">Logic didn't match RF-DETR's confidence properties</td></tr>
+      <tr><td class="name">RF-DETR</td><td>50-epoch pass 1 (no augmentation)</td><td>9 classes started over-firing</td><td class="verdict reject">Raw-data shortage was still unaddressed</td></tr>
     </table>
+
+    <div class="callout"><b>Takeaway</b>&nbsp;— every one of these was actually implemented and A/B tested on the server, not just cited as an idea — including the ones that failed, and why.</div>
   </div>
-  <div class="slide-num">16 / 17</div>
+  <div class="slide-num">17 / 18</div>
 </section>
 
-<!-- ============ SLIDE 17 : 결론 ============ -->
+<!-- ============ SLIDE 18 : CONCLUSION ============ -->
 <section class="slide">
   <div class="slide-inner">
-    <div class="kicker">결론</div>
-    <h2 class="title">같은 원칙, 다른 아키텍처, 같은 100%</h2>
-    <p class="lead">자체 파인튜닝이 실패하자 파이프라인으로 방향을 틀었고, YOLO11 시도가 raw data의 벽에 부딪히자 그 교훈을 RF-DETR에도 적용했다 — "raw data를 직접 늘린다"는 같은 원칙으로, 더 얕은 파이프라인으로 같은 100%에 도달했다.</p>
+    <div class="kicker">Conclusion</div>
+    <h2 class="title">Same principle, different architecture, same 100%</h2>
+    <p class="lead">Self fine-tuning failed, so the team pivoted to pipeline engineering. The YOLO11 attempt hit a raw-data wall, and that lesson carried straight into RF-DETR — apply the same principle ("expand raw data directly") and reach the same 100% with a shallower pipeline.</p>
 
     <table class="ctable">
-      <tr><th>지표</th><th>YOLOv7</th><th>RF-DETR + SAM2</th></tr>
+      <tr><th>Metric</th><th>YOLOv7</th><th>RF-DETR + SAM2</th></tr>
       <tr><td class="name">Count F1</td><td class="val">100%</td><td class="val">100%</td></tr>
       <tr><td class="name">Order F1</td><td class="val">100%</td><td class="val">100%</td></tr>
       <tr><td class="name">Time F1</td><td class="val">100%</td><td class="val">100%</td></tr>
-      <tr><td class="name">RTF (같은 서버 상대비교, 07-09)</td><td class="val">0.93~0.95</td><td class="val" style="color:var(--good);">0.905~0.914 (더 빠름)</td></tr>
+      <tr><td class="name">RTF (same-server paired comparison, 07-09)</td><td class="val">0.93–0.95</td><td class="val" style="color:var(--good);">0.905–0.914 (faster)</td></tr>
     </table>
 
     <div class="closing-numbers">
-      <div class="item"><span class="v">2 / 2</span><span class="l">아키텍처 모두 100% 도달</span></div>
-      <div class="item"><span class="v">≤1</span><span class="l">RTF 기준, 둘 다 만점 통과</span></div>
+      <div class="item"><span class="v">2 / 2</span><span class="l">architectures reach 100%</span></div>
+      <div class="item"><span class="v">≤1</span><span class="l">RTF threshold, both pass with full marks</span></div>
     </div>
 
-    <div class="callout"><b>REDRED</b>&nbsp;— 조강희 · 정현수 · 박준영, 서울대학교 전기정보공학부. 감사합니다.</div>
+    <div class="callout"><b>REDRED</b>&nbsp;— Ganghee Cho · Hyunsoo Jung · Junyoung Park, Seoul National University, Dept. of Electrical and Computer Engineering. Thank you.</div>
   </div>
-  <div class="slide-num">17 / 17</div>
+  <div class="slide-num">18 / 18</div>
 </section>
 
 <div class="navbar">
-  <button id="prevBtn" aria-label="이전 슬라이드">‹</button>
-  <span class="count" id="countLabel">1 / 18</span>
-  <button id="nextBtn" aria-label="다음 슬라이드">›</button>
+  <button id="prevBtn" aria-label="previous slide">‹</button>
+  <span class="count" id="countLabel">1 / 19</span>
+  <button id="nextBtn" aria-label="next slide">›</button>
 </div>
 
 <script>
