@@ -6,12 +6,16 @@ v1 대비 변경사항:
      dove_white/milano처럼 occlusion 구간에서 검출 끊기는 문제를 훈련에서 직접 재현
   2. GT-aligned anchor selection — top-50 naive 대신 GT box 위치 기반 anchor 선택
      실제 물체가 있는 anchor 위치의 예측으로 KL divergence 계산
+  3. Weak-class oversampling (RF-DETR 방식 이식) — campbells/dove_white/milano 등
+     감지율 낮은 클래스 포함 이미지를 oversample_weak배 복제하여 학습 노출 빈도 강제 증가
 
 KD Loss:
   L = (1-alpha)*L_det  +  alpha * tau^2 * KL(teacher_gt || student_gt_aligned)
 """
 import os
 import random
+import shutil
+import tempfile
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -19,6 +23,66 @@ from pathlib import Path
 from ultralytics import YOLO
 from ultralytics.models.yolo.detect.train import DetectionTrainer
 from ultralytics.utils.loss import v8DetectionLoss
+
+# RF-DETR yolo_to_coco.py의 동일 클래스 ID 기준 이식
+WEAK_CLASS_IDS = {0, 8, 43, 45, 48}       # aunt_jemima, hunts_sauce, campbells, chewy_dips_choc, cheerios
+TIMING_CLASS_IDS = {2, 22, 42, 46, 50}    # bumblebee, haribo, milano, chewy_dips_pb, lindt
+REINFORCE_CLASS_IDS = WEAK_CLASS_IDS | TIMING_CLASS_IDS
+
+
+def build_oversampled_yaml(data_yaml: str, oversample_factor: int, tmp_dir: str) -> str:
+    """
+    data_yaml의 train split에서 REINFORCE_CLASS_IDS 포함 이미지를 oversample_factor배 복제.
+    수정된 yaml 경로를 반환. oversample_factor <= 1이면 원본 그대로 반환.
+    """
+    if oversample_factor <= 1:
+        return data_yaml
+
+    import yaml
+
+    with open(data_yaml) as f:
+        cfg = yaml.safe_load(f)
+
+    train_val = cfg.get("train", "")
+    train_txt = Path(train_val)
+    if not train_txt.exists():
+        print(f"[oversample] train.txt 없음: {train_txt}, 오버샘플링 스킵")
+        return data_yaml
+
+    train_paths = [l.strip() for l in train_txt.read_text().splitlines() if l.strip()]
+
+    def has_reinforce_class(img_path: str) -> bool:
+        p = Path(img_path)
+        lp = Path(str(p).replace("/images/", "/labels/")).with_suffix(".txt")
+        if not lp.exists():
+            lp = p.with_suffix(".txt")
+        if not lp.exists():
+            return False
+        with open(lp) as f:
+            for line in f:
+                parts = line.strip().split()
+                if parts and int(parts[0]) in REINFORCE_CLASS_IDS:
+                    return True
+        return False
+
+    reinforce = [p for p in train_paths if has_reinforce_class(p)]
+    extra = reinforce * (oversample_factor - 1)
+    all_paths = train_paths + extra
+    random.shuffle(all_paths)
+
+    tmp = Path(tmp_dir)
+    tmp.mkdir(parents=True, exist_ok=True)
+    new_txt = tmp / "train_oversampled.txt"
+    new_txt.write_text("\n".join(all_paths))
+
+    cfg["train"] = str(new_txt)
+    new_yaml = tmp / "custom_oversampled.yaml"
+    with open(new_yaml, "w") as f:
+        yaml.dump(cfg, f)
+
+    print(f"[oversample] reinforce 이미지 {len(reinforce)}장 x{oversample_factor} "
+          f"(+{len(extra)}장 복제, 전체 {len(all_paths)}장)")
+    return str(new_yaml)
 
 
 class KDDetectionLoss(v8DetectionLoss):
@@ -193,22 +257,29 @@ class KDTrainer(DetectionTrainer):
 
 
 def train_kd(
-    model_path:     str   = "yolo11m.pt",
-    data_yaml:      str   = "data/custom.yaml",
-    soft_label_dir: str   = "~/Dataset/soft_labels",
-    epochs:         int   = 100,
-    batch:          int   = 16,
-    imgsz:          int   = 640,
-    device:         str   = "0",
-    project:        str   = "runs/kd",
-    name:           str   = "yolo11m_kd",
-    alpha:          float = 0.5,
-    tau:            float = 4.0,
-    occ_prob:       float = 0.3,
-    resume:         bool  = False,
+    model_path:       str   = "yolo11m.pt",
+    data_yaml:        str   = "data/custom.yaml",
+    soft_label_dir:   str   = "~/Dataset/soft_labels",
+    epochs:           int   = 100,
+    batch:            int   = 16,
+    imgsz:            int   = 640,
+    device:           str   = "0",
+    project:          str   = "runs/kd",
+    name:             str   = "yolo11m_kd",
+    alpha:            float = 0.5,
+    tau:              float = 4.0,
+    occ_prob:         float = 0.3,
+    oversample_weak:  int   = 1,
+    resume:           bool  = False,
 ):
+    tmp_dir = None
+    if oversample_weak > 1:
+        tmp_dir = tempfile.mkdtemp(prefix="kd_oversample_")
+        data_yaml = build_oversampled_yaml(data_yaml, oversample_weak, tmp_dir)
+
     model = YOLO(model_path)
-    model.train(
+    try:
+      model.train(
         trainer=KDTrainer,
         data=data_yaml,
         epochs=epochs,
@@ -229,7 +300,10 @@ def train_kd(
         warmup_epochs=3,
         close_mosaic=10,
         augment=True,
-    )
+      )
+    finally:
+        if tmp_dir:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":
@@ -246,7 +320,9 @@ if __name__ == "__main__":
     p.add_argument("--name",               default="yolo11m_kd")
     p.add_argument("--alpha",    type=float, default=0.5)
     p.add_argument("--tau",      type=float, default=4.0)
-    p.add_argument("--occ_prob", type=float, default=0.3)
+    p.add_argument("--occ_prob",        type=float, default=0.3)
+    p.add_argument("--oversample_weak", type=int,   default=1,
+                   help="REINFORCE 클래스 포함 이미지 복제 배수 (1=비활성, RF-DETR는 5 사용)")
     p.add_argument("--resume",   action="store_true")
     args = p.parse_args()
     train_kd(
@@ -262,5 +338,6 @@ if __name__ == "__main__":
         alpha=args.alpha,
         tau=args.tau,
         occ_prob=args.occ_prob,
+        oversample_weak=args.oversample_weak,
         resume=args.resume,
     )
