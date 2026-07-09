@@ -293,6 +293,7 @@ def train_kd(
         kd_alpha=alpha,
         kd_tau=tau,
         occ_prob=occ_prob,
+        workers=4,
         lr0=0.01,
         lrf=0.1,
         momentum=0.937,
