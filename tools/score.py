@@ -9,6 +9,12 @@ Score a submission against ground truth and update leaderboard.
 Usage:
   python tools/score.py --desc "UNKNOWN 제거 + history reset" --rtf 0.742
   python tools/score.py --sub output/submission.csv --desc "iou=0.3 테스트" --rtf 0.80
+  python tools/score.py --desc "campbells confirm=74" --rtf 0.79 \
+      --motivation "campbells가 monster_energy보다 늦게 발화해 순서 역전" \
+      --issue "campbells를 더 당기면 late zone 최솟값이 monster_energy보다 늦음" \
+      --next_step "monster_energy confirm을 늘려 뒤로 미루는 방향으로 전환"
+
+  (--motivation/--issue/--next_step은 선택 — 리더보드 웹에서 행 오른쪽 ▼로 펼쳐서 봄)
 
 Output:
   - 터미널에 TP/FP/FN/Precision/Recall/추정점수 출력
@@ -114,13 +120,37 @@ def load_leaderboard(path):
 
 
 def append_leaderboard(path, row_dict):
+    """새 행 추가. row_dict에 기존 CSV에 없던 컬럼이 있으면(스키마 확장)
+    전체를 다시 써서 과거 행에도 빈 값으로 채워 넣는다."""
     exists = os.path.exists(path)
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+
+    if exists:
+        with open(path, encoding="utf-8-sig") as f:
+            header = next(csv.reader(f))
+    else:
+        header = list(row_dict.keys())
+
+    new_cols = [k for k in row_dict.keys() if k not in header]
+    if exists and new_cols:
+        rows = load_leaderboard(path)
+        for r in rows:
+            for k in new_cols:
+                r.setdefault(k, "")
+        fieldnames = header + new_cols
+        rows.append(row_dict)
+        with open(path, "w", newline="", encoding="utf-8-sig") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            for r in rows:
+                writer.writerow({k: r.get(k, "") for k in fieldnames})
+        return
+
     with open(path, "a", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=list(row_dict.keys()))
+        writer = csv.DictWriter(f, fieldnames=header)
         if not exists:
             writer.writeheader()
-        writer.writerow(row_dict)
+        writer.writerow({k: row_dict.get(k, "") for k in header})
 
 
 # ── HTML 생성 ────────────────────────────────────────────────────
@@ -134,28 +164,29 @@ def generate_html(lb_rows, html_path):
 <title>REDRED 리더보드</title>
 <style>
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{ font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e0e0e0; padding: 32px; }}
+  html, body {{ max-width: 100%; overflow-x: hidden; }}
+  body {{ font-family: 'Segoe UI', sans-serif; background: #0f1117; color: #e0e0e0; padding: 24px; }}
   h1 {{ font-size: 1.6rem; font-weight: 700; margin-bottom: 4px; color: #fff; }}
   .subtitle {{ color: #888; font-size: 0.82rem; margin-bottom: 8px; }}
   .formula  {{ color: #556; font-size: 0.78rem; margin-bottom: 24px;
                background:#141820; padding:8px 14px; border-radius:6px; display:inline-block; }}
-  table {{ width: 100%; border-collapse: collapse; font-size: 0.85rem; }}
-  th {{ background: #1e2130; color: #aaa; padding: 9px 12px; text-align: left;
-        font-weight: 600; border-bottom: 2px solid #2a2d3e; white-space: nowrap; }}
+  table {{ width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 0.83rem; }}
+  th {{ background: #1e2130; color: #aaa; padding: 8px 8px; text-align: left;
+        font-weight: 600; border-bottom: 2px solid #2a2d3e; overflow: hidden; text-overflow: ellipsis; }}
   th.score-col {{ background:#1a2520; color:#7ee8a2; }}
   tr {{ border-bottom: 1px solid #1e2130; transition: background 0.15s; }}
   tr:hover {{ background: #1a1d2e; }}
   tr.history {{ opacity: 0.5; }}
-  td {{ padding: 9px 12px; vertical-align: middle; }}
-  .rank {{ font-weight: 700; color: #888; width: 32px; text-align: center; }}
+  td {{ padding: 8px 8px; vertical-align: middle; overflow: hidden; text-overflow: ellipsis; }}
+  .rank {{ font-weight: 700; color: #888; width: 30px; text-align: center; }}
   .rank.gold   {{ color: #f5c518; }}
   .rank.silver {{ color: #b0b0b0; }}
   .rank.bronze {{ color: #cd7f32; }}
-  .desc {{ font-weight: 500; color: #ddd; max-width: 300px; }}
-  .ts   {{ color: #555; font-size: 0.76rem; white-space: nowrap; }}
-  .bar-wrap {{ display: flex; align-items: center; gap: 6px; }}
-  .bar {{ height: 7px; border-radius: 3px; min-width: 2px; }}
-  .val {{ font-weight: 600; width: 40px; text-align: right; font-size:0.83rem; }}
+  .desc {{ font-weight: 500; color: #ddd; white-space: normal; word-break: keep-all; line-height: 1.4; }}
+  .ts   {{ color: #555; font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }}
+  .bar-wrap {{ display: flex; align-items: center; gap: 5px; }}
+  .bar {{ height: 7px; border-radius: 3px; min-width: 2px; max-width: 46px; }}
+  .val {{ font-weight: 600; width: 38px; text-align: right; font-size:0.8rem; flex-shrink: 0; }}
   .f1  {{ color: #7ee8a2; }}
   .pre {{ color: #79c8ff; }}
   .rec {{ color: #ffb347; }}
@@ -174,6 +205,29 @@ def generate_html(lb_rows, html_path):
   .hist-badge {{ background:#1a1a2e; color:#445; border:1px solid #2a2d3e; }}
   .divider td {{ background:#151820; color:#445; font-size:0.73rem; padding:4px 12px; letter-spacing:.07em; }}
   .note {{ color:#445; font-size:0.72rem; margin-top:16px; }}
+
+  /* 펼치기 화살표 + 상세 패널 */
+  .expand-col {{ width: 34px; text-align: center; }}
+  .expand-btn {{ background: none; border: none; color: #556; cursor: pointer; font-size: 0.9rem;
+                 padding: 4px 8px; border-radius: 4px; transition: transform 0.18s, color 0.15s, background 0.15s; }}
+  .expand-btn:hover {{ color: #7ee8a2; background: #1a1d2e; }}
+  .expand-btn.open {{ transform: rotate(180deg); color: #7ee8a2; }}
+  tr.main-row {{ cursor: pointer; }}
+  tr.detail-row {{ display: none; }}
+  tr.detail-row.open {{ display: table-row; }}
+  tr.detail-row td {{ padding: 0; background: #12151f; }}
+  .detail-box {{ padding: 14px 20px 16px 46px; border-left: 2px solid #2a2d3e; margin: 4px 12px 8px 12px; }}
+  .detail-section {{ margin-bottom: 10px; font-size: 0.82rem; line-height: 1.55; }}
+  .detail-section:last-child {{ margin-bottom: 0; }}
+  .detail-label {{ display: inline-block; min-width: 74px; font-weight: 700; font-size: 0.76rem;
+                    letter-spacing: .02em; }}
+  .lbl-motivation {{ color: #79c8ff; }}
+  .lbl-issue      {{ color: #ff8a8a; }}
+  .lbl-next       {{ color: #ffb347; }}
+  .detail-text {{ color: #ccc; }}
+  .detail-empty {{ color: #445; font-style: italic; }}
+  .detail-desc {{ color: #778; font-size: 0.78rem; margin-bottom: 12px; padding-bottom: 10px;
+                  border-bottom: 1px solid #232640; }}
 </style>
 </head>
 <body>
@@ -187,6 +241,12 @@ def generate_html(lb_rows, html_path):
 </div>
 
 <table>
+<colgroup>
+  <col style="width:3.5%"><col style="width:23%"><col style="width:8%">
+  <col style="width:8%"><col style="width:8%"><col style="width:4%"><col style="width:4%"><col style="width:4%">
+  <col style="width:8%"><col style="width:6%"><col style="width:8%">
+  <col style="width:8%"><col style="width:11%"><col style="width:3.5%">
+</colgroup>
 <thead>
 <tr>
   <th>#</th>
@@ -200,6 +260,7 @@ def generate_html(lb_rows, html_path):
   <th class="score-col">RTF점수<br><small>/20</small></th>
   <th class="score-col">추정총점<br><small>/60</small></th>
   <th>기록 시각</th>
+  <th class="expand-col"></th>
 </tr>
 </thead>
 <tbody id="tbody"></tbody>
@@ -240,6 +301,36 @@ function na(v, cls='', suffix='') {{
   if (v === null || v === '-' || v === undefined || v === '') return `<span class="na">—</span>`;
   return `<span class="${{cls}}">${{v}}${{suffix}}</span>`;
 }}
+function esc(s) {{
+  if (s === undefined || s === null) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}}
+function detailSection(label, cls, text) {{
+  const body = text && text.trim()
+    ? `<span class="detail-text">${{esc(text)}}</span>`
+    : `<span class="detail-empty">기록 없음</span>`;
+  return `<div class="detail-section"><span class="detail-label ${{cls}}">${{label}}</span>${{body}}</div>`;
+}}
+function detailRowHtml(rowId, colspan, row) {{
+  return `<tr class="detail-row" id="detail-${{rowId}}">
+    <td colspan="${{colspan}}">
+      <div class="detail-box">
+        <div class="detail-desc">${{esc(row.description)}}</div>
+        ${{detailSection('🎯 계기', 'lbl-motivation', row.motivation)}}
+        ${{detailSection('⚠️ 문제', 'lbl-issue', row.issue)}}
+        ${{detailSection('➡️ 다음 단계', 'lbl-next', row.next_step)}}
+      </div>
+    </td>
+  </tr>`;
+}}
+
+let uid = 0;
+function toggleDetail(rowId) {{
+  document.getElementById(`detail-${{rowId}}`).classList.toggle('open');
+  document.getElementById(`btn-${{rowId}}`).classList.toggle('open');
+}}
 
 scored.forEach((row, i) => {{
   const rank = i + 1;
@@ -253,8 +344,9 @@ scored.forEach((row, i) => {{
   const bestTot = num(scored[0].accuracy_score) + num(scored[0].rtf_score);
   const isB  = tot !== null && tot === +(bestTot).toFixed(1);
   const rankClass = rank===1?'gold':rank===2?'silver':rank===3?'bronze':'';
+  const rid = `s${{uid++}}`;
 
-  tbody.innerHTML += `<tr>
+  tbody.innerHTML += `<tr class="main-row" onclick="toggleDetail('${{rid}}')">
     <td class="rank ${{rankClass}}">${{rank}}</td>
     <td class="desc">${{row.description}} ${{isB ? '<span class="badge best">BEST</span>' : ''}}</td>
     <td>${{bar(f1v,  'f1',  '#7ee8a2')}}</td>
@@ -268,15 +360,18 @@ scored.forEach((row, i) => {{
     <td class="score-cell">${{na(rtfs, 'rtf-score', '점')}}</td>
     <td class="score-cell">${{tot !== null ? `<span class="tot-score">${{tot}}점</span>` : '<span class="na">—</span>'}}</td>
     <td class="ts">${{row.timestamp}}</td>
+    <td class="expand-col"><button class="expand-btn" id="btn-${{rid}}" onclick="event.stopPropagation(); toggleDetail('${{rid}}')">▼</button></td>
   </tr>`;
+  tbody.innerHTML += detailRowHtml(rid, 14, row);
 }});
 
 if (history.length) {{
-  tbody.innerHTML += `<tr class="divider"><td colspan="13">▼ 이전 기록 (점수 미측정 — 제출 CSV 없음)</td></tr>`;
+  tbody.innerHTML += `<tr class="divider"><td colspan="14">▼ 이전 기록 (점수 미측정 — 제출 CSV 없음)</td></tr>`;
   history.forEach(row => {{
     const rtfv = num(row.RTF);
     const rtfs = num(row.rtf_score);
-    tbody.innerHTML += `<tr class="history">
+    const rid = `h${{uid++}}`;
+    tbody.innerHTML += `<tr class="history main-row" onclick="toggleDetail('${{rid}}')">
       <td class="rank"><span class="na">—</span></td>
       <td class="desc">${{row.description}} <span class="badge hist-badge">이벤트: ${{row.total_sub}}</span></td>
       <td colspan="6"><span class="na" style="font-size:0.8rem">정확도 미측정</span></td>
@@ -285,7 +380,9 @@ if (history.length) {{
       <td class="score-cell">${{na(rtfs, 'rtf-score', '점')}}</td>
       <td class="score-cell"><span class="na">—</span></td>
       <td class="ts">${{row.timestamp}}</td>
+      <td class="expand-col"><button class="expand-btn" id="btn-${{rid}}" onclick="event.stopPropagation(); toggleDetail('${{rid}}')">▼</button></td>
     </tr>`;
+    tbody.innerHTML += detailRowHtml(rid, 14, row);
   }});
 }}
 </script>
@@ -303,6 +400,9 @@ def main():
     parser.add_argument("--sub",  default="output/submission.csv")
     parser.add_argument("--gt",   default=GT_PATH)
     parser.add_argument("--desc", default="", help="이번 버전 설명")
+    parser.add_argument("--motivation", default="", help="이 시도를 하게 된 계기/풀려던 문제")
+    parser.add_argument("--issue", default="", help="이 시도로 드러난 문제/부작용 (없으면 빈 문자열)")
+    parser.add_argument("--next_step", default="", help="다음에 시도할 것")
     parser.add_argument("--rtf",  type=float, default=None, help="측정된 RTF 값 (선택)")
     parser.add_argument("--lb",   default=LEADERBOARD_PATH)
     parser.add_argument("--html", default=HTML_PATH)
@@ -368,6 +468,9 @@ def main():
         "accuracy_score": acc_score,
         "rtf_score":      rtf_s if rtf_s is not None else ("상대평가" if args.rtf is not None else "-"),
         "total_score":    total_score if total_score is not None else "-",
+        "motivation":     args.motivation,
+        "issue":          args.issue,
+        "next_step":      args.next_step,
     }
     append_leaderboard(args.lb, row_dict)
 

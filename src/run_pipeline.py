@@ -49,6 +49,7 @@ def load_initial_inventory_from_file(path: str) -> dict:
     return {int(k): int(v) for k, v in raw.items()}
 
 
+
 def estimate_initial_inventory(caps, model, nms_fn, n_frames, conf, iou, img_size, device,
                                quorum=2, min_corroborate=2, no_tuning=False,
                                init_min_detections=1) -> dict:
@@ -294,17 +295,21 @@ def compute_cam_weights(per_cam_dets, class_id=None, min_corroborate=2):
 _DEFAULT_CAM_WEIGHTS = [1.0, 1.0, 1.5, 1.0, 1.0]
 
 
-def compute_per_class_cam_weights(per_cam_dets, min_corroborate=2):
+def compute_per_class_cam_weights(per_cam_dets, min_corroborate=2, exclude_class_ids=None):
     """
     프레임에 등장한 클래스마다 자동으로 occlusion weight 계산 (class_id -> weights).
-    클래스 예외 없이 동일한 규칙 적용.
+    exclude_class_ids: occlusion 메커니즘에서 제외할 class_id set (기본 균등 가중치 사용).
+    milano(42)는 제외 — cam-weight 메커니즘이 오히려 과다발화 유발 (Phase24 확인).
     """
+    exclude_class_ids = exclude_class_ids or set()
     class_ids = set()
     for dets in per_cam_dets:
         if dets:
             class_ids.update(d["class_id"] for d in dets)
+    default_weights = [1.0] * len(per_cam_dets)
     return {
-        cid: compute_cam_weights(per_cam_dets, class_id=cid, min_corroborate=min_corroborate)
+        cid: (default_weights if cid in exclude_class_ids
+              else compute_cam_weights(per_cam_dets, class_id=cid, min_corroborate=min_corroborate))
         for cid in class_ids
     }
 
@@ -364,6 +369,8 @@ def main():
                         help="EventDetector 슬라이딩 윈도우 크기 (기본 15프레임)")
     parser.add_argument("--confirm_frames", type=int, default=30,
                         help="이벤트 확정까지 유지돼야 하는 프레임 수 (기본 30, skip=2 → 실제 60프레임≈2초)")
+    parser.add_argument("--per_class_confirm", type=str, default=None,
+                        help='클래스별 confirm_frames JSON (예: \'{"11":90,"28":60}\')')
     args = parser.parse_args()
 
     device = f"cuda:{args.device}" if args.device.isdigit() else args.device
@@ -376,6 +383,11 @@ def main():
 
     class_names = load_names(args.names)
     prices      = load_prices(args.prices)
+
+    # milano(42) 제외: cam-weight 메커니즘이 milano 과다발화 유발 (Phase24 확인)
+    _milano_id = next((i for i, n in enumerate(class_names)
+                       if "milano" in n.lower()), None)
+    _cam_weight_excluded = {_milano_id} if _milano_id is not None else set()
 
     caps = open_videos(args.videos)
 
@@ -394,18 +406,18 @@ def main():
         )
         print(f"Initial inventory: {len(initial_inventory)} classes detected")
         print("Initial inventory detail:", {class_names[k]: v for k, v in initial_inventory.items()})
-        if args.debug_log:
-            init_dump_path = os.path.splitext(args.debug_log)[0] + "_initial_inventory.json"
-            with open(init_dump_path, "w", encoding="utf-8") as f:
-                json.dump({class_names[k]: v for k, v in initial_inventory.items()}, f,
-                          ensure_ascii=False, indent=2)
-            print(f"Initial inventory dumped to {init_dump_path}")
+
+    per_class_confirm = {}
+    if args.per_class_confirm:
+        per_class_confirm = {int(k): int(v) for k, v in json.loads(args.per_class_confirm).items()}
+        print(f"per_class_confirm overrides: {per_class_confirm}")
 
     detector = EventDetector(
         class_names,
-        initial_counts  = initial_inventory,
-        window_size     = args.window_size,
-        confirm_frames  = args.confirm_frames,
+        initial_counts    = initial_inventory,
+        window_size       = args.window_size,
+        confirm_frames    = args.confirm_frames,
+        per_class_confirm = per_class_confirm,
     )
     vid_len  = video_duration(args.videos)
 
@@ -489,7 +501,10 @@ def main():
         else:
             fused_counts = fuse(
                 per_cam_dets,
-                cam_weights=compute_per_class_cam_weights(per_cam_dets, args.min_corroborate),
+                cam_weights=compute_per_class_cam_weights(
+                    per_cam_dets, args.min_corroborate,
+                    exclude_class_ids=_cam_weight_excluded,
+                ),
                 quorum=args.quorum,
             )
 
