@@ -1,0 +1,745 @@
+<title>REDRED 발표자료</title>
+<style>
+:root{
+  --bg:#0A0E13; --surface:#121821; --surface-2:#1B232E; --surface-3:#232D3A;
+  --border:#2A3441; --text:#E9EEF3; --text-dim:#8FA0B0; --text-faint:#5C6B7A;
+  --accent:#45D3C6; --accent-soft:rgba(69,211,198,.14);
+  --indigo:#7C93FF; --indigo-soft:rgba(124,147,255,.13);
+  --warm:#F2A65A; --warm-soft:rgba(242,166,90,.13);
+  --good:#5FDB8F; --good-soft:rgba(95,219,143,.13);
+  --neutral-bar:#3D4A59;
+}
+:root[data-theme="light"]{
+  --bg:#F2F4F6; --surface:#FFFFFF; --surface-2:#E7ECF1; --surface-3:#DCE3E9;
+  --border:#D5DCE3; --text:#182029; --text-dim:#5B6B7A; --text-faint:#8494A3;
+  --accent:#0C8F82; --accent-soft:rgba(12,143,130,.09);
+  --indigo:#3A55D9; --indigo-soft:rgba(58,85,217,.08);
+  --warm:#B96B14; --warm-soft:rgba(185,107,20,.09);
+  --good:#1D9A56; --good-soft:rgba(29,154,86,.09);
+  --neutral-bar:#B7C0C9;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#F2F4F6; --surface:#FFFFFF; --surface-2:#E7ECF1; --surface-3:#DCE3E9;
+    --border:#D5DCE3; --text:#182029; --text-dim:#5B6B7A; --text-faint:#8494A3;
+    --accent:#0C8F82; --accent-soft:rgba(12,143,130,.09);
+    --indigo:#3A55D9; --indigo-soft:rgba(58,85,217,.08);
+    --warm:#B96B14; --warm-soft:rgba(185,107,20,.09);
+    --good:#1D9A56; --good-soft:rgba(29,154,86,.09);
+    --neutral-bar:#B7C0C9;
+  }
+}
+*{box-sizing:border-box;}
+html,body{margin:0;background:var(--bg);}
+body{
+  font-family:'Segoe UI','Malgun Gothic',system-ui,sans-serif;
+  color:var(--text);
+  scroll-snap-type:y mandatory;
+  overflow-y:scroll;
+  height:100vh;
+}
+.mono{font-family:'Cascadia Code','Consolas',monospace;}
+h1,h2,h3{font-family:'Bahnschrift','Segoe UI Semibold','Malgun Gothic',system-ui,sans-serif;}
+
+.slide{
+  scroll-snap-align:start;
+  min-height:100vh;
+  width:100%;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  padding:56px clamp(24px,6vw,96px);
+  position:relative;
+  border-bottom:1px solid var(--border);
+}
+.slide-inner{max-width:1160px;margin:0 auto;width:100%;}
+.kicker{
+  font-family:'Cascadia Code','Consolas',monospace;
+  font-size:12.5px; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--accent); margin-bottom:14px;
+}
+.slide h2.title{
+  font-size:clamp(26px,3.4vw,40px); font-weight:700; margin:0 0 8px; text-wrap:balance;
+}
+.slide p.lead{
+  font-size:15.5px; color:var(--text-dim); max-width:74ch; line-height:1.65; margin:0 0 28px;
+}
+.slide-num{
+  position:absolute; bottom:22px; right:28px;
+  font-family:'Cascadia Code','Consolas',monospace; font-size:11.5px; color:var(--text-faint);
+}
+
+/* ---------- title slide ---------- */
+.slide.title-slide{align-items:flex-start;}
+.title-slide .team{
+  font-family:'Cascadia Code','Consolas',monospace; font-size:13px; color:var(--text-dim);
+  margin-top:26px; display:flex; gap:22px; flex-wrap:wrap;
+}
+.title-slide .team b{color:var(--text);}
+.title-slide h1{
+  font-size:clamp(38px,6vw,64px); font-weight:700; line-height:1.1; margin:0 0 18px; text-wrap:balance;
+}
+.title-slide .badges{display:flex;gap:10px;margin-top:30px;flex-wrap:wrap;}
+.badge{
+  font-size:12px; padding:6px 12px; border-radius:20px; border:1px solid var(--border);
+  color:var(--text-dim); background:var(--surface);
+}
+.badge.hl{border-color:var(--good);color:var(--good);}
+
+/* ---------- agenda ---------- */
+.agenda-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:2px;background:var(--border);border:1px solid var(--border);border-radius:6px;overflow:hidden;}
+.agenda-item{background:var(--surface);padding:16px 20px;display:flex;gap:14px;align-items:baseline;}
+.agenda-item .n{font-family:'Cascadia Code','Consolas',monospace;font-size:13px;color:var(--accent);flex:0 0 28px;}
+.agenda-item .t{font-size:14.5px;}
+.agenda-item.now{background:var(--accent-soft);}
+.agenda-item.now .t{font-weight:600;}
+
+/* ---------- challenge cards ---------- */
+.challenge-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:26px;}
+.challenge-card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:22px;border-top:3px solid var(--warm);}
+.challenge-card .num{font-family:'Cascadia Code','Consolas',monospace;font-size:11px;color:var(--warm);letter-spacing:.08em;}
+.challenge-card h3{font-size:17px;margin:8px 0 8px;}
+.challenge-card p{font-size:13px;color:var(--text-dim);line-height:1.6;margin:0;}
+
+.cam-illustration{
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  padding:26px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;margin-bottom:22px;
+}
+.cam-illustration .shelf{
+  width:120px;height:60px;border:2px solid var(--text-faint);border-top:none;position:relative;border-radius:0 0 4px 4px;
+  display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px;
+  font-family:'Cascadia Code','Consolas',monospace;font-size:10px;color:var(--text-faint);
+}
+.cam-illustration .cams{display:flex;gap:8px;}
+.cam-illustration .cam{
+  font-family:'Cascadia Code','Consolas',monospace;font-size:10.5px;
+  padding:5px 9px;border-radius:3px;border:1.5px solid var(--border);background:var(--surface);color:var(--text-dim);
+}
+.cam-illustration .cam.blind{border-color:var(--warm);color:var(--warm);border-style:dashed;}
+.cam-illustration .arrow{color:var(--text-faint);font-size:20px;}
+
+/* ---------- compare table ---------- */
+table.ctable{width:100%;border-collapse:collapse;font-size:13px;}
+table.ctable th{text-align:left;font-size:10.8px;letter-spacing:.05em;text-transform:uppercase;color:var(--text-dim);padding:8px 12px;border-bottom:1px solid var(--border);font-weight:600;}
+table.ctable td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:top;color:var(--text-dim);}
+table.ctable tr:last-child td{border-bottom:none;}
+table.ctable td.name{color:var(--text);font-weight:600;}
+table.ctable td.verdict{white-space:nowrap;font-weight:600;}
+table.ctable td.verdict.reject{color:var(--warm);}
+table.ctable td.verdict.accept{color:var(--good);}
+table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(--accent);white-space:nowrap;}
+
+.callout{
+  margin-top:18px;display:flex;gap:10px;font-size:13px;color:var(--text-dim);
+  border-left:2px solid var(--good);padding:11px 16px;background:var(--good-soft);border-radius:0 4px 4px 0;
+}
+.callout b{color:var(--good);}
+.callout.warm{border-left-color:var(--warm);background:var(--warm-soft);}
+.callout.warm b{color:var(--warm);}
+
+/* ---------- pipeline strip ---------- */
+.pipe-wrap{overflow-x:auto;padding-bottom:6px;}
+.pipe{display:flex;align-items:stretch;min-width:fit-content;}
+.pipe-stage{flex:0 0 auto;width:172px;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:14px 15px;display:flex;flex-direction:column;gap:5px;}
+.pipe-stage .n{font-family:'Cascadia Code','Consolas',monospace;font-size:10.5px;color:var(--text-faint);}
+.pipe-stage h4{margin:0;font-size:14px;font-weight:600;}
+.pipe-stage p{margin:0;font-size:11px;color:var(--text-dim);line-height:1.5;}
+.pipe-stage.detect{border-top:3px solid var(--accent);}
+.pipe-stage.fuse{border-top:3px solid var(--indigo);}
+.pipe-stage.event{border-top:3px solid var(--warm);}
+.pipe-stage.out{border-top:3px solid var(--good);}
+.pipe-conn{flex:0 0 30px;align-self:center;height:2px;background:var(--border);position:relative;}
+.pipe-conn::after{content:"";position:absolute;right:-1px;top:50%;transform:translateY(-50%);border-top:4px solid transparent;border-bottom:4px solid transparent;border-left:6px solid var(--border);}
+
+/* ---------- layer stack ---------- */
+.layer-stack{display:flex;flex-direction:column;gap:8px;margin-bottom:22px;}
+.layer-card{display:flex;align-items:center;gap:14px;padding:12px 16px;background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--indigo);border-radius:4px;}
+.layer-card .ln{font-family:'Cascadia Code','Consolas',monospace;font-size:12px;color:var(--indigo);flex:0 0 32px;font-weight:700;}
+.layer-card .lt{font-size:14px;font-weight:600;flex:0 0 220px;}
+.layer-card .ld{font-size:12.5px;color:var(--text-dim);}
+
+/* ---------- waterfall chart ---------- */
+.waterfall{display:flex;align-items:flex-end;gap:28px;height:200px;padding:0 8px 30px;position:relative;margin-bottom:8px;}
+.waterfall::before{content:"";position:absolute;left:0;right:0;bottom:30px;height:1px;background:var(--border);}
+.wf-bar{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;flex:1;height:100%;position:relative;}
+.wf-bar .bar{width:64px;border-radius:4px 4px 0 0;display:flex;align-items:flex-start;justify-content:center;padding-top:6px;}
+.wf-bar .bar span{font-family:'Cascadia Code','Consolas',monospace;font-size:13px;font-weight:700;color:var(--text);}
+.wf-bar .lbl{position:absolute;bottom:-26px;font-size:11.5px;color:var(--text-dim);text-align:center;width:110px;}
+.wf-bar.base .bar{background:var(--neutral-bar);}
+.wf-bar.mid .bar{background:var(--indigo);}
+.wf-bar.final .bar{background:var(--good);}
+
+/* ---------- grouped bar chart ---------- */
+.legend{display:flex;gap:18px;margin-bottom:14px;font-size:12px;color:var(--text-dim);}
+.legend .sw{display:inline-flex;align-items:center;gap:6px;}
+.legend .dot{width:10px;height:10px;border-radius:2px;}
+.groupbar{display:flex;justify-content:space-between;align-items:flex-end;height:220px;padding:0 10px 34px;position:relative;}
+.groupbar::before{content:"";position:absolute;left:0;right:0;bottom:34px;height:1px;background:var(--border);}
+.gb-group{display:flex;flex-direction:column;align-items:center;gap:0;position:relative;height:100%;justify-content:flex-end;}
+.gb-bars{display:flex;gap:6px;align-items:flex-end;height:100%;}
+.gb-bars .bar{width:40px;border-radius:4px 4px 0 0;display:flex;justify-content:center;align-items:flex-start;padding-top:5px;}
+.gb-bars .bar span{font-family:'Cascadia Code','Consolas',monospace;font-size:11.5px;font-weight:700;color:var(--text);}
+.gb-bars .bar.base{background:var(--neutral-bar);}
+.gb-bars .bar.tuned{background:var(--good);}
+.gb-label{position:absolute;bottom:-26px;font-size:12.5px;color:var(--text-dim);}
+
+/* ---------- zone concept chart ---------- */
+.zone-chart{position:relative;height:220px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;margin-bottom:8px;overflow:hidden;}
+.zone-chart .zone{position:absolute;top:0;bottom:0;display:flex;align-items:flex-start;padding:10px;font-size:11px;color:var(--text-faint);}
+.zone-chart .zone.early{left:0;width:42%;background:var(--indigo-soft);}
+.zone-chart .zone.late{left:42%;right:0;background:var(--warm-soft);}
+.zone-chart .gap{position:absolute;top:0;bottom:0;left:42%;width:2px;background:var(--border);border-left:1px dashed var(--text-faint);}
+.zone-chart .pt{position:absolute;width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 3px var(--surface);}
+.zone-chart .axis-label{position:absolute;bottom:6px;left:10px;font-size:10.5px;color:var(--text-faint);font-family:'Cascadia Code','Consolas',monospace;}
+.zone-chart .axis-label.y{bottom:auto;top:10px;right:10px;left:auto;}
+.zone-note{font-size:11.5px;color:var(--text-faint);margin-bottom:22px;}
+
+/* ---------- state machine ---------- */
+.statemachine{display:flex;align-items:center;gap:0;flex-wrap:wrap;padding:20px 22px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;margin-bottom:20px;}
+.sm-node{font-family:'Cascadia Code','Consolas',monospace;font-size:13px;font-weight:600;padding:9px 16px;border-radius:20px;border:1.5px solid var(--border);}
+.sm-node.stable{color:var(--good);border-color:var(--good);background:var(--good-soft);}
+.sm-node.candidate{color:var(--warm);border-color:var(--warm);background:var(--warm-soft);}
+.sm-arrow{font-size:11px;color:var(--text-dim);padding:0 14px;display:flex;flex-direction:column;align-items:center;gap:3px;}
+.sm-arrow .line{width:44px;height:1px;background:var(--border);position:relative;}
+.sm-arrow .line::after{content:"";position:absolute;right:0;top:-3px;border:4px solid transparent;border-left-color:var(--border);}
+
+/* ---------- timeline (case study) ---------- */
+.timeline{display:flex;flex-direction:column;gap:0;margin-bottom:8px;}
+.tl-step{display:flex;gap:18px;padding:14px 0;border-bottom:1px solid var(--border);}
+.tl-step:last-child{border-bottom:none;}
+.tl-step .dot-col{display:flex;flex-direction:column;align-items:center;flex:0 0 30px;}
+.tl-step .dot{width:26px;height:26px;border-radius:50%;background:var(--surface-2);border:1.5px solid var(--accent);color:var(--accent);display:flex;align-items:center;justify-content:center;font-family:'Cascadia Code','Consolas',monospace;font-size:12px;font-weight:700;}
+.tl-step h4{margin:0 0 4px;font-size:14.5px;}
+.tl-step p{margin:0;font-size:12.5px;color:var(--text-dim);line-height:1.55;max-width:70ch;}
+
+/* ---------- occlusion mini diagram ---------- */
+.mini-diagram{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:16px 18px;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;margin-bottom:18px;}
+.cam-chip{display:flex;flex-direction:column;align-items:center;gap:4px;}
+.cam-chip .box{width:36px;height:28px;border-radius:3px;border:1.5px solid var(--border);background:var(--surface);display:flex;align-items:center;justify-content:center;font-family:'Cascadia Code','Consolas',monospace;font-size:11px;color:var(--text-dim);}
+.cam-chip.pos .box{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:700;}
+.cam-chip.excluded .box{background:var(--warm-soft);border-color:var(--warm);color:var(--warm);text-decoration:line-through;}
+.cam-chip label{font-size:9.5px;color:var(--text-dim);}
+.mini-verdict{font-size:12.5px;color:var(--text-dim);}
+.mini-verdict b{color:var(--warm);}
+
+/* ---------- checklist ---------- */
+.checklist{display:flex;flex-direction:column;gap:0;}
+.check-row{display:flex;gap:14px;align-items:flex-start;padding:13px 0;border-bottom:1px solid var(--border);}
+.check-row:last-child{border-bottom:none;}
+.check-row .mark{flex:0 0 22px;height:22px;border-radius:50%;background:var(--good-soft);border:1.5px solid var(--good);color:var(--good);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;}
+.check-row .txt b{font-size:14px;}
+.check-row .txt p{margin:3px 0 0;font-size:12.5px;color:var(--text-dim);}
+
+/* ---------- creativity grid ---------- */
+.creativity-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;}
+.cre-card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:18px;border-top:3px solid var(--accent);}
+.cre-card h4{margin:0 0 8px;font-size:15px;}
+.cre-card p{margin:0;font-size:12.5px;color:var(--text-dim);line-height:1.55;}
+
+/* ---------- stat tiles ---------- */
+.stat-row{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:8px;}
+.stat-tile{background:var(--surface);padding:20px 16px;display:flex;flex-direction:column;gap:6px;}
+.stat-tile .l{font-size:11.5px;color:var(--text-dim);}
+.stat-tile .v{font-family:'Bahnschrift','Segoe UI Semibold',sans-serif;font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--good);}
+.stat-tile .n{font-size:10.5px;color:var(--text-faint);}
+
+/* ---------- closing slide ---------- */
+.closing-numbers{display:flex;gap:40px;margin:24px 0 34px;flex-wrap:wrap;}
+.closing-numbers .item{display:flex;flex-direction:column;gap:4px;}
+.closing-numbers .item .v{font-family:'Bahnschrift','Segoe UI Semibold',sans-serif;font-size:36px;font-weight:700;color:var(--good);}
+.closing-numbers .item .l{font-size:12px;color:var(--text-dim);}
+
+/* ---------- backup/appendix ---------- */
+.backup-badge{display:inline-block;font-size:11px;font-family:'Cascadia Code','Consolas',monospace;letter-spacing:.08em;color:var(--text-faint);border:1px solid var(--border);padding:3px 9px;border-radius:3px;margin-bottom:14px;}
+.param-block{background:var(--surface-2);border:1px solid var(--border);border-radius:6px;padding:16px 20px;font-family:'Cascadia Code','Consolas',monospace;font-size:12px;line-height:1.9;color:var(--text-dim);white-space:pre;overflow-x:auto;margin-bottom:20px;}
+.param-block b{color:var(--accent);}
+
+/* ---------- nav ---------- */
+.navbar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:30px;padding:8px 10px;z-index:50;box-shadow:0 4px 20px rgba(0,0,0,.25);}
+.navbar button{width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:var(--surface-2);color:var(--text);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;}
+.navbar button:hover{border-color:var(--accent);color:var(--accent);}
+.navbar .count{font-family:'Cascadia Code','Consolas',monospace;font-size:12px;color:var(--text-dim);min-width:52px;text-align:center;}
+@media print{
+  .navbar{display:none;}
+  .slide{page-break-after:always;border-bottom:none;}
+  body{overflow-y:visible;height:auto;}
+}
+</style>
+
+<!-- ============ SLIDE 0 : TITLE ============ -->
+<section class="slide title-slide">
+  <div class="slide-inner">
+    <div class="kicker">2026 딥러닝 기반 무인판매대 상품인식 경진대회</div>
+    <h1>REDRED<br>Multi-Camera 상품 인식 &amp; 이벤트 감지 파이프라인</h1>
+    <div class="team">
+      <span><b>팀명</b> REDRED</span>
+      <span><b>팀원</b> 조강희 · 정현수 · 박준영</span>
+      <span><b>소속</b> 서울대학교 전기정보공학부</span>
+    </div>
+    <div class="badges">
+      <div class="badge hl">Count / Order / Time F1 100%</div>
+      <div class="badge hl">RTF 0.76</div>
+      <div class="badge">55회 실험 로그 기록</div>
+    </div>
+  </div>
+  <div class="slide-num">00 / 15</div>
+</section>
+
+<!-- ============ SLIDE 1 : AGENDA ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">목차</div>
+    <h2 class="title">정성평가 40점 항목 순서 그대로</h2>
+    <p class="lead">대회 공지 평가 항목 — AI 모델 구조 설계 / 데이터 증강 기법 / Multi-Camera 활용 전략 / 문제 해결 과정 / 데이터 전처리 방법 / Occlusion 대응 기법 / 이벤트 분석 및 재고 추적 방법 / 실험 결과 및 성능 분석 / 기술적 완성도 / 창의성 — 을 목차로 그대로 사용.</p>
+    <div class="agenda-grid">
+      <div class="agenda-item"><span class="n">00</span><span class="t">문제 정의</span></div>
+      <div class="agenda-item"><span class="n">01</span><span class="t">AI 모델 구조 설계</span></div>
+      <div class="agenda-item"><span class="n">02</span><span class="t">데이터 증강 기법</span></div>
+      <div class="agenda-item"><span class="n">03</span><span class="t">Multi-Camera 활용 전략</span></div>
+      <div class="agenda-item"><span class="n">04</span><span class="t">문제 해결 과정</span></div>
+      <div class="agenda-item"><span class="n">05</span><span class="t">데이터 전처리 방법</span></div>
+      <div class="agenda-item"><span class="n">06</span><span class="t">Occlusion 대응 기법</span></div>
+      <div class="agenda-item"><span class="n">07</span><span class="t">이벤트 분석 및 재고 추적</span></div>
+      <div class="agenda-item"><span class="n">08</span><span class="t">실험 결과 및 성능 분석</span></div>
+      <div class="agenda-item"><span class="n">09</span><span class="t">기술적 완성도</span></div>
+      <div class="agenda-item"><span class="n">10</span><span class="t">창의성</span></div>
+      <div class="agenda-item"><span class="n">11</span><span class="t">마무리 / 부록</span></div>
+    </div>
+  </div>
+  <div class="slide-num">01 / 15</div>
+</section>
+
+<!-- ============ SLIDE 2 : 문제 정의 ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">00 · 문제 정의</div>
+    <h2 class="title">"본다"고 다 같은 정보가 아니다</h2>
+    <p class="lead">카메라 5대가 같은 진열대를 서로 다른 각도에서 촬영, 60종 상품의 구매/반환을 인식해 재고·결제 정보를 CSV로 산출하는 과제.</p>
+
+    <div class="cam-illustration">
+      <div class="cams">
+        <div class="cam">cam0</div><div class="cam">cam1</div><div class="cam">cam2</div>
+        <div class="cam blind">cam3</div><div class="cam blind">cam4</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="shelf">진열대<br>(60개 클래스)</div>
+    </div>
+
+    <div class="challenge-grid">
+      <div class="challenge-card">
+        <div class="num">난이도 01</div>
+        <h3>구조적 사각지대</h3>
+        <p>일부 상품은 진열 위치상 카메라 5대 중 1~2대에서만 물리적으로 보임 — "과반 동의" 같은 일반 규칙이 항상 실패하는 클래스가 존재.</p>
+      </div>
+      <div class="challenge-card">
+        <div class="num">난이도 02</div>
+        <h3>Occlusion vs 진짜 이벤트</h3>
+        <p>손이 스쳐가는 순간의 가림·confidence 흔들림을 "진짜 재고 변화"와 구분해야 함 — 시간축 정보만으로는 풀리지 않음.</p>
+      </div>
+    </div>
+  </div>
+  <div class="slide-num">02 / 15</div>
+</section>
+
+<!-- ============ SLIDE 3 : 모델 구조 설계 ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">01 · AI 모델 구조 설계</div>
+    <h2 class="title">최신 모델을 시도했지만, 근거를 갖고 기각했다</h2>
+    <p class="lead">기본 선택은 대회 제공 YOLOv7 가중치(mAP@0.5 98.1%, 약 20만 장 학습). 대안 아키텍처를 실제로 학습·검증한 뒤 데이터 격차를 근거로 유지 결정.</p>
+
+    <table class="ctable">
+      <tr><th>시도</th><th>학습 조건</th><th>결과</th><th>판단</th></tr>
+      <tr>
+        <td class="name">YOLO11m 재학습</td>
+        <td>18,392장, 50 epoch</td>
+        <td>mAP 98.4% (유사) · <span class="val">order F1 73.4%</span> (−23.2%p)</td>
+        <td class="verdict reject">기각</td>
+      </tr>
+      <tr>
+        <td class="name">YOLO11m + Knowledge Distillation</td>
+        <td>동일 데이터</td>
+        <td><span class="val">order F1 91.1%</span> (KD로 개선, YOLOv7 대비 −7.5%p)</td>
+        <td class="verdict reject">기각</td>
+      </tr>
+      <tr>
+        <td class="name">YOLOv7 자체 파인튜닝</td>
+        <td>Cut&amp;Paste 5,000장 + 30 epoch</td>
+        <td>mAP@0.5 0.9904 → 0.9840 (하락)</td>
+        <td class="verdict reject">기각</td>
+      </tr>
+      <tr>
+        <td class="name">대회 제공 YOLOv7 가중치</td>
+        <td>약 20만 장 사전학습</td>
+        <td>mAP@0.5 98.1% · 파이프라인 전체 최고 성능</td>
+        <td class="verdict accept">채택</td>
+      </tr>
+    </table>
+
+    <div class="callout"><b>핵심 판단 근거</b>&nbsp;— 대회 가중치는 20만 장, 자체 학습은 1.8만 장으로 10배 이상 데이터 격차. mAP는 비슷해도 실제 이벤트 검출력에서 크게 밀림 — "최신 모델 ≠ 정답", 데이터 규모가 확보된 모델을 쓰는 게 이 과제에서 더 합리적.</div>
+  </div>
+  <div class="slide-num">03 / 15</div>
+</section>
+
+<!-- ============ SLIDE 4 : 시스템 아키텍처 ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">01 · 시스템 아키텍처</div>
+    <h2 class="title">5단계 파이프라인</h2>
+    <p class="lead">5개 카메라를 하나의 batched forward pass로 묶어 GPU 효율화 — RTF ≈ 0.76 (기준 ≤1 만점).</p>
+
+    <div class="pipe-wrap">
+      <div class="pipe">
+        <div class="pipe-stage detect">
+          <span class="n">01</span><h4>YOLOv7 탐지</h4>
+          <p class="mono">run_pipeline.py</p>
+          <p>5캠 batched forward · 60 class</p>
+        </div>
+        <div class="pipe-conn"></div>
+        <div class="pipe-stage fuse">
+          <span class="n">02</span><h4>Multi-View Fusion</h4>
+          <p class="mono">multi_view_fusion.py</p>
+          <p>클래스별 median 결합</p>
+        </div>
+        <div class="pipe-conn"></div>
+        <div class="pipe-stage event">
+          <span class="n">03</span><h4>Event Detector</h4>
+          <p class="mono">event_detector.py</p>
+          <p>STABLE/CANDIDATE 상태머신</p>
+        </div>
+        <div class="pipe-conn"></div>
+        <div class="pipe-stage">
+          <span class="n">04</span><h4>재고 · 가격 계산</h4>
+          <p>inventory[class] ± 1</p>
+        </div>
+        <div class="pipe-conn"></div>
+        <div class="pipe-stage out">
+          <span class="n">05</span><h4>CSV 출력</h4>
+          <p class="mono">csv_generator.py</p>
+          <p>품목/이벤트/여부/재고/총액</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout"><b>RTF 설계</b>&nbsp;— <span class="mono">grab()/retrieve()</span>로 skip 프레임은 디코딩 자체를 생략, 5카메라 배치 추론으로 forward pass 1회로 축소.</div>
+  </div>
+  <div class="slide-num">04 / 15</div>
+</section>
+
+<!-- ============ SLIDE 5 : 데이터 증강 ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">02 · 데이터 증강 기법</div>
+    <h2 class="title">적용해보고, 정량 검증해서, 근거로 기각했다</h2>
+    <p class="lead">Cut&amp;Paste 증강 파이프라인(<span class="mono">tools/cut_paste_aug.py</span>) — 배경 제거 상품 이미지를 실제 배경(2,915장) 위에 합성, 5,000장 생성.</p>
+
+    <div class="timeline">
+      <div class="tl-step">
+        <div class="dot-col"><div class="dot">1</div></div>
+        <div><h4>class_id 파싱 버그 수정</h4><p>폴더명 숫자 prefix 파싱 오류 수정</p></div>
+      </div>
+      <div class="tl-step">
+        <div class="dot-col"><div class="dot">2</div></div>
+        <div><h4>회전 각도 ±15° → ±5°로 축소</h4><p>과도한 회전이 실제 진열대 상품 각도와 괴리됨을 발견하고 좁힘</p></div>
+      </div>
+      <div class="tl-step">
+        <div class="dot-col"><div class="dot">3</div></div>
+        <div><h4>합성 경계 halo 아티팩트 제거 + random erasing 옵션화</h4><p><span class="mono">--no_erasing</span> 플래그 추가 — erasing이 오히려 품질 저하시킴을 실험으로 확인</p></div>
+      </div>
+      <div class="tl-step">
+        <div class="dot-col"><div class="dot">4</div></div>
+        <div><h4>파인튜닝 투입 → mAP 하락 확인</h4><p>mAP@0.5 0.9904 → 0.9840 — synthetic-real 분포 괴리(조명/그림자/밀도)로 추정</p></div>
+      </div>
+    </div>
+
+    <div class="callout warm"><b>최종 결정</b>&nbsp;— 원본 제공 가중치 유지. 증강 파이프라인 자체는 인프라로 완성해두고, 결과 기반으로 미채택. "적용했다"가 아니라 "정량 검증 후 미채택"이라는 실험적 태도.</div>
+  </div>
+  <div class="slide-num">05 / 15</div>
+</section>
+
+<!-- ============ SLIDE 6 : Multi-Camera 전략 ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">03 · Multi-Camera 활용 전략</div>
+    <h2 class="title">획일적 규칙이 아닌, 클래스별 4단 제어 레이어</h2>
+    <p class="lead">5대 카메라를 다루는 전략은 단일 규칙이 아니라 클래스 물리적 특성에 맞춘 다층 구조.</p>
+
+    <div class="layer-stack">
+      <div class="layer-card"><span class="ln">L1</span><span class="lt">Weighted Median</span><span class="ld">5대 중 과반 동의해야 count 인정 — 단일 카메라 오탐에 강함</span></div>
+      <div class="layer-card"><span class="ln">L2</span><span class="lt">Quorum Override</span><span class="ld">사각지대 클래스는 필요 동의 카메라 수를 1~2대로 완화</span></div>
+      <div class="layer-card"><span class="ln">L3</span><span class="lt">Camera Whitelist</span><span class="ld">혼동 유발 카메라를 클래스별로 배제 (campbells ↔ campbells_chunky 등)</span></div>
+      <div class="layer-card"><span class="ln">L4</span><span class="lt">동적 카메라 가중치</span><span class="ld">클래스 자신의 confidence로 실시간 occlusion 판단, 투표권 조절</span></div>
+    </div>
+
+    <div class="waterfall">
+      <div class="wf-bar base"><div class="bar" style="height:132px;"><span>85.4%</span></div><div class="lbl">기본 Weighted Median</div></div>
+      <div class="wf-bar mid"><div class="bar" style="height:150px;"><span>91.0%</span></div><div class="lbl">+ 동적 카메라 가중치 (L4)</div></div>
+      <div class="wf-bar final"><div class="bar" style="height:172px;"><span>98.6%</span></div><div class="lbl">+ Quorum·Whitelist 누적 (L2+L3)</div></div>
+    </div>
+    <p style="font-size:11.5px;color:var(--text-faint);margin:0 0 6px;">Order F1 기준 · 출처: 리더보드 실험 로그(브랜치별 A/B 테스트)</p>
+  </div>
+  <div class="slide-num">06 / 15</div>
+</section>
+
+<!-- ============ SLIDE 7 : 문제 해결 과정 ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">04 · 문제 해결 과정</div>
+    <h2 class="title">가설 → 진단 도구 → 실측 → 검증 → 다음 가설</h2>
+    <p class="lead">대표 사례: campbells ↔ monster_energy 이벤트 순서 역전 해결 과정.</p>
+
+    <div class="timeline">
+      <div class="tl-step"><div class="dot-col"><div class="dot">1</div></div><div><h4>증상 발견</h4><p>order F1이 99%에서 정체</p></div></div>
+      <div class="tl-step"><div class="dot-col"><div class="dot">2</div></div><div><h4>진단</h4><p>자체 작성한 LCS 역추적 스크립트로 campbells ↔ monster_energy 이벤트 쌍의 순서 역전을 정확히 특정</p></div></div>
+      <div class="tl-step"><div class="dot-col"><div class="dot">3</div></div><div><h4>근본 원인 추적</h4><p><span class="mono">debug_frame_counts.csv</span> 직접 분석 — campbells가 메인 추론 루프에서 단 한 프레임도 제대로 분류되지 않고 계속 오분류됨을 발견 (모델 레벨 한계)</p></div></div>
+      <div class="tl-step"><div class="dot-col"><div class="dot">4</div></div><div><h4>가설 수립·검증 반복</h4><p>confirm 값과 발화 시각의 관계를 5개 지점에서 실측 → 선형이 아닌 "early zone / late zone" 불연속 구조 발견</p></div></div>
+      <div class="tl-step"><div class="dot-col"><div class="dot">5</div></div><div><h4>해결</h4><p>zone 구조를 근거로 confirm 값을 역산해 순서 정정 → <b style="color:var(--good);">Order F1 100% 달성</b></p></div></div>
+    </div>
+
+    <div class="callout"><b>자기 교정 사례</b>&nbsp;— SORT 트래커를 "성능 악화"로 판정해 한 번 폐기했으나, 원인이 트래커가 아니라 자체 채점 스크립트가 구버전 ground truth를 참조하던 버그였음을 발견하고 재도입.</div>
+  </div>
+  <div class="slide-num">07 / 15</div>
+</section>
+
+<!-- ============ SLIDE 8 : 데이터 전처리 ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">05 · 데이터 전처리 방법</div>
+    <h2 class="title">추론 이전 단계에서부터 정확도·속도를 같이 설계</h2>
+    <div class="checklist">
+      <div class="check-row"><div class="mark">✓</div><div class="txt"><b>배경 제거 이미지 활용</b><p>클래스별 상품 이미지를 증강 소스로 사용, 폴더명 숫자 prefix로 class_id를 파싱하는 로더 작성</p></div></div>
+      <div class="check-row"><div class="mark">✓</div><div class="txt"><b>train/val 90:10 분할</b><p><span class="mono">tools/make_split.py</span> + <span class="mono">tools/make_yaml.py</span>로 custom.yaml(nc=60) 자동 생성</p></div></div>
+      <div class="check-row"><div class="mark">✓</div><div class="txt"><b>프레임 전처리 단계 RTF 최적화</b><p><span class="mono">grab()/retrieve()</span>로 skip 대상 프레임은 실제 디코딩 자체를 생략</p></div></div>
+      <div class="check-row"><div class="mark">✓</div><div class="txt"><b>초기 재고 추정 전처리</b><p>영상 시작 30프레임 구간 5캠 신호를 별도 집계, occlusion 보정도 동일 적용해 초기값 오추정 방지</p></div></div>
+      <div class="check-row"><div class="mark">✓</div><div class="txt"><b>클래스명 데이터 무결성 확인</b><p>오탈자성으로 보이는 이름들이 실제 대회 공식 클래스명과 일치함을 서버 데이터셋과 직접 대조 확인 (임의 수정 방지)</p></div></div>
+    </div>
+  </div>
+  <div class="slide-num">08 / 15</div>
+</section>
+
+<!-- ============ SLIDE 9 : Occlusion 대응 ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">06 · Occlusion 대응 기법</div>
+    <h2 class="title">"일시적 가림"과 "진짜 재고 변화"를 구분하기</h2>
+    <p class="lead">채택 해법 — 동적 카메라 가중치: 카메라 i가 0인데 나머지 4대 중 N대 이상이 양수면 i를 가려진 것으로 보고 투표에서 제외.</p>
+
+    <div class="mini-diagram">
+      <div class="cam-chip excluded"><div class="box">0</div><label>cam0</label></div>
+      <div class="cam-chip pos"><div class="box">●</div><label>cam1</label></div>
+      <div class="cam-chip pos"><div class="box">●</div><label>cam2</label></div>
+      <div class="cam-chip pos"><div class="box">●</div><label>cam3</label></div>
+      <div class="cam-chip"><div class="box">·</div><label>cam4</label></div>
+      <div style="color:var(--text-faint);font-size:18px;">⇒</div>
+      <div class="mini-verdict">cam0=0, 나머지 중 <b>N=2대 이상 양수</b> → cam0 제외. 클래스 자신의 confidence만 사용(전역 평균 아님) → occlusion 감지율 <b>8% → 27~38%</b></div>
+    </div>
+
+    <table class="ctable">
+      <tr><th>기법</th><th>아이디어</th><th>실패 원인</th></tr>
+      <tr><td class="name">SeqNMS</td><td>연속 프레임 미출현 탐지를 노이즈로 억제</td><td class="verdict reject">sparse-but-real 신호까지 같이 억제</td></tr>
+      <tr><td class="name">EMA Smoothing</td><td>지수이동평균으로 반응성 개선</td><td class="verdict reject">이벤트 후 리셋 안 돼 두 번째 이벤트 억제</td></tr>
+      <tr><td class="name">Ghost Detector (ICCV 2023)</td><td>미탐지 시 마지막 위치에 가상 탐지 삽입</td><td class="verdict reject">진짜 이벤트 순간에 오히려 지연 발생</td></tr>
+    </table>
+    <div class="callout"><b>발표 포인트</b>&nbsp;— 시간축 스무딩 계열 3가지가 공통 실패한 이유는 동일: occlusion 대응은 시간 축 하나로는 안 풀리고 카메라 축(multi-view) 정보가 반드시 필요함을 실험적으로 규명.</div>
+  </div>
+  <div class="slide-num">09 / 15</div>
+</section>
+
+<!-- ============ SLIDE 10 : 이벤트 분석 ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">07 · 이벤트 분석 및 재고 추적 방법</div>
+    <h2 class="title">STABLE ⇄ CANDIDATE 상태머신</h2>
+    <p class="lead">Sliding window median(25) + 연속 확정 프레임(30, ~2초)이 유지돼야 이벤트로 확정. 초기 재현율 42% → 최종 100%.</p>
+
+    <div class="statemachine">
+      <div class="sm-node stable">STABLE (committed)</div>
+      <div class="sm-arrow"><span>값 변화 감지</span><div class="line"></div></div>
+      <div class="sm-node candidate">CANDIDATE</div>
+      <div class="sm-arrow"><span>CONFIRM_FRAMES 유지</span><div class="line"></div></div>
+      <div class="sm-node stable">STABLE (이벤트 확정)</div>
+    </div>
+
+    <p class="lead" style="margin-bottom:8px;">정밀 타이밍 제어 — confirm 값과 발화 시각 관계는 선형이 아니라 <b style="color:var(--text);">early / late zone</b> 불연속 구조 (개념도, 실측 5개 지점 기반):</p>
+    <div class="zone-chart">
+      <div class="zone early">early zone</div>
+      <div class="zone late">late zone</div>
+      <div class="gap"></div>
+      <div class="pt" style="left:8%;top:70%;"></div>
+      <div class="pt" style="left:20%;top:60%;"></div>
+      <div class="pt" style="left:34%;top:48%;"></div>
+      <div class="pt" style="left:52%;top:22%;"></div>
+      <div class="pt" style="left:78%;top:14%;"></div>
+      <div class="axis-label">confirm 값 →</div>
+      <div class="axis-label y">발화 시각 ↑</div>
+    </div>
+    <p class="zone-note">※ 개념도 — 축 단위는 상대값. 실제 발견은 두 구간 사이 불연속 점프의 존재.</p>
+  </div>
+  <div class="slide-num">10 / 15</div>
+</section>
+
+<!-- ============ SLIDE 11 : 실험 결과 ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">08 · 실험 결과 및 성능 분석</div>
+    <h2 class="title">범용 파이프라인 대비 튜닝 기여도</h2>
+    <p class="lead">영상 특화 튜닝(quorum override, 카메라 화이트리스트, per-class confirm 등)을 전부 제거한 "완전 범용 파이프라인"과 최종본을 비교 측정.</p>
+
+    <div class="legend">
+      <span class="sw"><span class="dot" style="background:var(--neutral-bar);"></span>범용 파이프라인</span>
+      <span class="sw"><span class="dot" style="background:var(--good);"></span>최종 (튜닝 적용)</span>
+    </div>
+    <div class="groupbar">
+      <div class="gb-group">
+        <div class="gb-bars">
+          <div class="bar base" style="height:130px;"><span>93.6</span></div>
+          <div class="bar tuned" style="height:150px;"><span>100</span></div>
+        </div>
+        <div class="gb-label">Count F1</div>
+      </div>
+      <div class="gb-group">
+        <div class="gb-bars">
+          <div class="bar base" style="height:128px;"><span>91.7</span></div>
+          <div class="bar tuned" style="height:150px;"><span>100</span></div>
+        </div>
+        <div class="gb-label">Order F1</div>
+      </div>
+      <div class="gb-group">
+        <div class="gb-bars">
+          <div class="bar base" style="height:122px;"><span>89.9</span></div>
+          <div class="bar tuned" style="height:150px;"><span>100</span></div>
+        </div>
+        <div class="gb-label">Time F1</div>
+      </div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-tile"><div class="l">Count F1</div><div class="v">100%</div></div>
+      <div class="stat-tile"><div class="l">Order F1</div><div class="v">100%</div></div>
+      <div class="stat-tile"><div class="l">Time F1</div><div class="v">100%</div></div>
+      <div class="stat-tile"><div class="l">RTF</div><div class="v" style="color:var(--accent);">0.76</div><div class="n">기준 ≤1 → 만점</div></div>
+      <div class="stat-tile"><div class="l">추정 총점</div><div class="v">~60<span style="font-size:14px;">/60</span></div></div>
+    </div>
+    <p style="font-size:11.5px;color:var(--text-faint);margin:8px 0 0;">실험 규모: 리더보드 기록 실행 55회 — 매 실행마다 계기/결과/다음 단계 기록</p>
+  </div>
+  <div class="slide-num">11 / 15</div>
+</section>
+
+<!-- ============ SLIDE 12 : 기술적 완성도 ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">09 · 기술적 완성도</div>
+    <h2 class="title">정량 지표를 넘어선 엔지니어링 규율</h2>
+    <div class="checklist">
+      <div class="check-row"><div class="mark">✓</div><div class="txt"><b>정량 지표 3종 만점 + RTF 0.76</b><p>Count/Order/Time F1 100%, 처리속도 기준(≤1) 안정적 통과</p></div></div>
+      <div class="check-row"><div class="mark">✓</div><div class="txt"><b>FP(가짜 이벤트) 0건</b><p>occlusion 보정 완료 후 제출물에 오탐 전무</p></div></div>
+      <div class="check-row"><div class="mark">✓</div><div class="txt"><b>재현성 검증</b><p>동일 코드 반복 실행, GPU 비결정성 범위 내 안정성 확인 후 최종 제출</p></div></div>
+      <div class="check-row"><div class="mark">✓</div><div class="txt"><b>실험/제출 코드 분리 규율</b><p>100% 달성 직후 미사용 코드 제거 및 재검증</p></div></div>
+      <div class="check-row"><div class="mark">✓</div><div class="txt"><b>브랜치 기반 A/B 워크플로</b><p>모든 시도를 독립 브랜치에서 검증 후 main에는 검증된 것만 merge</p></div></div>
+      <div class="check-row"><div class="mark">✓</div><div class="txt"><b>End-to-end 자동화</b><p><span class="mono">run_test.sh</span> 한 번으로 파이프라인 → 채점(3종) → 리더보드 갱신 → git push</p></div></div>
+    </div>
+  </div>
+  <div class="slide-num">12 / 15</div>
+</section>
+
+<!-- ============ SLIDE 13 : 창의성 ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">10 · 창의성</div>
+    <h2 class="title">기존 도구가 없는 지점은 직접 만들었다</h2>
+    <div class="creativity-grid">
+      <div class="cre-card"><h4>3종 채점 방법론 직접 설계</h4><p>공식 채점 기준이 없는 상황에서 count/order/time을 조합해 서로의 맹점을 보완하는 자체 평가 체계 구축</p></div>
+      <div class="cre-card"><h4>LCS 역추적 알고리즘 직접 구현</h4><p>"어느 이벤트 쌍이 순서를 깨뜨렸는지" 정확히 짚어내는 역추적 로직을 직접 작성</p></div>
+      <div class="cre-card"><h4>Early/late zone 발견</h4><p>confirm 파라미터-발화시각 관계가 불연속 2구간 구조임을 실측 + 피팅으로 규명, CANDIDATE 리셋 메커니즘 역설계</p></div>
+      <div class="cre-card"><h4>클래스별 다층 제어 프레임워크</h4><p>화이트리스트 → quorum → 동적가중치 → 이벤트 타이밍까지, 클래스 물리 특성에 맞춘 개별 튜닝 구조</p></div>
+      <div class="cre-card"><h4>실험 노트형 디버깅 히스토리</h4><p>리더보드를 "성능 대시보드"를 넘어 계기-결과-다음 단계를 기록하는 실험 노트로 확장</p></div>
+      <div class="cre-card"><h4>최신 논문 기법 직접 구현 &amp; 실패원인 규명</h4><p>ByteTrack/SeqNMS/EMA/Ghost Detector 등을 실제 코드로 구현·A/B 테스트, 실패 이유까지 근거로 설명</p></div>
+    </div>
+  </div>
+  <div class="slide-num">13 / 15</div>
+</section>
+
+<!-- ============ SLIDE 14 : 마무리 ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">마무리</div>
+    <h2 class="title">분석 + 튜닝의 가치를 숫자로</h2>
+    <p class="lead">기본 파이프라인만으로도 상당한 성능(order 91.7%)이 나오지만, 이 특정 진열대·카메라 배치를 정밀 분석해 튜닝함으로써 완벽에 도달했다.</p>
+    <div class="closing-numbers">
+      <div class="item"><span class="v">91.7% → 100%</span><span class="l">Order F1 (범용 → 최종)</span></div>
+      <div class="item"><span class="v">0.76</span><span class="l">RTF</span></div>
+      <div class="item"><span class="v">55</span><span class="l">기록된 실험 실행 수</span></div>
+      <div class="item"><span class="v">0건</span><span class="l">가짜 이벤트(FP)</span></div>
+    </div>
+    <div class="callout"><b>REDRED</b>&nbsp;— 조강희 · 정현수 · 박준영, 서울대학교 전기정보공학부. 감사합니다.</div>
+  </div>
+  <div class="slide-num">14 / 15</div>
+</section>
+
+<!-- ============ SLIDE 15 : 부록 ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <span class="backup-badge">BACKUP · 부록</span>
+    <h2 class="title">확정 파라미터 &amp; 개발 타임라인</h2>
+    <div class="param-block"><b>WINDOW_SIZE</b> = 25          <span style="color:var(--text-faint);"># median 슬라이딩 윈도우</span>
+<b>CONFIRM_FRAMES</b> = 30       <span style="color:var(--text-faint);"># 이벤트 확정 연속 프레임(~2초, skip=2 기준)</span>
+<b>MAX_DELTA</b> = 4             <span style="color:var(--text-faint);"># 1회 이벤트당 허용 최대 변화량</span>
+<b>MAX_INVENTORY</b> = 1         <span style="color:var(--text-faint);"># 슬롯당 물리적 최대 재고</span>
+
+<b>CLASS_QUORUM_OVERRIDE</b> = {2:2, 53:1, 54:1, 15:1, 39:1, 21:1, 29:2, 42:1}
+<b>CLASS_CAM_WHITELIST</b>    = {43:[0], 42:[3,4], 54:[3]}
+<b>per_class_confirm</b>      = {"11":99, "43":74, "56":41}</div>
+
+    <table class="ctable">
+      <tr><th>기간</th><th>내용</th></tr>
+      <tr><td class="val">06-19</td><td>초기 파이프라인 구축</td></tr>
+      <tr><td class="val">06-21~23</td><td>EventDetector 버그 수정, GT/채점 체계 확립</td></tr>
+      <tr><td class="val">06-24~25</td><td>트래커, 채점 기준 정비, 브랜치 정리</td></tr>
+      <tr><td class="val">06-26~28</td><td>카메라 가중치, CSV 포맷 확정, YOLO11 시도/기각, 논문 기법 시도</td></tr>
+      <tr><td class="val">06-30</td><td>KD 모델 튜닝, 논문 기법(SeqNMS/EMA/Ghost/WBF) 실패 기록</td></tr>
+      <tr><td class="val">07-01</td><td>campbells/monster_energy 순서 역전 해결 → Order F1 100%, 리더보드 실험 로그 구축</td></tr>
+    </table>
+  </div>
+  <div class="slide-num">15 / 15</div>
+</section>
+
+<div class="navbar">
+  <button id="prevBtn" aria-label="이전 슬라이드">‹</button>
+  <span class="count" id="countLabel">1 / 16</span>
+  <button id="nextBtn" aria-label="다음 슬라이드">›</button>
+</div>
+
+<script>
+(function(){
+  var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
+  var countLabel = document.getElementById('countLabel');
+  var current = 0;
+
+  function setCurrent(i){
+    current = Math.max(0, Math.min(slides.length - 1, i));
+    countLabel.textContent = (current + 1) + ' / ' + slides.length;
+  }
+
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting && e.intersectionRatio > 0.6){
+        setCurrent(slides.indexOf(e.target));
+      }
+    });
+  }, {threshold:[0.6]});
+  slides.forEach(function(s){ io.observe(s); });
+
+  function goTo(i){
+    slides[Math.max(0, Math.min(slides.length - 1, i))].scrollIntoView({behavior:'smooth'});
+  }
+  document.getElementById('nextBtn').addEventListener('click', function(){ goTo(current + 1); });
+  document.getElementById('prevBtn').addEventListener('click', function(){ goTo(current - 1); });
+
+  window.addEventListener('keydown', function(ev){
+    if(['ArrowDown','ArrowRight','PageDown',' '].indexOf(ev.key) > -1){ ev.preventDefault(); goTo(current + 1); }
+    else if(['ArrowUp','ArrowLeft','PageUp'].indexOf(ev.key) > -1){ ev.preventDefault(); goTo(current - 1); }
+    else if(ev.key === 'Home'){ ev.preventDefault(); goTo(0); }
+    else if(ev.key === 'End'){ ev.preventDefault(); goTo(slides.length - 1); }
+  });
+})();
+</script>
