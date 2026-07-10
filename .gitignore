@@ -14,13 +14,18 @@ env/
 venv/
 
 # Project-specific
+# NOTE (2026-07-10): submission_*.csv / sub_*_timed.csv / candidate_*.csv / timed_*.csv /
+# probe_*.txt used to be un-ignored (tracked) here. That caused git checkout to refuse
+# switching between main <-> feat/rfdetr-sam2 whenever these regenerated-every-run files
+# differed between branches ("would be overwritten by checkout"). Historic 100% results
+# are preserved permanently in git history (see the "rescue:" commits) -- these paths no
+# longer need live tracking, so they're gitignored to keep branch switching friction-free
+# for anyone (including evaluators) re-running the pipeline on the server.
 output/*
 !output/.gitkeep
 !output/leaderboard.csv
 !output/leaderboard.html
 !output/per_cam_*.csv
-!output/submission_*.csv
-!output/sub_*_timed.csv
 submission_draft.csv
 *.pt
 *.mp4
