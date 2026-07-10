@@ -1,10 +1,13 @@
 #!/bin/bash
 # Final_submission/ 폴더를 조립하는 스크립트.
-# main 브랜치(YOLOv7)와 feat/rfdetr-sam2 브랜치(RF-DETR+SAM2, 메인 제출모델)에서
-# git archive로 실행에 필요한 파일만 뽑아온다. 브랜치 전환(checkout) 없이 동작하므로
-# 현재 어느 브랜치에 있든 실행 가능.
+# origin/main(YOLOv7)과 origin/feat/rfdetr-sam2(RF-DETR+SAM2, 메인 제출모델)의
+# 원격 추적 브랜치에서 git show로 실행에 필요한 파일만 뽑아온다.
+# 로컬 브랜치를 checkout/merge/pull 할 필요가 전혀 없음 — 현재 어느 브랜치에 있든,
+# 로컬에 어떤 변경사항이 있든 안전하게 실행 가능(로컬 상태를 전혀 안 건드림).
 #
-# Usage: bash tools/build_final_submission.sh
+# Usage:
+#   git fetch origin   # 원격 최신 커밋만 받아옴 (merge/checkout 없음, 충돌 불가능)
+#   bash tools/build_final_submission.sh
 set -e
 
 OUT=~/Final_submission
@@ -16,32 +19,32 @@ mkdir -p "$OUT/weights_file"
 
 echo "=== RF-DETR+SAM2 (메인) 파일 추출 — feat/rfdetr-sam2 브랜치 ==="
 for f in src/rfdetr_native_pipeline.py src/infer_rfdetr.py src/rfdetr_margin_infer.py; do
-    git show feat/rfdetr-sam2:"$f" > "$OUT/rfdetr_sam2/$f"
+    git show origin/feat/rfdetr-sam2:"$f" > "$OUT/rfdetr_sam2/$f"
 done
-git show feat/rfdetr-sam2:config/rfdetr_native_class_config_v2_reinforced.json > "$OUT/rfdetr_sam2/config/rfdetr_native_class_config_v2_reinforced.json"
+git show origin/feat/rfdetr-sam2:config/rfdetr_native_class_config_v2_reinforced.json > "$OUT/rfdetr_sam2/config/rfdetr_native_class_config_v2_reinforced.json"
 for f in tools/score.py tools/score_methods.py tools/yolo_to_coco.py tools/sam2_video_label.py; do
-    git show feat/rfdetr-sam2:"$f" > "$OUT/rfdetr_sam2/$f"
+    git show origin/feat/rfdetr-sam2:"$f" > "$OUT/rfdetr_sam2/$f"
 done
 for f in data/names.txt data/prices.csv data/ground_truth_v2.csv; do
-    git show feat/rfdetr-sam2:"$f" > "$OUT/rfdetr_sam2/$f"
+    git show origin/feat/rfdetr-sam2:"$f" > "$OUT/rfdetr_sam2/$f"
 done
-git show feat/rfdetr-sam2:run_test_rfdetr_native.sh > "$OUT/rfdetr_sam2/run_test_rfdetr_native.sh"
-git show feat/rfdetr-sam2:requirements.txt > "$OUT/rfdetr_sam2/requirements.txt"
-git show feat/rfdetr-sam2:setup_rfdetr_env.sh > "$OUT/rfdetr_sam2/setup_rfdetr_env.sh"
+git show origin/feat/rfdetr-sam2:run_test_rfdetr_native.sh > "$OUT/rfdetr_sam2/run_test_rfdetr_native.sh"
+git show origin/feat/rfdetr-sam2:requirements.txt > "$OUT/rfdetr_sam2/requirements.txt"
+git show origin/feat/rfdetr-sam2:setup_rfdetr_env.sh > "$OUT/rfdetr_sam2/setup_rfdetr_env.sh"
 chmod +x "$OUT/rfdetr_sam2/run_test_rfdetr_native.sh" "$OUT/rfdetr_sam2/setup_rfdetr_env.sh"
 
 echo "=== YOLOv7 (비교모델) 파일 추출 — main 브랜치 ==="
 for f in src/run_pipeline.py src/event_detector.py src/multi_view_fusion.py src/tracker.py src/csv_generator.py; do
-    git show main:"$f" > "$OUT/yolov7/$f"
+    git show origin/main:"$f" > "$OUT/yolov7/$f"
 done
 for f in tools/score.py tools/score_methods.py; do
-    git show main:"$f" > "$OUT/yolov7/$f"
+    git show origin/main:"$f" > "$OUT/yolov7/$f"
 done
 for f in data/names.txt data/prices.csv data/ground_truth_v2.csv; do
-    git show main:"$f" > "$OUT/yolov7/$f"
+    git show origin/main:"$f" > "$OUT/yolov7/$f"
 done
-git show main:run_test.sh > "$OUT/yolov7/run_test.sh"
-git show main:requirements.txt > "$OUT/yolov7/requirements.txt"
+git show origin/main:run_test.sh > "$OUT/yolov7/run_test.sh"
+git show origin/main:requirements.txt > "$OUT/yolov7/requirements.txt"
 chmod +x "$OUT/yolov7/run_test.sh"
 
 echo "=== 가중치 파일 복사 ==="
