@@ -5,6 +5,22 @@
 
 ---
 
+## 2026-07-10 — 최종 제출 준비: RTF 완전검증 + Final_submission 조립 + git 버그 수정 (박준영+Claude)
+
+**절대 최신 상태.**
+
+- **제출 마감 연장**: 공지("최종 보고서 제출 및 발표 안내", 2026-07-09 게시) 확인 결과 2026-07-12(일)→**2026-07-14(화) 밤 12:00**으로 연장됨. 최종 발표는 별개로 2026-07-15(수) 19:00 Zoom.
+- **RTF 완전 검증 완료**: 서버 부하 없는 상태에서 YOLOv7/RF-DETR 재실행 재현 테스트 — **YOLOv7 RTF=0.745(≈기록값 0.763), RF-DETR RTF=0.6888(≈기록값 0.6856)**, 둘 다 Count/Order/Time F1 100% 동시 재확인. RF-DETR 가중치(`runs/rfdetr/checkpoint_best_total.pth`)도 sha256 체크섬으로 mAP 0.9045를 낸 그 파일과 완전 동일함을 확인(`f2f1e159...`).
+- **git checkout이 브랜치 전환마다 실패하던 버그 근본 수정**: `output/submission_*.csv`/`sub_*_timed.csv`/`candidate_native.csv`/`timed_native.csv`/`probe_*.txt`가 main과 feat/rfdetr-sam2에 서로 다른 내용으로 tracked돼 있어서 반복적으로 "would be overwritten by checkout" 에러 발생(YOLOv7 실행 후 브랜치 전환이 안 된 채 재실행되어 milano 회귀가 재현되는 혼란도 있었음). `.gitignore`에서 해당 패턴을 un-ignore하던 예외를 제거하고 `git rm --cached`로 추적 해제, main/feat/rfdetr-sam2 양쪽 커밋+push 완료. 이제 브랜치 전환이 항상 깨끗하게 동작함.
+- **`Final_submission/` 폴더 서버에 조립 완료** — `tools/build_final_submission.sh`(main·feat/rfdetr-sam2 양쪽에 커밋됨)가 `origin/main`/`origin/feat/rfdetr-sam2` 원격 추적 브랜치에서 `git show`로 필요한 파일만 뽑아와 조립(로컬 브랜치 checkout/merge 불필요, 로컬 상태와 완전히 독립적으로 동작). 결과: `rfdetr_sam2/`(메인 제출모델, 14개 파일) + `yolov7/`(비교모델, 10개 파일) + `weights_file/`(checkpoint_best_total.pth + yolov7_custom.pt, 총 411MB). `Final_submission_README.txt`(양쪽 브랜치에 커밋)에 conda 환경/실행법/결과경로/두 모델 비교 전부 명시.
+- **최종 제출 방침**: RF-DETR+SAM2를 메인 제출 모델로, YOLOv7을 비교/검증 모델로 **둘 다** 제출(공지에 "결과파일 1개만"이라는 제한이 없음을 원문 재확인). 근거: RF-DETR이 정확도(100%) 동일 + RTF 우위(0.6856<0.763) + 자체 학습 가중치(SAM2 보강)라는 실질적 기여가 있는 반면, YOLOv7은 대회 제공 가중치를 그대로 쓴 것이라 가중치 자체는 팀 기여가 없음(파이프라인 엔지니어링만 팀 기여).
+- **발표자료(`발표자료_slides.html`, main) 완성 및 push 완료**: 22슬라이드, 라이트 테마, 공지 PPT 필수 6항목(배경/문제정의, 아이디어상세, 알고리즘구성, 실험결과, 최종결과, 배운점) 전부 커버 확인. RF-DETR 파이프라인을 3슬라이드로 상세화(Noisy-OR 수식, 12차원 JSON config 시스템, SAM2 3단계 문턱). "11라운드 튜닝 여정" 서사는 PPT에서 빼고 최종보고서용으로 별도 보관(`report_draft_learning_process.md`). 렌더링본 `REDRED_1.pdf`도 커밋됨.
+
+**Why:** 심사관이 실제로 서버에 접속해 코드를 직접 실행할 예정이라, RTF/mAP 수치의 신뢰성과 git 브랜치 전환이 걸림돌 없이 동작하는 것 둘 다 실질적으로 중요했음.
+**How to apply:** 남은 작업은 최종보고서(Word/HWP, 학습과정 섹션은 `report_draft_learning_process.md` 활용) + 개인정보동의서(팀원 3명 서명) + 팀번호 확인. `Final_submission/` 폴더는 서버 `~/Final_submission`에 이미 조립됨, 재조립 필요시 `git fetch origin && bash tools/build_final_submission.sh`.
+
+---
+
 ## 현재 상태 (2026-07-01 최종)
 
 파이프라인 정상 동작 중. `data/ground_truth_v2.csv`(105개 실측 이벤트, **시간 포함**)가 현재 기준 GT — `tools/score_methods.py`로 3가지 방식 동시 채점.
