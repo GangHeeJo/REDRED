@@ -1,6 +1,8 @@
 #!/bin/bash
 # RF-DETR 전용 새 파이프라인(rfdetr_native_pipeline.py) 테스트
-# Usage: bash run_test_rfdetr_native.sh [skip=3] [conf=0.35] [weights=...] [fusion_mode=vote|noisy_or] [use_margin=0|1] [class_config=...]
+# 기본값 = 2026-07-04 round11-b 100% F1 달성 설정 그대로. 인자 없이 그냥
+# `bash run_test_rfdetr_native.sh` 실행하면 그 결과가 재현됨.
+# Usage: bash run_test_rfdetr_native.sh [skip=3] [conf=0.35] [weights=...] [fusion_mode=noisy_or] [use_margin=0] [class_config=...]
 set -e
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate rfdetr
@@ -8,9 +10,9 @@ conda activate rfdetr
 SKIP=${1:-3}
 CONF=${2:-0.35}
 WEIGHTS="${3:-runs/rfdetr/checkpoint_best_total.pth}"
-FUSION_MODE="${4:-vote}"
+FUSION_MODE="${4:-noisy_or}"
 USE_MARGIN="${5:-0}"
-CLASS_CONFIG="${6:-config/rfdetr_native_class_config.json}"
+CLASS_CONFIG="${6:-config/rfdetr_native_class_config_v2_reinforced.json}"
 MARGIN_FLAG=""
 MARGIN_TAG="nomargin"
 if [ "$USE_MARGIN" = "1" ]; then
