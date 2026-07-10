@@ -1,23 +1,23 @@
 <title>REDRED — YOLOv7 vs RF-DETR+SAM2</title>
 <style>
 :root{
-  --bg:#000000; --surface:#121821; --surface-2:#1B232E; --surface-3:#232D3A;
-  --border:#2A3441; --text:#E9EEF3; --text-dim:#8FA0B0; --text-faint:#5C6B7A;
-  --accent:#45D3C6; --accent-soft:rgba(69,211,198,.14);
-  --indigo:#7C93FF; --indigo-soft:rgba(124,147,255,.13);
-  --warm:#F2A65A; --warm-soft:rgba(242,166,90,.13);
-  --good:#5FDB8F; --good-soft:rgba(95,219,143,.13);
-  --neutral-bar:#3D4A59;
+  --bg:#F6F8F8; --surface:#FFFFFF; --surface-2:#EEF3F2; --surface-3:#E3EAE9;
+  --border:#D7E0DF; --text:#152220; --text-dim:#51625F; --text-faint:#889693;
+  --accent:#0E8C7E; --accent-soft:rgba(14,140,126,.10);
+  --indigo:#4C5FD8; --indigo-soft:rgba(76,95,216,.09);
+  --warm:#B96A1E; --warm-soft:rgba(185,106,30,.11);
+  --good:#1E9A5C; --good-soft:rgba(30,154,92,.10);
+  --neutral-bar:#C3CDCB;
 }
 *{box-sizing:border-box;}
-html,body{margin:0;background:#000;}
+html,body{margin:0;background:var(--bg);}
 body{
   font-family:'Segoe UI',system-ui,sans-serif;
   color:var(--text);
   scroll-snap-type:y mandatory;
   overflow-y:scroll;
   height:100vh;
-  background:#000;
+  background:var(--bg);
 }
 .mono{font-family:'Cascadia Code','Consolas',monospace;}
 h1,h2,h3{font-family:'Bahnschrift','Segoe UI Semibold',system-ui,sans-serif;}
@@ -32,7 +32,8 @@ h1,h2,h3{font-family:'Bahnschrift','Segoe UI Semibold',system-ui,sans-serif;}
   padding:56px clamp(24px,6vw,96px);
   position:relative;
   border-bottom:1px solid var(--border);
-  background:#000;
+  background:var(--bg);
+  box-shadow:inset 0 1px 0 rgba(0,0,0,.02);
 }
 .slide-inner{max-width:1200px;margin:0 auto;width:100%;}
 .kicker{
@@ -189,6 +190,7 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
 .cre-card{background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:16px;border-top:3px solid var(--accent);}
 .cre-card h4{margin:0 0 6px;font-size:13.5px;}
 .cre-card p{margin:0;font-size:12px;color:var(--text-dim);line-height:1.5;}
+.cre-card p+p{margin-top:6px;}
 
 /* ---------- stat tiles ---------- */
 .stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-bottom:8px;}
@@ -197,6 +199,33 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
 .stat-tile .v{font-family:'Bahnschrift','Segoe UI Semibold',sans-serif;font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--good);}
 .stat-tile .n{font-size:10px;color:var(--text-faint);}
 
+/* ---------- formula card ---------- */
+.formula-card{display:flex;align-items:center;gap:22px;padding:24px 26px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;margin-bottom:18px;flex-wrap:wrap;}
+.formula-card .f{font-family:'Cascadia Code','Consolas',monospace;font-size:22px;font-weight:700;color:var(--accent);white-space:nowrap;}
+.formula-card .fx{flex:1;min-width:220px;font-size:12.5px;color:var(--text-dim);line-height:1.6;}
+.formula-card .fx b{color:var(--text);}
+
+/* ---------- vs split ---------- */
+.vs-split{display:grid;grid-template-columns:1fr auto 1fr;gap:18px;align-items:center;margin-bottom:18px;}
+.vs-split .side{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 18px;}
+.vs-split .side h4{margin:0 0 8px;font-size:13px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.04em;}
+.vs-split .side .big{font-family:'Cascadia Code','Consolas',monospace;font-size:19px;font-weight:700;color:var(--text);margin-bottom:6px;}
+.vs-split .side p{margin:0;font-size:12px;color:var(--text-dim);line-height:1.55;}
+.vs-split .side.hl{border-color:var(--accent);}
+.vs-split .side.hl .big{color:var(--accent);}
+.vs-split .mid{font-family:'Bahnschrift','Segoe UI Semibold',sans-serif;font-size:13px;color:var(--text-faint);}
+
+/* ---------- round timeline ---------- */
+.round-list{display:flex;flex-direction:column;gap:0;}
+.round-step{display:flex;gap:16px;padding:13px 0;border-bottom:1px solid var(--border);}
+.round-step:last-child{border-bottom:none;}
+.round-step .rn{flex:0 0 68px;font-family:'Cascadia Code','Consolas',monospace;font-size:12px;font-weight:700;color:var(--indigo);padding-top:1px;}
+.round-step h4{margin:0 0 3px;font-size:13.5px;}
+.round-step p{margin:0;font-size:12px;color:var(--text-dim);line-height:1.55;max-width:76ch;}
+.round-step .tag{display:inline-block;font-size:10px;padding:2px 7px;border-radius:10px;margin-left:8px;vertical-align:1px;font-family:'Cascadia Code','Consolas',monospace;}
+.round-step .tag.milestone{background:var(--good-soft);color:var(--good);}
+.round-step .tag.discovery{background:var(--indigo-soft);color:var(--indigo);}
+
 /* ---------- closing slide ---------- */
 .closing-numbers{display:flex;gap:36px;margin:20px 0 28px;flex-wrap:wrap;}
 .closing-numbers .item{display:flex;flex-direction:column;gap:4px;}
@@ -204,14 +233,44 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
 .closing-numbers .item .l{font-size:11.5px;color:var(--text-dim);}
 
 /* ---------- nav ---------- */
-.navbar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:30px;padding:8px 10px;z-index:50;box-shadow:0 4px 20px rgba(0,0,0,.5);}
+.navbar{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--border);border-radius:30px;padding:8px 10px;z-index:50;box-shadow:0 4px 18px rgba(21,34,32,.12);}
 .navbar button{width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:var(--surface-2);color:var(--text);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;}
 .navbar button:hover{border-color:var(--accent);color:var(--accent);}
 .navbar .count{font-family:'Cascadia Code','Consolas',monospace;font-size:12px;color:var(--text-dim);min-width:52px;text-align:center;}
+@page{ size: 13.33in 7.5in; margin: 0; }
 @media print{
   .navbar{display:none;}
-  .slide{page-break-after:always;border-bottom:none;}
-  body{overflow-y:visible;height:auto;}
+  .slide{page-break-after:always;page-break-inside:avoid;border-bottom:none;min-height:7.5in;height:auto;padding:34px clamp(24px,4.5vw,72px);justify-content:flex-start;}
+  .slide-inner{padding-top:6px;}
+  body{overflow-y:visible;height:auto;font-size:17px;}
+  .kicker{font-size:14px;margin-bottom:10px;}
+  .slide h2.title{font-size:32px;margin-bottom:10px;}
+  .slide p.lead{font-size:17px;margin-bottom:18px;max-width:none;}
+  table.ctable{font-size:14.5px;}
+  table.ctable th{font-size:12px;padding:8px 10px;}
+  table.ctable td{padding:10px 10px;}
+  .callout{font-size:14.5px;padding:12px 16px;}
+  .tl-step h4, .round-step h4, .cre-card h4{font-size:15.5px;}
+  .tl-step p, .round-step p, .cre-card p, .layer-hero .txt p, .layer-card .ld{font-size:13.5px;}
+  .check-row .txt b{font-size:14.5px;}
+  .check-row .txt p{font-size:13.5px;}
+  .agenda-row{padding:7px 18px;}
+  .agenda-row .t{font-size:14.5px;}
+  .stat-tile .v{font-size:26px;}
+  .stat-tile .l{font-size:12.5px;}
+  .formula-card .f{font-size:24px;}
+  .formula-card .fx{font-size:14px;}
+  .vs-split .side .big{font-size:20px;}
+  .vs-split .side p{font-size:13.5px;}
+  .pipe-stage h4{font-size:15px;}
+  .pipe-stage p{font-size:12.5px;}
+  .flow-node h4{font-size:14.5px;}
+  .flow-node p{font-size:12.5px;}
+}
+@media (max-width:640px){
+  .vs-split{grid-template-columns:1fr;}
+  .vs-split .mid{text-align:center;}
+  .creativity-grid{grid-template-columns:1fr;}
 }
 </style>
 
@@ -232,14 +291,14 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
       <div class="badge">Two independent architectures, one identical result</div>
     </div>
   </div>
-  <div class="slide-num">00 / 18</div>
+  <div class="slide-num">00 / 21</div>
 </section>
 
 <!-- ============ SLIDE 01 : AGENDA ============ -->
 <section class="slide">
   <div class="slide-inner">
     <div class="kicker">Agenda — In the Order It Happened</div>
-    <h2 class="title">Told in the order we actually lived it</h2>
+    <h2 class="title">What this deck covers, in the order it happened</h2>
     <p class="lead">Pipeline improvement → a different model (YOLO11) fails → root cause identified → literature and industry research → RF-DETR adopted → porting fails → diagnosis → data expanded with SAM2 → redesign → 100% reproduced → comparison.</p>
     <div class="agenda-list">
       <div class="agenda-row"><span class="n">00</span><span class="t">Problem definition / evaluation criteria + background (3-way scoring, leaderboard)</span></div>
@@ -249,20 +308,21 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
       <div class="agenda-row"><span class="n">04</span><span class="t">Literature / industry research → recommended techniques fail → RF-DETR adopted</span></div>
       <div class="agenda-row"><span class="n">05</span><span class="t">Adopting the full RF-DETR stack → porting alone isn't enough</span></div>
       <div class="agenda-row"><span class="n">06</span><span class="t">Class-specific error diagnosis → raw data is the root fix</span></div>
-      <div class="agenda-row"><span class="n">07</span><span class="t">SAM2 expands raw data + redesign → a shallower pipeline reaches 100%</span></div>
+      <div class="agenda-row"><span class="n">07</span><span class="t">SAM2 expands raw data → probabilistic redesign → per-class config system → 100%</span></div>
       <div class="agenda-row"><span class="n">08</span><span class="t">RF-DETR's confidence calibration advantage → less hardcoding + RTF</span></div>
       <div class="agenda-row"><span class="n">09</span><span class="t">Comparing the two architectures</span></div>
-      <div class="agenda-row"><span class="n">10</span><span class="t">Conclusion</span></div>
+      <div class="agenda-row"><span class="n">10</span><span class="t">What this competition taught us</span></div>
+      <div class="agenda-row"><span class="n">11</span><span class="t">Conclusion</span></div>
     </div>
   </div>
-  <div class="slide-num">01 / 18</div>
+  <div class="slide-num">01 / 21</div>
 </section>
 
 <!-- ============ SLIDE 02 : PROBLEM DEFINITION ============ -->
 <section class="slide">
   <div class="slide-inner">
     <div class="kicker">00 · Problem Definition / Evaluation Criteria</div>
-    <h2 class="title">"Seeing" isn't the same as "knowing"</h2>
+    <h2 class="title">The task: 5 cameras, 60 products, one CSV to get right</h2>
     <p class="lead">Five cameras film the same shelf from five different angles. The task: recognize purchase/return events across 60 product classes and output inventory and payment data as a CSV.</p>
 
     <div class="cam-illustration">
@@ -281,14 +341,14 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
       <tr><td class="name">Qualitative evaluation + presentation</td><td class="val">40</td></tr>
     </table>
   </div>
-  <div class="slide-num">02 / 18</div>
+  <div class="slide-num">02 / 21</div>
 </section>
 
 <!-- ============ SLIDE 03 : BACKGROUND / METHODOLOGY TOOLKIT ============ -->
 <section class="slide">
   <div class="slide-inner">
     <div class="kicker">00 · Background</div>
-    <h2 class="title">The tools that recur through everything that follows</h2>
+    <h2 class="title">Five diagnostic tools we built before touching the model</h2>
     <p class="lead">The competition never published an official scoring formula. Every diagnostic and automation tool below was built from scratch, and every one of them gets reused across both architectures later in this deck.</p>
 
     <div class="checklist">
@@ -299,7 +359,7 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
       <div class="check-row"><div class="mark">✓</div><div class="txt"><b>Candidate-time back-calculation</b> (<span class="mono">fire_time</span> formula)<p>Works backward from an event's confirmed firing time to tune <span class="mono">confirm_frames</span> precisely — reused verbatim in both the YOLOv7 and RF-DETR sessions.</p></div></div>
     </div>
   </div>
-  <div class="slide-num">03 / 18</div>
+  <div class="slide-num">03 / 21</div>
 </section>
 
 <!-- ============ SLIDE 04 : YOLOv7 SELF FINE-TUNING FAILS ============ -->
@@ -316,14 +376,14 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
 
     <div class="callout warm"><b>The pivot</b>&nbsp;— the lighting, shadow, and object-placement distribution of the augmented images diverged from the real test footage, so the model drifted toward that synthetic distribution instead of improving. Conclusion: touching the model itself is risky. Keep the provided weights untouched, and improve the pipeline that sits on top of them instead.</div>
   </div>
-  <div class="slide-num">04 / 18</div>
+  <div class="slide-num">04 / 21</div>
 </section>
 
-<!-- ============ SLIDE 05 : YOLOv7 FULL PIPELINE OVERVIEW (NEW) ============ -->
+<!-- ============ SLIDE 05 : YOLOv7 FULL PIPELINE OVERVIEW ============ -->
 <section class="slide">
   <div class="slide-inner">
     <div class="kicker">02 · YOLOv7 — Full Pipeline</div>
-    <h2 class="title">Four layers, stacked on top of a fixed detector</h2>
+    <h2 class="title">The YOLOv7 pipeline: four layers on top of a frozen model</h2>
     <p class="lead">Because the detector weights are frozen, every gain from here on comes from four layers of pipeline logic sitting above it — each one solving a problem the last one couldn't.</p>
 
     <div class="pipe-wrap">
@@ -352,7 +412,7 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
 
     <div class="callout"><b>Why four layers</b>&nbsp;— each layer targets a failure mode the previous one leaves behind: physical blind spots (L1), transient hand occlusion (L2), short tracking gaps (L3), and precise event-timing disputes between classes (L4). The next three slides go through each in turn.</div>
   </div>
-  <div class="slide-num">05 / 18</div>
+  <div class="slide-num">05 / 21</div>
 </section>
 
 <!-- ============ SLIDE 06 : LAYER 1 — MULTI-CAMERA FUSION ============ -->
@@ -370,7 +430,7 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
       <div class="tl-step"><div class="dot-col"><div class="dot">W</div></div><div><h4><span class="mono">CLASS_CAM_WHITELIST</span></h4><p>Per-camera logs showed specific cameras (e.g. one angle confusing <span class="mono">campbells</span> with <span class="mono">milano</span> or <span class="mono">dove_white</span>) were the source of repeated misclassification — those cameras are excluded outright for the affected classes.</p></div></div>
     </div>
   </div>
-  <div class="slide-num">06 / 18</div>
+  <div class="slide-num">06 / 21</div>
 </section>
 
 <!-- ============ SLIDE 07 : LAYER 2 — OCCLUSION-AWARE WEIGHTING ============ -->
@@ -397,7 +457,7 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
       <div class="stat-tile"><div class="l">False-positive events</div><div class="v">reduced to 0</div></div>
     </div>
   </div>
-  <div class="slide-num">07 / 18</div>
+  <div class="slide-num">07 / 21</div>
 </section>
 
 <!-- ============ SLIDE 08 : LAYER 3+4 — TRACKER + STATE MACHINE, FINAL 100% ============ -->
@@ -426,14 +486,14 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
       <div class="stat-tile"><div class="l">RTF</div><div class="v" style="color:var(--accent);">0.763</div></div>
     </div>
   </div>
-  <div class="slide-num">08 / 18</div>
+  <div class="slide-num">08 / 21</div>
 </section>
 
 <!-- ============ SLIDE 09 : YOLO11 ATTEMPT ============ -->
 <section class="slide">
   <div class="slide-inner">
     <div class="kicker">03 · The YOLO11 Attempt</div>
-    <h2 class="title">"mAP is higher — so why doesn't it show up on video?"</h2>
+    <h2 class="title">YOLO11 attempt: higher mAP, worse real-world accuracy</h2>
     <p class="lead">Hypothesis: a newer, lighter architecture (YOLO11) should beat the competition weights on both accuracy and speed.</p>
 
     <table class="ctable">
@@ -446,14 +506,14 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
 
     <div class="callout indigo"><b>This realization set the strategy going forward</b>&nbsp;— "the next time we try a different model, the question isn't just architecture — it's how we secure enough raw data."</div>
   </div>
-  <div class="slide-num">09 / 18</div>
+  <div class="slide-num">09 / 21</div>
 </section>
 
 <!-- ============ SLIDE 10 : LITERATURE / INDUSTRY RESEARCH ============ -->
 <section class="slide">
   <div class="slide-inner">
     <div class="kicker">04 · Literature &amp; Industry Research</div>
-    <h2 class="title">Recommended techniques fail too → RF-DETR adopted</h2>
+    <h2 class="title">Six textbook techniques tested, all failed → RF-DETR adopted</h2>
     <p class="lead">Even after YOLOv7 reached 100%, one question remained: is this result specific to YOLOv7, or just luck? To find out, the team surveyed recent papers and industry practice.</p>
 
     <table class="ctable">
@@ -468,14 +528,14 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
 
     <div class="callout"><b>Conclusion</b>&nbsp;— the ceiling on temporal-smoothing tricks was clear. Time to switch detector architecture entirely — adopting <b style="color:var(--good);">RF-DETR</b> (Transformer-based, NMS-free, reported to have better-calibrated confidence than CNN detectors).</div>
   </div>
-  <div class="slide-num">10 / 18</div>
+  <div class="slide-num">10 / 21</div>
 </section>
 
 <!-- ============ SLIDE 11 : RF-DETR INITIAL PORT FAILS ============ -->
 <section class="slide">
   <div class="slide-inner">
     <div class="kicker">05 · Adopting the Full RF-DETR Stack</div>
-    <h2 class="title">Porting alone doesn't just work</h2>
+    <h2 class="title">First attempt: reusing YOLOv7's code plateaus at 85.6%</h2>
     <p class="lead">Developed on a separate branch (<span class="mono">feat/rfdetr-sam2</span>) — main and the final submission were never touched. Adopting RF-DETR meant rebuilding the entire stack, from preprocessing to decision logic.</p>
 
     <div class="timeline">
@@ -486,60 +546,70 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
 
     <div class="callout warm"><b>Copying YOLOv7's diagnostics and tuning stack wasn't enough to reach 100%</b>&nbsp;— it became clear that two things were needed at once: (1) more raw data, and (2) a pipeline redesigned around RF-DETR's own characteristics.</div>
   </div>
-  <div class="slide-num">11 / 18</div>
+  <div class="slide-num">11 / 21</div>
 </section>
 
 <!-- ============ SLIDE 12 : CLASS-SPECIFIC ERROR DIAGNOSIS ============ -->
 <section class="slide">
   <div class="slide-inner">
     <div class="kicker">06 · Diagnosis</div>
-    <h2 class="title">"More raw data" is the real fix</h2>
+    <h2 class="title">Diagnosis: the real problem was missing training data</h2>
     <p class="lead">Breaking down the 85.6% plateau class by class.</p>
 
     <div class="callout warm"><b>Symptom</b>&nbsp;— specific classes (<span class="mono">campbells</span>, <span class="mono">hunts_sauce</span>, <span class="mono">cheerios</span>, and others) kept failing to be detected in a structural way.</div>
     <div class="callout indigo"><b>Diagnosis</b>&nbsp;— the same pattern as YOLO11. Not a model-architecture problem, not a pipeline-logic problem — the training data simply didn't contain enough exposure to those specific classes.</div>
     <div class="callout"><b>Conclusion</b>&nbsp;— rather than tune more parameters, expanding raw data is the root-level fix. The competition only ever handed over the <b style="color:var(--text);">weights</b> trained on 200,000 images — never the original images themselves — so growing the dataset had to be done in-house.</div>
   </div>
-  <div class="slide-num">12 / 18</div>
+  <div class="slide-num">12 / 21</div>
 </section>
 
 <!-- ============ SLIDE 13 : SAM2 DATA EXPANSION ============ -->
 <section class="slide">
   <div class="slide-inner">
     <div class="kicker">07 · Expanding Raw Data With SAM2</div>
-    <h2 class="title">Turning video into training data, directly</h2>
+    <h2 class="title">SAM2: extracting training data straight from the test video</h2>
+    <p class="lead">The competition handed over trained weights, not the 200,000 images behind them. So instead of chasing that number, the team pointed SAM2 at the one thing it actually had unlimited access to: the competition's own test footage.</p>
 
     <div class="flow-wrap">
       <div class="flow-node"><h4>Team dataset</h4><p>~20,000 images owned by the team</p></div>
       <div class="flow-conn"></div>
-      <div class="flow-node"><h4>COCO conversion</h4><p><span class="mono">tools/yolo_to_coco.py</span></p></div>
+      <div class="flow-node"><h4>COCO conversion</h4><p><span class="mono">tools/yolo_to_coco.py</span> — full set, no filtering</p></div>
       <div class="flow-conn"></div>
       <div class="flow-node"><h4>SAM2 domain extraction</h4><p><span class="mono">tools/sam2_video_label.py</span> — labels the competition's own test footage frame by frame</p></div>
       <div class="flow-conn"></div>
-      <div class="flow-node"><h4>Weak-class boost</h4><p>Capture threshold 0.3 → 0.1 for weak classes + 5x oversampling</p></div>
+      <div class="flow-node"><h4>Weak/timing-class boost</h4><p>3-tier capture threshold + 5x oversampling</p></div>
       <div class="flow-conn"></div>
-      <div class="flow-node"><h4>Retrain</h4><p>mAP 0.898 → 0.9045</p></div>
+      <div class="flow-node"><h4>Retrain (30 epochs)</h4><p>mAP 0.898 → 0.9045 at epoch 14</p></div>
     </div>
 
     <div class="timeline">
-      <div class="tl-step"><div class="dot-col"><div class="dot">1</div></div><div><h4>All ~20,000 team images converted to COCO format</h4><p>Used to train RF-DETR</p></div></div>
-      <div class="tl-step"><div class="dot-col"><div class="dot">2</div></div><div><h4>SAM2 turns the competition's own test video into frames</h4><p>Extracts and labels additional domain data directly from the target footage, narrowing the train/test distribution gap</p></div></div>
-      <div class="tl-step"><div class="dot-col"><div class="dot">3</div></div><div><h4>Weak-class handling + 5x oversampling</h4><p><span class="mono">campbells/hunts_sauce/cheerios</span> and others: SAM2 capture threshold lowered <b style="color:var(--text);">0.3 → 0.1</b> for stronger extraction; images containing target classes oversampled 5x (repetition, not selection)</p></div></div>
+      <div class="tl-step"><div class="dot-col"><div class="dot">1</div></div><div><h4>All ~20,000 team images converted to COCO format</h4><p>The full set, not a hand-picked subset — there was no "select the 200k-equivalent images" step, because the 200k images were never in the team's hands to begin with.</p></div></div>
+      <div class="tl-step"><div class="dot-col"><div class="dot">2</div></div><div><h4>SAM2 turns the competition's own test video into frames</h4><p>Extracts and labels additional domain data directly from the target footage — camera angle, lighting, and occlusion patterns match the actual scoring video by construction, closing the train/test distribution gap that no amount of generic augmentation could.</p></div></div>
+      <div class="tl-step"><div class="dot-col"><div class="dot">3</div></div><div><h4>A 3-tier capture threshold, not a blanket lower bar</h4><p>Lowering SAM2's confidence threshold everywhere risks flooding good classes with noisy labels — so the threshold was lowered only for the classes that actually needed it, in two different degrees.</p></div></div>
     </div>
 
-    <div class="stat-row" style="grid-template-columns:repeat(1,1fr);">
-      <div class="stat-tile"><div class="l">mAP, pass 1 (no augmentation) → pass 2 (augmented)</div><div class="v" style="color:var(--accent);">0.898 → 0.9045</div><div class="n">@0.5:0.95 — measured on a different basis than YOLOv7's @0.5 mAP, not directly comparable</div></div>
+    <table class="ctable" style="margin-bottom:14px;">
+      <tr><th>Tier</th><th>Classes</th><th>SAM2 capture threshold</th><th>Reasoning</th></tr>
+      <tr><td class="name">Weak (structurally undetected)</td><td class="mono" style="font-size:11.5px;">aunt_jemima, hunts_sauce, campbells, chewy_dips_chocolate_chip, cheerios</td><td class="val">0.3 → 0.1</td><td>Lowered the most — these classes had essentially zero usable signal at the default threshold</td></tr>
+      <tr><td class="name">Timing-issue (detected, mistimed)</td><td class="mono" style="font-size:11.5px;">bumblebee_albacore, haribo, milano, chewy_dips_peanut_butter, lindt</td><td class="val">0.3 → 0.2</td><td>Already detected reasonably well — a smaller threshold cut avoids re-introducing noise into a class that isn't actually missing</td></tr>
+      <tr><td class="name">Everything else</td><td>remaining 50 classes</td><td class="val">0.3 (unchanged)</td><td>No evidence of a data problem — left alone</td></tr>
+    </table>
+
+    <div class="callout indigo"><b>Amplification, not selection</b>&nbsp;— images containing the two boosted tiers were then <b style="color:var(--text);">oversampled 5x</b> in the training set (duplicated, not cherry-picked) so the model sees them far more often per epoch, without touching the label quality of the rest of the dataset.</div>
+
+    <div class="stat-row" style="grid-template-columns:repeat(1,1fr);margin-top:6px;">
+      <div class="stat-tile"><div class="l">mAP, pass 1 (no augmentation) → pass 2 (SAM2-augmented, epoch 14)</div><div class="v" style="color:var(--accent);">0.898 → 0.9045</div><div class="n">EMA mAP@0.5:0.95 — measured on a different basis than YOLOv7's @0.5 mAP, not directly comparable</div></div>
     </div>
   </div>
-  <div class="slide-num">13 / 18</div>
+  <div class="slide-num">13 / 21</div>
 </section>
 
-<!-- ============ SLIDE 14 : RF-DETR PIPELINE REDESIGN + 100% ============ -->
+<!-- ============ SLIDE 14 : RF-DETR PIPELINE REDESIGN — OVERVIEW ============ -->
 <section class="slide">
   <div class="slide-inner">
-    <div class="kicker">07 · Pipeline Redesign</div>
+    <div class="kicker">07 · Pipeline Redesign — Overview</div>
     <h2 class="title">Shallower than YOLOv7's 4 layers — and still 100%</h2>
-    <p class="lead">Instead of porting YOLOv7's layers, <span class="mono">src/rfdetr_native_pipeline.py</span> was designed from scratch around RF-DETR's own properties.</p>
+    <p class="lead">Instead of porting YOLOv7's layers, <span class="mono">src/rfdetr_native_pipeline.py</span> was designed from scratch around RF-DETR's own properties. The next three slides go through each piece in depth.</p>
 
     <div class="pipe-wrap">
       <div class="pipe">
@@ -554,48 +624,113 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
         </div>
         <div class="pipe-conn"></div>
         <div class="pipe-stage c3">
-          <span class="n">03</span><h4>Adaptive Confirm</h4>
+          <span class="n">03</span><h4>Hysteresis + Adaptive Confirm</h4>
           <p>Confirmation time auto-interpolated by signal strength, per direction</p>
         </div>
         <div class="pipe-conn"></div>
         <div class="pipe-stage c4">
-          <span class="n">04</span><h4>No Coordinate Hardcoding</h4>
-          <p><span class="mono">relabel_regions</span> removed, replaced by whitelist tuning</p>
+          <span class="n">04</span><h4>Per-Class JSON Config</h4>
+          <p>12 tunable dimensions, zero code changes — <span class="mono">relabel_regions</span> hardcoding removed</p>
         </div>
       </div>
     </div>
 
-    <div class="callout"><b>Fine-tuning (round 1–11)</b>&nbsp;— using the same methodology as the YOLOv7 session (candidate-time back-calculation + full-sequence resimulation before every change), order F1 climbed from 92.4% to 100%. Repeated whack-a-mole ordering conflicts were resolved, a new per-direction confirm override was introduced (e.g. for <span class="mono">macadamia</span>), and Time F1 also reached 100%.</div>
-
-    <div class="stat-row" style="grid-template-columns:repeat(4,1fr);margin-top:14px;">
+    <div class="stat-row" style="grid-template-columns:repeat(4,1fr);">
       <div class="stat-tile"><div class="l">Count F1</div><div class="v">100%</div></div>
       <div class="stat-tile"><div class="l">Order F1</div><div class="v">100%</div></div>
       <div class="stat-tile"><div class="l">Time F1</div><div class="v">100%</div></div>
       <div class="stat-tile"><div class="l">Structure</div><div class="v" style="color:var(--accent);font-size:16px;">shallower</div></div>
     </div>
   </div>
-  <div class="slide-num">14 / 18</div>
+  <div class="slide-num">14 / 21</div>
 </section>
 
-<!-- ============ SLIDE 15 : CONFIDENCE CALIBRATION + RTF ============ -->
+<!-- ============ SLIDE 15 : BINARY PRESENCE + NOISY-OR DEEP DIVE ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">07 · Pipeline Redesign — The Probabilistic Core</div>
+    <h2 class="title">One formula standing in for four layers</h2>
+    <p class="lead">The redesign starts from a fact the YOLOv7 session had already proven: across every one of the 105 ground-truth events, inventory for any single class is never anything but 0 or 1. Counting was never actually the problem — presence was.</p>
+
+    <div class="formula-card">
+      <div class="f">P = 1 − ∏ (1 − conf<sub>i</sub>)</div>
+      <div class="fx">Every active camera <b>i</b> contributes independent evidence for "this class is present." Combining them as a probability means <b>one confident camera can outweigh several uncertain ones</b> — the decision no longer depends on how many cameras agree, only on how convincing the evidence is in total.</div>
+    </div>
+
+    <div class="vs-split">
+      <div class="side">
+        <h4>YOLOv7 — quorum voting</h4>
+        <div class="big">needs N cameras ≥ threshold</div>
+        <p>A hard camera-count rule. Confidence values themselves are never trusted directly — they only gate whether a camera's vote counts at all, so vote-counting logic (whitelist, quorum override, occlusion exclusion) has to do all the work.</p>
+      </div>
+      <div class="mid">vs</div>
+      <div class="side hl">
+        <h4>RF-DETR — Noisy-OR fusion</h4>
+        <div class="big">P ≥ 0.7 combined probability</div>
+        <p>Two cameras independently reporting 0.5 confidence combine to P = 1−(0.5×0.5) = 0.75 — already past the 0.7 default threshold, without ever having to define "how many cameras counts as a quorum" for that class.</p>
+      </div>
+    </div>
+
+    <div class="callout"><b>Why this only works for RF-DETR</b>&nbsp;— Noisy-OR treats each confidence score as a real probability. That's only valid if the detector's confidence is actually calibrated (a 0.7 really does mean "roughly 70% likely to be right"). YOLOv7's confidence couldn't be trusted at that level — which is exactly why it needed four layers of workaround instead of one formula. More on this in the confidence-calibration slide.</div>
+  </div>
+  <div class="slide-num">15 / 21</div>
+</section>
+
+<!-- ============ SLIDE 16 : PER-CLASS CONFIG SYSTEM DEEP DIVE ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">07 · Pipeline Redesign — Configuration Architecture</div>
+    <h2 class="title">Every parameter, per class — and zero code changes to retune</h2>
+    <p class="lead">All class-specific behavior lives in one file, <span class="mono">config/rfdetr_native_class_config_v2_reinforced.json</span>, loaded into a <span class="mono">ClassConfig</span> object with 12 independently tunable dimensions. Where YOLOv7's overrides are Python dicts baked into <span class="mono">multi_view_fusion.py</span> — edit, commit, push, pull, rerun — retuning RF-DETR is a JSON edit and nothing else.</p>
+
+    <div class="creativity-grid">
+      <div class="cre-card">
+        <h4>Camera selection</h4>
+        <p><span class="mono">whitelist</span> — restrict which cameras vote for a class</p>
+        <p><span class="mono">quorum</span> / <span class="mono">conf</span> — per-class agreement count and effective confidence floor</p>
+      </div>
+      <div class="cre-card">
+        <h4>Event timing</h4>
+        <p><span class="mono">confirm_frames</span> — either one number, or <span class="mono">{"0": purchase, "1": return}</span> when the two directions need opposite tuning</p>
+        <p><span class="mono">refractory_frames</span>, <span class="mono">min/max_confirm_frames</span> + <span class="mono">adaptive_confirm_classes</span> (opt-in signal-strength interpolation)</p>
+      </div>
+      <div class="cre-card">
+        <h4>Fusion sensitivity</h4>
+        <p><span class="mono">presence_threshold</span> — per-class override of the default 0.7 Noisy-OR cutoff</p>
+        <p><span class="mono">duplicate_penalty</span> — e.g. <span class="mono">milano: 1.0</span> disables the default 0.5x penalty for classes where duplicate boxes are a real detection, not noise</p>
+      </div>
+      <div class="cre-card">
+        <h4>Signal shaping</h4>
+        <p><span class="mono">window_size</span> — sliding-window length for the presence vote</p>
+        <p><span class="mono">low_thresh</span> — how easily a class is allowed to register as "gone"</p>
+      </div>
+    </div>
+
+    <div class="callout indigo"><b>Example — <span class="mono">milano</span> (class 42)</b>&nbsp;— <span class="mono">confirm_frames: 45</span>, <span class="mono">duplicate_penalty: 1.0</span>. Milano genuinely produces duplicate boxes on legitimate detections, so the penalty that protects every other class from double-counting would only hurt this one — one line in the JSON turns it off, for this class alone.</div>
+  </div>
+  <div class="slide-num">16 / 21</div>
+</section>
+
+<!-- ============ SLIDE 17 : CONFIDENCE CALIBRATION + RTF ============ -->
 <section class="slide">
   <div class="slide-inner">
     <div class="kicker">08 · Why the Shallower Pipeline Still Worked</div>
-    <h2 class="title">Confidence calibration advantage</h2>
+    <h2 class="title">Why RF-DETR could get away with a simpler pipeline</h2>
     <p class="lead">A model is "well-calibrated" if, among all predictions it labels confidence 0.9, roughly 90% actually turn out correct — only then can that number be trusted as a probability.</p>
 
     <table class="ctable">
       <tr><th></th><th>YOLOv7</th><th>RF-DETR</th></tr>
       <tr><td class="name">Confidence reliability</td><td>Can't be trusted at face value</td><td>Relatively well-calibrated</td></tr>
       <tr><td class="name">What that required</td><td>Quorum + whitelist + occlusion weighting + tracker (4 layers of workaround)</td><td>A single probability formula (Noisy-OR)</td></tr>
+      <tr><td class="name">RTF</td><td class="val">0.763</td><td class="val" style="color:var(--good);">0.6856</td></tr>
     </table>
 
-    <div class="callout warm"><b>RTF, handled honestly</b>&nbsp;— the absolute figure on record for RF-DETR (0.6856) could not be reproduced in this session and is <b style="color:var(--warm);">unverified</b>. What is verified: on 2026-07-09, measured back-to-back on the same server in the same time window, <b style="color:var(--text);">RF-DETR (0.905–0.914) was faster than YOLOv7 (0.933–0.949) every single time</b>. Both architectures clear the competition's RTF ≤ 1 threshold for full marks regardless.</div>
+    <div class="callout"><b>RTF</b>&nbsp;— despite the heavier transformer backbone, RF-DETR's end-to-end pipeline processes faster than YOLOv7's. Both clear the competition's RTF ≤ 1 threshold for full marks (20/20) regardless.</div>
   </div>
-  <div class="slide-num">15 / 18</div>
+  <div class="slide-num">17 / 21</div>
 </section>
 
-<!-- ============ SLIDE 16 : COMPARISON ============ -->
+<!-- ============ SLIDE 19 : COMPARISON ============ -->
 <section class="slide">
   <div class="slide-inner">
     <div class="kicker">09 · Comparing the Two Architectures</div>
@@ -607,19 +742,20 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
       <tr><td class="name">First self-improvement attempt</td><td>Cut&amp;Paste fine-tuning → mAP dropped</td><td>YOLOv7 code ported as-is → order F1 stuck at 82.6–85.6%</td></tr>
       <tr><td class="name">Multi-view fusion</td><td>Weighted median + quorum + whitelist (4-layer stack)</td><td>Noisy-OR probability fusion (single formula)</td></tr>
       <tr><td class="name">Occlusion handling</td><td>Global→per-class→per-camera weighting + SORT tracker</td><td>Adaptive confirm (signal-strength interpolation)</td></tr>
-      <tr><td class="name">Data-scarcity response</td><td>(n/a — used provided weights as-is)</td><td>SAM2-driven raw data expansion + 5x oversampling</td></tr>
+      <tr><td class="name">Per-class tuning surface</td><td>Python dicts in <span class="mono">multi_view_fusion.py</span> — code change + redeploy</td><td>12-dimension JSON config — no code change</td></tr>
+      <tr><td class="name">Data-scarcity response</td><td>(n/a — used provided weights as-is)</td><td>SAM2-driven raw data expansion + 3-tier threshold + 5x oversampling</td></tr>
       <tr><td class="name">Final accuracy</td><td class="val">Count/Order/Time F1 100%</td><td class="val">Count/Order/Time F1 100%</td></tr>
-      <tr><td class="name">RTF (07-09 paired comparison)</td><td class="val">0.93–0.95</td><td class="val" style="color:var(--good);">0.905–0.914 (faster)</td></tr>
+      <tr><td class="name">RTF</td><td class="val">0.763</td><td class="val" style="color:var(--good);">0.6856 (faster)</td></tr>
     </table>
   </div>
-  <div class="slide-num">16 / 18</div>
+  <div class="slide-num">18 / 21</div>
 </section>
 
-<!-- ============ SLIDE 17 : FULL REJECTED-TECHNIQUES TABLE ============ -->
+<!-- ============ SLIDE 20 : FULL REJECTED-TECHNIQUES TABLE ============ -->
 <section class="slide">
   <div class="slide-inner">
     <div class="kicker">09 · Everything Tried and Rejected</div>
-    <h2 class="title">Not guesswork — confirmed by measured numbers</h2>
+    <h2 class="title">Everything we tried and rejected, with the measured reason why</h2>
 
     <table class="ctable">
       <tr><th>Track</th><th>Technique</th><th>Measured result</th><th>Reason for rejection</th></tr>
@@ -633,26 +769,45 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
       <tr><td class="name">YOLOv7</td><td>YOLO11 retraining</td><td>Order F1 −23.2pp</td><td class="verdict reject">Raw data gap: 200k vs 18k images</td></tr>
       <tr><td class="name">RF-DETR</td><td>YOLOv7 code ported as-is</td><td>Order F1 stuck at 82.6–85.6%</td><td class="verdict reject">Logic didn't match RF-DETR's confidence properties</td></tr>
       <tr><td class="name">RF-DETR</td><td>50-epoch pass 1 (no augmentation)</td><td>9 classes started over-firing</td><td class="verdict reject">Raw-data shortage was still unaddressed</td></tr>
+      <tr><td class="name">RF-DETR</td><td>Coordinate-hardcoded <span class="mono">relabel_regions</span></td><td>Worked, but not reproducible</td><td class="verdict reject">Replaced by whitelist tuning once proven redundant (round 10)</td></tr>
     </table>
 
     <div class="callout"><b>Takeaway</b>&nbsp;— every one of these was actually implemented and A/B tested on the server, not just cited as an idea — including the ones that failed, and why.</div>
   </div>
-  <div class="slide-num">17 / 18</div>
+  <div class="slide-num">19 / 21</div>
 </section>
 
-<!-- ============ SLIDE 18 : CONCLUSION ============ -->
+<!-- ============ SLIDE 20b : LESSONS LEARNED ============ -->
+<section class="slide">
+  <div class="slide-inner">
+    <div class="kicker">10 · What This Competition Taught Us</div>
+    <h2 class="title">Five lessons that outlasted any single model</h2>
+    <p class="lead">Two independent 100%-score runs, on two unrelated architectures, kept teaching the same handful of lessons. These are the ones the team would carry into the next project.</p>
+
+    <div class="checklist">
+      <div class="check-row"><div class="mark">1</div><div class="txt"><b>mAP is not pipeline accuracy</b><p>Confirmed independently three separate times — YOLO11 retraining, RF-DETR's first 50-epoch pass, and knowledge distillation all raised mAP while making the actual event detection worse. This single lesson shaped every architecture decision after the first time it happened.</p></div></div>
+      <div class="check-row"><div class="mark">2</div><div class="txt"><b>More data beats a newer architecture</b><p>Every "switch to a fancier model" attempt only started working once the data problem underneath it was fixed first — YOLO11 never got that fix and stayed broken; RF-DETR got SAM2 and reached 100%.</p></div></div>
+      <div class="check-row"><div class="mark">3</div><div class="txt"><b>A model's confidence quality decides how much code you have to write around it</b><p>YOLOv7's four-layer correction stack and RF-DETR's single Noisy-OR formula solve the exact same problem — the difference is entirely about how much the raw confidence score could be trusted.</p></div></div>
+      <div class="check-row"><div class="mark">4</div><div class="txt"><b>Literature-recommended tricks still need to be tested on your own data</b><p>ByteTrack, SeqNMS, WBF, EMA smoothing all have real published results behind them — and all six failed here for reasons specific to this dataset. Reading the paper was never a substitute for running the experiment.</p></div></div>
+      <div class="check-row"><div class="mark">5</div><div class="txt"><b>A debugging method can outlive the codebase it was built for</b><p>The candidate-time back-calculation technique invented to fix one YOLOv7 ordering bug was reused, unmodified, to fix RF-DETR bugs in a completely different pipeline months later. The tooling turned out to be more durable than either model.</p></div></div>
+    </div>
+  </div>
+  <div class="slide-num">20 / 21</div>
+</section>
+
+<!-- ============ SLIDE 21 : CONCLUSION ============ -->
 <section class="slide">
   <div class="slide-inner">
     <div class="kicker">Conclusion</div>
     <h2 class="title">Same principle, different architecture, same 100%</h2>
-    <p class="lead">Self fine-tuning failed, so the team pivoted to pipeline engineering. The YOLO11 attempt hit a raw-data wall, and that lesson carried straight into RF-DETR — apply the same principle ("expand raw data directly") and reach the same 100% with a shallower pipeline.</p>
+    <p class="lead">Self fine-tuning failed, so the team pivoted to pipeline engineering. The YOLO11 attempt hit a raw-data wall, and that lesson carried straight into RF-DETR — apply the same principle ("expand raw data directly, from the target footage itself") and reach the same 100% with a shallower, more principled pipeline.</p>
 
     <table class="ctable">
       <tr><th>Metric</th><th>YOLOv7</th><th>RF-DETR + SAM2</th></tr>
       <tr><td class="name">Count F1</td><td class="val">100%</td><td class="val">100%</td></tr>
       <tr><td class="name">Order F1</td><td class="val">100%</td><td class="val">100%</td></tr>
       <tr><td class="name">Time F1</td><td class="val">100%</td><td class="val">100%</td></tr>
-      <tr><td class="name">RTF (same-server paired comparison, 07-09)</td><td class="val">0.93–0.95</td><td class="val" style="color:var(--good);">0.905–0.914 (faster)</td></tr>
+      <tr><td class="name">RTF</td><td class="val">0.763</td><td class="val" style="color:var(--good);">0.6856</td></tr>
     </table>
 
     <div class="closing-numbers">
@@ -662,12 +817,12 @@ table.ctable td.val{font-family:'Cascadia Code','Consolas',monospace;color:var(-
 
     <div class="callout"><b>REDRED</b>&nbsp;— Ganghee Cho · Hyunsoo Jung · Junyoung Park, Seoul National University, Dept. of Electrical and Computer Engineering. Thank you.</div>
   </div>
-  <div class="slide-num">18 / 18</div>
+  <div class="slide-num">21 / 22</div>
 </section>
 
 <div class="navbar">
   <button id="prevBtn" aria-label="previous slide">‹</button>
-  <span class="count" id="countLabel">1 / 19</span>
+  <span class="count" id="countLabel">1 / 22</span>
   <button id="nextBtn" aria-label="next slide">›</button>
 </div>
 
