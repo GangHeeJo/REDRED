@@ -6,7 +6,6 @@ SKIP=${1:-2}
 DESC=${2:-"skip=${SKIP} $(date '+%m-%d %H:%M')"}
 YOLOV7=~/yolov7
 WEIGHTS=~/Dataset/yolov7_custom.pt
-mkdir -p output
 
 PYTHONPATH=$YOLOV7 python src/run_pipeline.py \
     --videos ~/Dataset/4.TestVideo_Sample/cam0/Sample_1.mp4 \
